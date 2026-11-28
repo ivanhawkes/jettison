@@ -188,7 +188,6 @@ float ScaleFor(const ThemeSettings &settings)
 struct Applied
 {
 	ThemeSettings settings;
-	bool linearise{true};
 	bool themed{false};
 };
 
@@ -207,11 +206,11 @@ Applied &GetApplied()
 // by the context's address: measured, a context made after the themed one takes its address and starts
 // stock, because ImGuiStyle's constructor writes the stock values over whatever the last context
 // left in the block, so an address key would answer "already themed" to a stock style.
-bool StyleIsApplied(const ThemeSettings &settings, bool linearise)
+bool StyleIsApplied(const ThemeSettings &settings)
 {
 	const ImGuiStyle &style = ImGui::GetStyle();
 	const float scale = ScaleFor(settings);
-	const Rgba ground = PaletteColour(settings.palette, Token::Background, kPanelAlpha, linearise);
+	const Rgba ground = PaletteColour(settings.palette, Token::Background, kPanelAlpha);
 
 	// The same expressions ApplyTheme writes, so the comparison is exact; a fresh context fails it,
 	// measured, at padding 8 against 12 and a colour of its own against the palette's.
@@ -220,14 +219,6 @@ bool StyleIsApplied(const ThemeSettings &settings, bool linearise)
 	       style.Colors[ImGuiCol_WindowBg].w == ground.a;
 }
 } // namespace
-
-
-float DecodeSrgb(float encoded)
-{
-	// sRGB's transfer function, the piecewise one: the linear part for the darkest values, where a
-	// power of a near-zero would otherwise lose its precision.
-	return encoded <= 0.04045f ? encoded / 12.92f : std::powf((encoded + 0.055f) / 1.055f, 2.4f);
-}
 
 
 void RegisterThemeTypes()
@@ -271,13 +262,11 @@ std::span<const Palette> PaletteVariants()
 }
 
 
-Rgba PaletteColour(Palette palette, Token token, float alpha, bool linearise)
+Rgba PaletteColour(Palette palette, Token token, float alpha)
 {
 	const Rgb &rgb = Tokens(palette)[static_cast<std::size_t>(token)];
 	const auto encoded = [](std::uint8_t byte) { return static_cast<float>(byte) / 255.0f; };
-	if (!linearise)
-		return {encoded(rgb.r), encoded(rgb.g), encoded(rgb.b), alpha};
-	return {DecodeSrgb(encoded(rgb.r)), DecodeSrgb(encoded(rgb.g)), DecodeSrgb(encoded(rgb.b)), alpha};
+	return {encoded(rgb.r), encoded(rgb.g), encoded(rgb.b), alpha};
 }
 
 
@@ -305,22 +294,20 @@ Token LineToken(const ConsoleLine &line)
 
 Rgba ColourOf(Token token, float alpha)
 {
-	Applied &applied = GetApplied();
-	return PaletteColour(applied.settings.palette, token, alpha, applied.linearise);
+	return PaletteColour(GetApplied().settings.palette, token, alpha);
 }
 
 
-void ApplyTheme(const ThemeSettings &settings, bool swapchainEncodesSrgb)
+void ApplyTheme(const ThemeSettings &settings)
 {
 	ImGuiStyle &style = ImGui::GetStyle();
 	ImGui::StyleColorsDark(&style); // The baseline for the fields this theme does not name.
-	const bool linearise = swapchainEncodesSrgb;
 	const Palette palette = settings.palette;
 	const float scale = ScaleFor(settings);
 
-	const auto set = [palette, linearise, &style](ImGuiCol colour, Token token, float alpha = 1.0f)
+	const auto set = [palette, &style](ImGuiCol colour, Token token, float alpha = 1.0f)
 	{
-		const Rgba rgba = PaletteColour(palette, token, alpha, linearise);
+		const Rgba rgba = PaletteColour(palette, token, alpha);
 		style.Colors[colour] = {rgba.r, rgba.g, rgba.b, rgba.a};
 	};
 
@@ -447,21 +434,19 @@ void ApplyTheme(const ThemeSettings &settings, bool swapchainEncodesSrgb)
 
 	Applied &applied = GetApplied();
 	applied.settings = settings;
-	applied.linearise = linearise;
 	applied.themed = true;
 }
 
 
-bool ApplyThemeIfChanged(const ThemeSettings &settings, bool swapchainEncodesSrgb)
+bool ApplyThemeIfChanged(const ThemeSettings &settings)
 {
 	// The settings alone are not enough to say the style is themed (StyleIsApplied says why): a run
 	// that tears its renderer down, and every test that makes a context, gets the theme again with
 	// its settings unchanged.
 	const Applied &applied = GetApplied();
-	if (applied.themed && applied.settings == settings && applied.linearise == swapchainEncodesSrgb &&
-	    StyleIsApplied(settings, swapchainEncodesSrgb))
+	if (applied.themed && applied.settings == settings && StyleIsApplied(settings))
 		return false;
-	ApplyTheme(settings, swapchainEncodesSrgb);
+	ApplyTheme(settings);
 	return true;
 }
 

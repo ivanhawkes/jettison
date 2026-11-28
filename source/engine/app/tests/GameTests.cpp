@@ -235,12 +235,6 @@ class FadeRenderer final : public Render::IRenderer
 	}
 
 
-	bool UiColoursLinearised() const override
-	{
-		return true;
-	}
-
-
 	bool Render(
 	    const Scene::Scene & /*scene*/, const Render::DebugDraw & /*debug*/,
 	    const Render::Overlay & /*overlay*/, double /*seconds*/) override

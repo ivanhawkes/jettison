@@ -20,6 +20,7 @@ jettison_compile_shaders(jettison_assets
 	shaders/atmosphere.frag
 	shaders/brdf_lut.frag
 	shaders/glass.frag
+	shaders/imgui.frag
 	shaders/particle.vert
 	shaders/particle.frag
 	shaders/particles.comp

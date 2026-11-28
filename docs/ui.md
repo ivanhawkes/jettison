@@ -415,24 +415,27 @@ are in the mono face. The console binds it as `dev.palette`, `dev.ui_scale` and
 `dev.console_mono`, and the dev tools window's controls write the same fields, so the mouse and
 the console cannot disagree. The shell calls `ApplyThemeIfChanged` from `DrawUI` every frame,
 which does nothing when nothing changed, so a change lands on the next frame. It is applied there
-rather than at start-up because the palette depends on the attachment the dev tools draw into, and
-only the renderer knows that (`IRenderer::UiColoursLinearised`).
+rather than at start-up because the style belongs to the ImGui context, which the renderer makes.
 
 Two rules in the theme are easy to break, so the code states them:
 
 - **"Changed" is read from the style, not remembered by the context's address.** A context made
   after a themed one can reuse its address and start with ImGui's stock style, so the check
   compares the last settings applied, then reads the style's own fields.
-- **The palette is fed in linear light on an sRGB swapchain.** The dev tools draw straight into the
-  swapchain, which encodes what it is given, so a colour fed as its own bytes lands lighter than the
-  palette says. On a UNORM swapchain, which a compositor may hand over, the palette is fed as
-  authored. The game UI's `overlay.frag` follows the same contract.
+- **The palette goes to ImGui as written, and the UI's shader decodes it.** ImGui packs a vertex
+  colour into 8-bit bytes, so the style hands over the palette's own bytes. The dev tools draw
+  straight into the swapchain; on an sRGB one, which encodes what it is given, the backend's
+  fragment stage (`assets/shaders/imgui.frag`) decodes the colour in floats first, and on a UNORM
+  one, which a compositor may hand over, ImGui's own stage stores the bytes as they are. The game
+  UI's `overlay.frag` follows the same contract. Decoded before the packing instead, as the style
+  was until 2026-11-28, the darkest tones landed up to four steps off (`#1e1e2e` as `#1c1c2e`).
 
-ImGui packs a vertex colour into 8-bit bytes before the attachment encodes it, so the palette is
-exact in the mid and light tones and up to four 8-bit steps off at the darkest (measured
-2026-11-17; Mocha's text `#cdd6f4` lands exact, its base `#1e1e2e` lands as `#1c1c2e`). Exact
-darks are open work ([J26](roadmap.md#j26)). `dev.ui_scale` is clamped to 0.25 to 4, because a
-scale far enough below that drives ImGui's metrics past what `NewFrame` accepts.
+Every palette colour lands on the frame as written, which `ThemeTests.cpp` checks over all 264
+channels, and a capture shows (2026-11-28, lavapipe): the panel ground `#1e1e2e`, the title bar
+`#181825` and the input field `#11111b`, where the frame before the change read `#1c1c2e`,
+`#161626` and `#0d0d1c`. A panel is 97 % opaque, so it reads exactly where what is under it is
+as dark as it is. `dev.ui_scale` is clamped to 0.25 to 4, because a scale far enough below that
+drives ImGui's metrics past what `NewFrame` accepts.
 
 The fonts are rasterised at the size the spacing assumes (`ImGuiRenderer::kFontSize`, 16): Roboto
 Medium for the UI and Hack for the console's lines. `render/src/vulkan/imgui/FontFaces.h` records

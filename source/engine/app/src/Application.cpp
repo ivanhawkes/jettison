@@ -1501,11 +1501,10 @@ void Application::Tick()
 
 void Application::DrawUI()
 {
-	// The theme is applied here and not at start-up, because it wants the attachment the UI draws
-	// into: on an sRGB swapchain its palette goes to that attachment in linear light, so a hex reads
-	// as the palette writes it (devtools/Theme.h). One call a frame, and it does nothing when nothing
-	// has changed, which is how `dev.palette mocha` takes effect on the frame after it is typed.
-	DevTools::ApplyThemeIfChanged(m_theme, m_pRenderer->UiColoursLinearised());
+	// One call a frame, and it does nothing when nothing has changed, which is how `dev.palette mocha`
+	// takes effect on the frame after it is typed. It is here, once the renderer has made the UI's
+	// context, because the style is that context's.
+	DevTools::ApplyThemeIfChanged(m_theme);
 	m_pRenderer->BeginUi();
 	if (m_showUI)
 	{

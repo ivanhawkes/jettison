@@ -66,8 +66,14 @@ class HeadlessImGui
 };
 
 
-// sRGB's encoding, the inverse of DecodeSrgb, so the theme's decode is checked by the conversion
-// the attachment does: what the theme hands over, encoded again, is the palette's byte.
+// sRGB's decoding, as the UI's fragment stage does it (colour.glsl's SrgbToLinear), and its encoding,
+// as an sRGB attachment does it, so the path a colour takes to the frame is modelled stage by stage.
+float DecodeSrgb(float encoded)
+{
+	return encoded <= 0.04045f ? encoded / 12.92f : std::powf((encoded + 0.055f) / 1.055f, 2.4f);
+}
+
+
 float EncodeSrgb(float linear)
 {
 	return linear <= 0.0031308f ? linear * 12.92f : 1.055f * std::powf(linear, 1.0f / 2.4f) - 0.055f;
@@ -110,7 +116,7 @@ TEST_CASE("Theme: every palette colours every role, and the palette is what is a
 	{
 		for (std::size_t token = 0; token < kTokenCount; ++token)
 		{
-			const Rgba colour = PaletteColour(palette, Token(token), 0.75f, false);
+			const Rgba colour = PaletteColour(palette, Token(token), 0.75f);
 			CHECK(colour.a == doctest::Approx(0.75f));
 			for (const float channel : {colour.r, colour.g, colour.b})
 			{
@@ -132,140 +138,77 @@ TEST_CASE("Theme: every palette colours every role, and the palette is what is a
 	// table is read by index, so an entry out of step with the enum shows up as a control drawn in
 	// the wrong colour, and these are the ones that would be missed.
 	CHECK(
-	    PaletteColour(Palette::Mocha, Token::Background, 1.0f, false).r ==
+	    PaletteColour(Palette::Mocha, Token::Background, 1.0f).r ==
 	    doctest::Approx(0x1e / 255.0f)); // #1e1e2e base
 	CHECK(
-	    PaletteColour(Palette::Mocha, Token::Foreground, 1.0f, false).g ==
+	    PaletteColour(Palette::Mocha, Token::Foreground, 1.0f).g ==
 	    doctest::Approx(0xd6 / 255.0f)); // #cdd6f4 text
 	CHECK(
-	    PaletteColour(Palette::Mocha, Token::Primary, 1.0f, false).b ==
+	    PaletteColour(Palette::Mocha, Token::Primary, 1.0f).b ==
 	    doctest::Approx(0xfa / 255.0f)); // #89b4fa blue
 	CHECK(
-	    PaletteColour(Palette::Mocha, Token::OnPrimary, 1.0f, false).b ==
+	    PaletteColour(Palette::Mocha, Token::OnPrimary, 1.0f).b ==
 	    doctest::Approx(0x1b / 255.0f)); // #11111b crust, what sits on the blue
 	CHECK(
-	    PaletteColour(Palette::Mocha, Token::Focus, 1.0f, false).b ==
+	    PaletteColour(Palette::Mocha, Token::Focus, 1.0f).b ==
 	    doctest::Approx(0xfe / 255.0f)); // #b4befe lavender
 	CHECK(
-	    PaletteColour(Palette::Mocha, Token::Danger, 1.0f, false).r ==
+	    PaletteColour(Palette::Mocha, Token::Danger, 1.0f).r ==
 	    doctest::Approx(0xf3 / 255.0f)); // #f38ba8 red
 	CHECK(
-	    PaletteColour(Palette::Latte, Token::OnPrimary, 1.0f, false).r ==
+	    PaletteColour(Palette::Latte, Token::OnPrimary, 1.0f).r ==
 	    doctest::Approx(0xef / 255.0f)); // #eff1f5 base, the light variety writes pale on dark
 	CHECK(PaletteName(Palette::Mocha) == "mocha");
 	CHECK(PaletteVariants()[0] == Palette::Mocha); // the darkest first, one press to the next step
 }
 
 
-TEST_CASE("Theme: the palette goes to an sRGB attachment in linear light, so a hex reads as written")
+TEST_CASE("Theme: the palette goes to ImGui as written, and every hex lands on the frame as written")
 {
-	// The pairs the style is built from, measured: sRGB's darkest quarters decode far below the
-	// byte they come from, which is why feeding the byte itself lands lighter than the palette.
-	CHECK(DecodeSrgb(0x1e / 255.0f) == doctest::Approx(0.012983f).epsilon(0.001f)); // base
-	CHECK(DecodeSrgb(0x11 / 255.0f) == doctest::Approx(0.005605f).epsilon(0.001f)); // crust
-	CHECK(DecodeSrgb(0xcd / 255.0f) == doctest::Approx(0.610496f).epsilon(0.001f)); // text
-	CHECK(DecodeSrgb(0x00 / 255.0f) == 0.0f);
-	CHECK(DecodeSrgb(0xff / 255.0f) == doctest::Approx(1.0f));
-
-	// The linear part, under sRGB's knee, where a power of a near-zero loses its precision.
-	CHECK(DecodeSrgb(0.04045f / 2.0f) == doctest::Approx(0.04045f / 2.0f / 12.92f));
-
+	// The path a style colour takes to the frame: ImGui packs it into ImDrawVert::col, 8-bit bytes,
+	// by ColorConvertFloat4ToU32; on a UNORM attachment those bytes are stored as they are, and on an
+	// sRGB one the UI's fragment stage decodes them in floats (assets/shaders/imgui.frag) and the
+	// attachment encodes the result. Both are checked over the 264 channels of the 88 colours the
+	// four varieties give the 22 roles. Decoded before the packing, as the style was until
+	// 2026-11-28, 55 of them landed off by up to four steps, all at the dark end (#1e1e2e as
+	// #1c1c2e, docs/history/devtools-theme.md, F5).
 	HeadlessImGui imgui;
-	constexpr float kAlpha = 0.97f;
-	const Rgba linear = PaletteColour(Palette::Mocha, Token::Background, kAlpha, true);
-	const Rgba authored = PaletteColour(Palette::Mocha, Token::Background, kAlpha, false);
-	CHECK(ToByte(authored.r) == 0x1e);
-
-	// What the attachment does to what the theme hands it: the hex again, and not lighter.
-	for (const int channel : {0, 1, 2})
-		CHECK(
-		    ToByte(EncodeSrgb(
-		        channel == 0   ? linear.r
-		        : channel == 1 ? linear.g
-		                       : linear.b)) == ByteOf(Palette::Mocha, Token::Background, channel));
-	CHECK(linear.r < authored.r); // the naive feed would sit above the palette
-
-	// The vertex's packing is in the path, so the test that claims this contract goes through it: a
-	// style colour is quantised into ImDrawVert::col, 8-bit bytes, by ColorConvertFloat4ToU32, and
-	// the attachment encodes that. Measured over the 264 channels of the 88 colours the four
-	// varieties give the 22 roles, and recorded in docs/ui.md ("The dev tools' theme"): 209 channels
-	// land on the palette byte, 33 are one step away, 15 two, 2 three, 5 four, so the bound is 4. The
-	// four-step cases are the darkest channels, Mocha's crust and Latte's near-black blue; a one-step
-	// case reaches the mid tones of the three lighter varieties, and Mocha's mid and light tones,
-	// which is what a captured frame reads, land exact. The bound is not the contract: the landings
-	// the document names are asserted by name below.
-	int worst = 0;
-	std::array<int, 5> steps{}; // how many channels survive at 0, 1, 2, 3 and 4 byte-steps
+	int stored = 0;
+	int encoded = 0;
 	int channels = 0;
-	for (const Palette palette : PaletteVariants())
-		for (std::size_t token = 0; token < kTokenCount; ++token)
-		{
-			const Rgba decoded = PaletteColour(palette, Token(token), 1.0f, true);
-			const ImU32 vertex =
-			    ImGui::ColorConvertFloat4ToU32({decoded.r, decoded.g, decoded.b, 1.0f});
-			const std::array<std::uint8_t, 4> packed{
-			    static_cast<std::uint8_t>(vertex & 0xff),
-			    static_cast<std::uint8_t>((vertex >> 8) & 0xff),
-			    static_cast<std::uint8_t>((vertex >> 16) & 0xff),
-			    static_cast<std::uint8_t>((vertex >> 24) & 0xff)};
-			for (const int channel : {0, 1, 2})
-			{
-				const float asFloat =
-				    static_cast<float>(packed[static_cast<std::size_t>(channel)]) / 255.0f;
-				const int deviation = std::abs(
-				    static_cast<int>(ToByte(EncodeSrgb(asFloat))) -
-				    static_cast<int>(ByteOf(palette, Token(token), channel)));
-				worst = std::max(worst, deviation);
-				++steps[static_cast<std::size_t>(std::min(deviation, 4))];
-				++channels;
-			}
-		}
-	MESSAGE("worst byte-step deviation through the vertex packing: " << worst);
-	CHECK(worst <= 4);
-
-	// The distribution the document quotes, counted here rather than asserted from an example.
-	CHECK(channels == 264); // 22 roles, 4 varieties, 3 channels
-	CHECK(steps[0] == 209);
-	CHECK(steps[1] == 33);
-	CHECK(steps[2] == 15);
-	CHECK(steps[3] == 2);
-	CHECK(steps[4] == 5);
-
-	// The landings the document names, by name and not by the bound. A colour goes through the
-	// packing the way a draw list carries it, then through the attachment's encode, and the byte that
-	// reaches the framebuffer is what is asserted.
-	const auto landed = [](Palette palette, Token token, int channel) -> std::uint8_t
+	const auto packed = [](Palette palette, Token token)
 	{
-		const Rgba decoded = PaletteColour(palette, token, 1.0f, true);
-		const ImU32 vertex = ImGui::ColorConvertFloat4ToU32({decoded.r, decoded.g, decoded.b, 1.0f});
-		const std::array<std::uint8_t, 3> bytes{
+		const Rgba colour = PaletteColour(palette, token, 1.0f);
+		const ImU32 vertex = ImGui::ColorConvertFloat4ToU32({colour.r, colour.g, colour.b, 1.0f});
+		return std::array<std::uint8_t, 3>{
 		    static_cast<std::uint8_t>(vertex & 0xff), static_cast<std::uint8_t>((vertex >> 8) & 0xff),
 		    static_cast<std::uint8_t>((vertex >> 16) & 0xff)};
-		return ToByte(
-		    EncodeSrgb(static_cast<float>(bytes[static_cast<std::size_t>(channel)]) / 255.0f));
 	};
+	const auto landed = [&packed](Palette palette, Token token, int channel)
+	{
+		const std::uint8_t byte = packed(palette, token)[static_cast<std::size_t>(channel)];
+		return ToByte(EncodeSrgb(DecodeSrgb(static_cast<float>(byte) / 255.0f)));
+	};
+	for (const Palette palette : PaletteVariants())
+		for (std::size_t token = 0; token < kTokenCount; ++token)
+			for (const int channel : {0, 1, 2})
+			{
+				const std::uint8_t byte = ByteOf(palette, Token(token), channel);
+				stored += packed(palette, Token(token))[static_cast<std::size_t>(channel)] == byte;
+				encoded += landed(palette, Token(token), channel) == byte;
+				++channels;
+			}
+	CHECK(channels == 264); // 22 roles, 4 varieties, 3 channels
+	CHECK(stored == 264);
+	CHECK(encoded == 264);
 
-	// The four-step cases, the darkest channels of all: Mocha's crust, on which the primary colour's
-	// text sits, and Latte's near-black red of its blue.
-	CHECK(landed(Palette::Mocha, Token::Sunken, 0) == 0x0d); // #11111b crust
-	CHECK(landed(Palette::Mocha, Token::Sunken, 2) == 0x1c); // ... to #0d0d1c
-	CHECK(landed(Palette::Latte, Token::Info, 0) == 0x00);   // #04a5e5 blue, to #00a5e5
-
-	// Two steps, at the panel grounds of the dark varieties: Mocha's base and Macchiato's.
-	CHECK(landed(Palette::Mocha, Token::Background, 0) == 0x1c);     // #1e1e2e to #1c1c2e
-	CHECK(landed(Palette::Macchiato, Token::Background, 0) == 0x22); // #24273a
-
-	// One step, and it reaches the mid tones of the lighter varieties.
-	CHECK(landed(Palette::Macchiato, Token::Subtle, 2) == 0x63); // #494d64 to #494d63
-	CHECK(landed(Palette::Frappe, Token::Subtle, 1) == 0x56);    // #51576d to #51566d
-	CHECK(landed(Palette::Latte, Token::Foreground, 0) == 0x4b); // #4c4f69 to #4b4f69
-
-	// Mocha's mid and light tones, the two the captured frame measures, land on the palette itself.
-	CHECK(landed(Palette::Mocha, Token::Foreground, 0) == ByteOf(Palette::Mocha, Token::Foreground, 0));
-	CHECK(landed(Palette::Mocha, Token::Subtle, 2) == ByteOf(Palette::Mocha, Token::Subtle, 2));
-	CHECK(
-	    landed(Palette::Macchiato, Token::Foreground, 2) ==
-	    ByteOf(Palette::Macchiato, Token::Foreground, 2)); // #cad3f5, the live switch's text
+	// The landings the record named off the palette, by name: the darkest channels, Mocha's crust and
+	// Latte's near-black red of its blue, and the panel grounds of the dark varieties.
+	CHECK(landed(Palette::Mocha, Token::Sunken, 0) == 0x11); // #11111b crust, was #0d0d1c
+	CHECK(landed(Palette::Mocha, Token::Sunken, 2) == 0x1b);
+	CHECK(landed(Palette::Latte, Token::Info, 0) == 0x04);           // #04a5e5 sky, was #00a5e5
+	CHECK(landed(Palette::Mocha, Token::Background, 0) == 0x1e);     // #1e1e2e base, was #1c1c2e
+	CHECK(landed(Palette::Macchiato, Token::Background, 0) == 0x24); // #24273a base, was #22263b
 }
 
 
@@ -274,7 +217,7 @@ TEST_CASE("Theme: the style names every colour a dev tools window draws with")
 	HeadlessImGui imgui;
 	ImGuiStyle dark;
 	ImGui::StyleColorsDark(&dark);
-	ApplyTheme(ThemeSettings{}, true);
+	ApplyTheme(ThemeSettings{});
 	ImGuiStyle &style = ImGui::GetStyle();
 
 	std::vector<int> left;
@@ -303,7 +246,7 @@ TEST_CASE("Theme: the style names every colour a dev tools window draws with")
 TEST_CASE("Theme: the metrics are the design's spacing scale, and scale with its root size")
 {
 	HeadlessImGui imgui;
-	ApplyTheme(ThemeSettings{}, true);
+	ApplyTheme(ThemeSettings{});
 	ImGuiStyle &style = ImGui::GetStyle();
 	CHECK(style.FontSizeBase == 16.0f);      // text-base
 	CHECK(style.WindowPadding.x == 12.0f);   // p-3
@@ -324,7 +267,7 @@ TEST_CASE("Theme: the metrics are the design's spacing scale, and scale with its
 	// The scale is the design's root font size, so everything named above moves together.
 	ThemeSettings scaled;
 	scaled.uiScale = 1.5f;
-	ApplyTheme(scaled, true);
+	ApplyTheme(scaled);
 	CHECK(style.FontSizeBase == 24.0f);
 	CHECK(style.WindowPadding.x == 18.0f);
 	CHECK(style.FramePadding.x == 15.0f);
@@ -334,7 +277,7 @@ TEST_CASE("Theme: the metrics are the design's spacing scale, and scale with its
 	// A scale of nothing is a dev's mistake, not a style with no size to draw at.
 	ThemeSettings broken;
 	broken.uiScale = 0.0f;
-	ApplyTheme(broken, true);
+	ApplyTheme(broken);
 	CHECK(style.FontSizeBase == 16.0f);
 	CHECK(style.WindowPadding.x == 12.0f);
 }
@@ -345,24 +288,23 @@ TEST_CASE("Theme: a console change is applied once, and a new context is never s
 	{
 		HeadlessImGui imgui;
 		ThemeSettings settings;
-		CHECK(ApplyThemeIfChanged(settings, true)); // this context has no theme yet
-		CHECK_FALSE(ApplyThemeIfChanged(settings, true));
-		CHECK(ApplyThemeIfChanged(settings, false)); // the attachment changed under it
+		CHECK(ApplyThemeIfChanged(settings)); // this context has no theme yet
+		CHECK_FALSE(ApplyThemeIfChanged(settings));
 		settings.palette = Palette::Macchiato;
-		CHECK(ApplyThemeIfChanged(settings, false));
+		CHECK(ApplyThemeIfChanged(settings));
 		CHECK(AppliedTheme().palette == Palette::Macchiato);
 		settings.uiScale = 1.25f;
-		CHECK(ApplyThemeIfChanged(settings, false));
+		CHECK(ApplyThemeIfChanged(settings));
 		CHECK(AppliedTheme().uiScale == 1.25f);
-		CHECK_FALSE(ApplyThemeIfChanged(settings, false));
+		CHECK_FALSE(ApplyThemeIfChanged(settings));
 	}
 
 	// A run that tears its renderer down and builds another: the new context has no style, and
 	// the remembered settings must not be taken as applied to it.
 	HeadlessImGui fresh;
-	CHECK(ApplyThemeIfChanged(ThemeSettings{}, true)); // the stock style is padding 8, not 12
+	CHECK(ApplyThemeIfChanged(ThemeSettings{})); // the stock style is padding 8, not 12
 	CHECK(ImGui::GetStyle().WindowPadding.x == 12.0f);
-	CHECK_FALSE(ApplyThemeIfChanged(ThemeSettings{}, true));
+	CHECK_FALSE(ApplyThemeIfChanged(ThemeSettings{}));
 
 	// The case a cache keyed by the context's address cannot tell apart: a context made after the
 	// themed one reuses its address (the general allocator hands the same block back) and starts
@@ -372,11 +314,11 @@ TEST_CASE("Theme: a console change is applied once, and a new context is never s
 	{
 		HeadlessImGui themed;
 		themedAddress = ImGui::GetCurrentContext();
-		ApplyThemeIfChanged(ThemeSettings{}, true); // a context made now: the style is what matters
+		ApplyThemeIfChanged(ThemeSettings{}); // a context made now: the style is what matters
 		CHECK(ImGui::GetStyle().WindowPadding.x == 12.0f);
-		CHECK(ImGui::GetStyle().WindowRounding == 8.0f);         // rounded-lg
-		CHECK(ImGui::GetStyle().WindowBorderSize == 1.0f);       // the hairline
-		CHECK_FALSE(ApplyThemeIfChanged(ThemeSettings{}, true)); // and this context says it is themed
+		CHECK(ImGui::GetStyle().WindowRounding == 8.0f);   // rounded-lg
+		CHECK(ImGui::GetStyle().WindowBorderSize == 1.0f); // the hairline
+		CHECK_FALSE(ApplyThemeIfChanged(ThemeSettings{})); // and this context says it is themed
 	}
 	HeadlessImGui recreated;
 	MESSAGE(
@@ -384,7 +326,7 @@ TEST_CASE("Theme: a console change is applied once, and a new context is never s
 	    << (ImGui::GetCurrentContext() == themedAddress));
 	CHECK(ImGui::GetStyle().WindowPadding.x == 8.0f); // the stock padding, in the reused block
 	CHECK(ImGui::GetStyle().WindowRounding == 0.0f);  // and none of the theme's rounding
-	ApplyThemeIfChanged(ThemeSettings{}, true);
+	ApplyThemeIfChanged(ThemeSettings{});
 	CHECK(ImGui::GetStyle().WindowPadding.x == 12.0f); // p-3, not the stock 8
 	CHECK(ImGui::GetStyle().WindowRounding == 8.0f);   // rounded-lg
 	CHECK(ImGui::GetStyle().WindowBorderSize == 1.0f); // the hairline
@@ -439,10 +381,8 @@ TEST_CASE("Theme: a console line has a colour for every kind and every severity"
 		HeadlessImGui imgui;
 		ThemeSettings settings;
 		settings.palette = Palette::Frappe;
-		ApplyTheme(settings, false);
+		ApplyTheme(settings);
 		CHECK(ColourOf(Token::Danger).r == doctest::Approx(0xe7 / 255.0f));
-		ApplyTheme(settings, true);
-		CHECK(ColourOf(Token::Danger).r == doctest::Approx(DecodeSrgb(0xe7 / 255.0f)));
 	}
 }
 
@@ -486,7 +426,7 @@ TEST_CASE("Theme: a scale typed into the console cannot drive a metric outside w
 		INFO(value);
 		console.Execute("dev.ui_scale " + std::string{value});
 		MESSAGE("dev.ui_scale " << value << " styles at " << theme.uiScale);
-		CHECK(ApplyThemeIfChanged(theme, true));
+		CHECK(ApplyThemeIfChanged(theme));
 		const ImGuiStyle &style = ImGui::GetStyle();
 		CHECK(style.WindowMinSize.x >= 1.0f);
 		CHECK(style.WindowMinSize.y >= 1.0f);

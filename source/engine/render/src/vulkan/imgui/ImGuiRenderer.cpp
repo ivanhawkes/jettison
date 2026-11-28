@@ -25,6 +25,8 @@ bool EncodesSrgb(VkFormat format)
 {
 	return format == VK_FORMAT_B8G8R8A8_SRGB || format == VK_FORMAT_R8G8B8A8_SRGB;
 }
+
+constexpr const char *kDecodingShader = "shaders/imgui.frag.spv";
 } // namespace
 
 
@@ -33,7 +35,6 @@ void ImGuiRenderer::Init(GLFWwindow *window, VkFormat colorFormat, uint32_t fram
 	IMGUI_CHECKVERSION();
 	ImGui::CreateContext();
 	m_contextCreated = true;
-	m_coloursLinearised = EncodesSrgb(colorFormat);
 
 	ImGuiIO &io = ImGui::GetIO();
 	io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
@@ -73,6 +74,24 @@ void ImGuiRenderer::InitVulkanBackend(VkFormat colorFormat, uint32_t frameCount)
 	rendering.colorAttachmentCount = 1;
 	rendering.pColorAttachmentFormats = &colorFormat;
 	initInfo.CheckVkResultFn = check_vk_result;
+
+	// The style hands ImGui the palette's own bytes (devtools/Theme.h), and ImGui packs a vertex
+	// colour into 8-bit bytes. An sRGB attachment encodes what it is given, so the colour is decoded
+	// after the packing, in the fragment stage: decoded before it, as the style once was, the darkest
+	// tones landed up to four steps off (#1e1e2e as #1c1c2e). A UNORM attachment stores the bytes as
+	// they are, which is ImGui's own stage.
+	if (EncodesSrgb(colorFormat))
+	{
+		std::optional<std::vector<std::byte>> code = m_pAssets->Read(kDecodingShader);
+		if (!code)
+			throw std::runtime_error(
+			    std::string{"failed to open file: "} + kDecodingShader + " (no asset mount has it)");
+		m_decodingShader = std::move(*code);
+		VkShaderModuleCreateInfo &fragment = initInfo.CustomShaderFragCreateInfo;
+		fragment.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+		fragment.codeSize = m_decodingShader.size();
+		fragment.pCode = reinterpret_cast<const uint32_t *>(m_decodingShader.data());
+	}
 	if (!ImGui_ImplVulkan_Init(&initInfo))
 		throw std::runtime_error("failed to initialize ImGui Vulkan backend");
 	m_vulkanBackendInitialized = true;

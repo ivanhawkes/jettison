@@ -101,33 +101,27 @@ std::string_view PaletteName(Palette palette);
 // is one press of the control.
 std::span<const Palette> PaletteVariants();
 
-// The colour a role is on a palette, at an alpha, in the space the style wants: encoded as the
-// palette publishes it when linearise is false, and decoded to linear light when it is true. The
-// decode is what makes a hex read as written: the dev tools draw straight into the swapchain, and
-// on an sRGB attachment the hardware encodes what it is given (see DecodeSrgb), so an encoded
-// colour written to it lands lighter than the palette says. Alpha is not decoded: it is a
-// coverage, not a colour.
-Rgba PaletteColour(Palette palette, Token token, float alpha, bool linearise);
+// The colour a role is on a palette, at an alpha, encoded as the palette publishes it. The style is
+// built from it as it is: ImGui packs a vertex colour into 8-bit bytes, which then hold the
+// palette's own, and the UI's fragment stage decodes them where the attachment encodes sRGB itself
+// (render/src/vulkan/imgui/ImGuiRenderer.cpp), so a hex lands on the frame as written.
+Rgba PaletteColour(Palette palette, Token token, float alpha);
 
 // The style: colours, spacing, rounding, sizes. It is applied over ImGui's dark style, and names
 // every colour role a window of the dev tools can show, which ThemeTests checks, so no part of a
 // window is left in the stock theme's colours by not being named. The metrics are the sheet's
 // spacing, in px at the design's root size, times `uiScale`. Apply it once the context exists.
-//
-// swapchainEncodesSrgb is the renderer's word on the attachment the dev tools draw into
-// (IRenderer::UiColoursLinearised): true on the sRGB swapchain the engine prefers, false on the
-// UNORM fallback it takes when the compositor asks for one. `uiScale` is kept inside the band a
-// style survives, so a metric is never handed to ImGui outside it (Theme.cpp says what the band is
-// for).
-void ApplyTheme(const ThemeSettings &settings, bool swapchainEncodesSrgb);
+// `uiScale` is kept inside the band a style survives, so a metric is never handed to ImGui outside
+// it (Theme.cpp says what the band is for).
+void ApplyTheme(const ThemeSettings &settings);
 
 // Applies the theme when the style is not what the settings ask for, which is how a console variable
 // takes effect: true when this call applied one. The style is read, not remembered by the address
 // of the context it belongs to, which a new context reuses. Main thread only.
-bool ApplyThemeIfChanged(const ThemeSettings &settings, bool swapchainEncodesSrgb);
+bool ApplyThemeIfChanged(const ThemeSettings &settings);
 
-// What the last ApplyTheme on this context was given, and whether it decoded for the attachment.
-// The dev tools' controls read it, and the tests check what was applied.
+// What the last ApplyTheme on this context was given. The dev tools' controls read it, and the tests
+// check what was applied.
 const ThemeSettings &AppliedTheme();
 
 // A console line's colour, as a log's severity and the line's kind: an echoed command in Primary,
@@ -135,12 +129,7 @@ const ThemeSettings &AppliedTheme();
 // every kind and every severity has a role.
 Token LineToken(const ConsoleLine &line);
 
-// A role in the palette the last ApplyTheme applied, in the space it decoded for: what a view
-// draws with, so the console's lines and the style cannot drift apart.
+// A role in the palette the last ApplyTheme applied: what a view draws with, so the console's lines
+// and the style cannot drift apart.
 Rgba ColourOf(Token token, float alpha = 1.0f);
-
-// sRGB's encoding, per channel: what a hex byte over 255 means as linear light. The contract
-// overlay.frag states for the game UI, for the same reason: "an sRGB attachment encodes what is
-// written to it, so the colour goes to it in linear light".
-float DecodeSrgb(float encoded);
 } // namespace Jettison::DevTools
