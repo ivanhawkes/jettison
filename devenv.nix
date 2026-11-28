@@ -33,6 +33,7 @@
 
     # Debugging and profiling
     llvmPackages_21.lldb
+    llvmPackages_21.llvm # llvm-symbolizer: the sanitisers and libFuzzer name a crash's frames with it
     gdb
     perf # Sampling profiler: perf record -e task-clock samples user space at perf_event_paranoid 2
     hotspot # perf's data browsed: flame graphs, callers and callees
