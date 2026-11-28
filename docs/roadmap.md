@@ -72,7 +72,6 @@ each is cheaper before a game builds a workaround.
 
 | Feature | Why |
 | --- | --- |
-| Layers in the snapshot picker and steering's clearance | `PickOptions` and steering's neighbour test do not read layers yet, so steering keeps clear of what its vehicle's layer would pass through. |
 | Jolt's debug renderer drawn through debug draw | Seeing the shapes Jolt actually has. |
 | Jolt's job system on more than one thread | Once a profile asks for it. The result is deterministic either way. |
 | Capacities tuned against real traffic | The defaults are guesses. |
@@ -85,7 +84,8 @@ body, and `Overlap` and `OverlapSphere` every body a shape overlaps; a cast's hi
 a compound it met (`CastHit::part`). A game's collision layers are `Physics::LayerDefinition`s,
 loaded as definitions and defined with `PhysicsWorld::DefineLayers`; a body is put in one, and in a
 group whose bodies never meet, by its `Body` (`layer`, `group`), and a cast or overlap is cast as a
-layer (`CastOptions::layer`). Jolt runs on
+layer (`CastOptions::layer`), a snapshot pick too (`PickOptions::layer`); steering keeps clear only
+of what its vehicle's layer and group would meet. Jolt runs on
 `JPH::JobSystemSingleThreaded` (`physics/src/PhysicsWorld.cpp`). The capacities are `maxBodies`
 8192, `maxBodyPairs` 32768 and `maxContactConstraints` 16384 (`PhysicsWorld.h`).
 
