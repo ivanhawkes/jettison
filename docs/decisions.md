@@ -577,8 +577,9 @@ What moves a frame's bodies and what pulls in it are under [Physics](#physics).
   corrected 2026-11-25). The handler takes the frames with glibc's `backtrace` and writes each as a
   module and an offset from `/proc/self/maps` with system calls alone; only then does it run
   `addr2line` per module by `vfork` and `exec`, ended by SIGALRM if it hangs. Naming frames in the
-  handler would need a library that reads DWARF without allocating, and a release build has no line
-  tables anyway; without a symboliser, `scripts/symbolise-crash.sh` names the offsets against the
+  handler would need a library that reads DWARF without allocating; a release build carries line
+  tables alone (`-gline-tables-only`, 2026-11-28), which leave its machine code unchanged and give
+  `addr2line` a file and line; without a symboliser, `scripts/symbolise-crash.sh` names the offsets against the
   build. [Runtime: core and platform](runtime.md)
 - **A crash report stays on the machine until players outside development have the game**
   (2026-11-13). Each module's GNU build ID in the report, and an upload on the next start with the

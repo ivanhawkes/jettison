@@ -130,7 +130,7 @@ Wayland development libraries. `devenv.nix` supplies all of them.
 | Preset | Build type | What it is for | Options it sets |
 |---|---|---|---|
 | `clang-debug` | Debug | Development, on Wayland | the base: tests, presentation and the planned set ON, GLFW X11 OFF |
-| `clang-release` | Release | Holding Release to Debug's results; benchmarks | as `clang-debug` |
+| `clang-release` | Release | Holding Release to Debug's results; benchmarks | as `clang-debug`, with `-gline-tables-only`: file and line for a crash report, the machine code unchanged |
 | `clang-headless` | Debug | The smoke test and reference frames under Xvfb | `JETTISON_GLFW_X11=ON`, planned set OFF |
 | `clang-asan` | Debug | `clang-headless` with AddressSanitizer and UndefinedBehaviorSanitizer | `-fsanitize=address,undefined -fno-omit-frame-pointer -fno-sanitize-recover=all` |
 | `clang-cpu` | Debug | The CPU engine a game's server builds | `JETTISON_PRESENTATION=OFF`, `CMAKE_DISABLE_FIND_PACKAGE_Vulkan=ON`, planned set OFF |
