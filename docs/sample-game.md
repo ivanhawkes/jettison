@@ -90,6 +90,10 @@ a session over the sample's content, as the shell does, and checks that:
   read again;
 - the game loads its own saves, and refuses another game's.
 
+Its look is held by the `ground` [reference frame](build-and-gates.md#reference-frames): the sample
+as it opens, the rover on its slab from the chase camera behind it, captured by
+`scripts/capture.sh --ground` as a view of `source/test/frames/views.txt`.
+
 The [smoke test](glossary.md#smoke-test) runs `ground` after the render test's scenes
 (`scripts/smoke-test.sh`). Its piloting stages drive the rover ahead, then turning. Each waits
 (`SmokeActions::piloting`) until the rover is past 1 m/s, then 10 degrees from where it faced, which
@@ -128,7 +132,6 @@ integration](game-integration.md#checking-manifest-before-a-capability)).
 
 ## Limits and open work
 
-- The ground sample's look is not held by a reference frame: [J28](roadmap.md#j28).
 - The rover slides rather than grips: [J29](roadmap.md#j29).
 
 ## Source

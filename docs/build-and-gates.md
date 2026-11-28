@@ -617,8 +617,8 @@ stages is stopped by the 120-second watchdog.
 
 A [reference frame](glossary.md#reference-frame-image) is a committed PNG of a view that the gate
 compares a fresh capture with, so a change that alters a picture fails until it is meant to.
-`scripts/capture.sh` captures `render_test` frames from inside the frame loop, on lavapipe under
-Xvfb: on one machine the same to the byte every run, whatever the load.
+`scripts/capture.sh` captures `render_test` frames, or the ground sample's, from inside the frame
+loop, on lavapipe under Xvfb: on one machine the same to the byte every run, whatever the load.
 
 ```bash
 ./scripts/capture.sh out.png --scene $PWD/source/test/content/scene/orbit.yaml \
@@ -631,6 +631,7 @@ Xvfb: on one machine the same to the byte every run, whatever the load.
 | Flag | Effect |
 |---|---|
 | `<out.png> [render_test arguments...]` | Capture one frame |
+| `--ground` | Capture the ground sample (`source/samples/ground`) in `render_test`'s place, with its own content |
 | `--references [name...]` | Capture and compare the views (all, or those named) |
 | `--update` | With `--references`: write the captures as the new references |
 | `--preset NAME` | Preset to build and run (default `clang-headless`) |
@@ -659,12 +660,15 @@ its tick.
 `source/test/frames/views.txt` lists the views, one a line: a name, then `render_test`'s arguments.
 `$PWD` stands for the repository, and `|` for a space within one argument (a console line given to
 `--run`). The reference is `source/test/frames/<name>.png`. The scenes are the test content's static
-scenes (`source/test/content/scene`). For example:
+scenes (`source/test/content/scene`), but for a view whose arguments start with `--ground`, which runs
+the ground sample over its own content with the rest, so a game's look is held as the test
+content's is. For example:
 
 ```text
 ostra --scene $PWD/source/test/content/scene/orbit.yaml --run orbit|0.8|-0.1|2.0e7|ostra
 effects --scene $PWD/source/test/content/scene/effects.yaml --after-frames 180
 dock-sequence --scene $PWD/source/test/content/scene/orbit.yaml --run orbit|3.14|0.15|30|ship --run sequence|dock|1
+ground --ground
 ```
 
 A console line given to `--run` as `@<frame> <line>` runs at the start of that frame, and as
@@ -678,7 +682,7 @@ copy of `orbit.png`.
 The gate's stage (`capture.sh --references`) captures every view at once on one display, then fails
 if, for any view:
 
-- `render_test` exits non-zero;
+- its program exits non-zero;
 - the validation layer reported anything;
 - there is no reference;
 - any pixel differs from the reference by more than 2% (`magick compare -metric AE -fuzz 2%`). The

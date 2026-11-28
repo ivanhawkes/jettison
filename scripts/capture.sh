@@ -1,14 +1,15 @@
 #!/usr/bin/env bash
 #
-# Frames of render_test, each written from inside its frame loop (--screenshot) on lavapipe under
-# Xvfb, with the clocks moved a fixed step a frame and held while anything loads (--frame-step), so
-# a view captured twice on one machine is the same to the byte.
+# Frames of render_test, or of the ground sample, each written from inside its frame loop
+# (--screenshot) on lavapipe under Xvfb, with the clocks moved a fixed step a frame and held while
+# anything loads (--frame-step), so a view captured twice on one machine is the same to the byte.
 #
 #   scripts/capture.sh [options] <out.png> [render_test arguments...]   one frame
 #   scripts/capture.sh [options] --references [--update] [name...]      the reference frames
 #
 # The reference frames are the views source/test/frames/views.txt lists, one a line: a name, then
-# render_test's arguments, a | standing for a space within one. Each view is captured and compared
+# render_test's arguments, a | standing for a space within one; a view whose arguments start with
+# --ground runs the ground sample instead, with the rest. Each view is captured and compared
 # with source/test/frames/<name>.png, and the run fails if any pixel differs by more than 2%
 # (another machine's lavapipe rounds a little differently), or if the validation layer reported
 # anything; the frames and their differences are kept in the build tree. A capture is the same
@@ -48,36 +49,46 @@ while [ "$#" -gt 0 ]; do
 	--icd) icd="$2"; shift 2 ;;
 	--references) references=1; shift ;;
 	--update) update=1; shift ;;
-	-h | --help) sed -n '2,25p' "$0"; exit 0 ;;
+	-h | --help) sed -n '2,28p' "$0"; exit 0 ;;
 	*) break ;;
 	esac
 done
 if [ "$references" -eq 0 ] && [ "$#" -lt 1 ]; then
-	sed -n '2,25p' "$0" >&2
+	sed -n '2,28p' "$0" >&2
 	exit 2
 fi
 
 build_dir="build/$preset"
 executable="$build_dir/source/$program"
+ground="$build_dir/source/samples/ground/ground"
+# The reference views run either program.
+programs=("$executable")
+[ "$references" -eq 0 ] || programs=("$build_dir/source/test/render_test" "$ground")
 if [ "$build" -eq 1 ]; then
+	targets=()
+	for path in "${programs[@]}"; do
+		targets+=("$(basename "$path")")
+	done
 	cmake --preset "$preset" >/dev/null
-	cmake --build --preset "$preset" --target "$(basename "$program")" >/dev/null
+	cmake --build --preset "$preset" --target "${targets[@]}" >/dev/null
 fi
-[ -x "$executable" ] || { echo "capture: no executable at $executable" >&2; exit 1; }
+for path in "${programs[@]}"; do
+	[ -x "$path" ] || { echo "capture: no executable at $path" >&2; exit 1; }
+done
 headless_use_lavapipe "$icd" || exit 1
 # The screen holds the window whole, though nothing reads the screen: the frame is the swapchain's.
 headless_start_xvfb "1920x1080x24" || exit 1
 
-# <out.png> <log> [render_test arguments...]: one frame, its output in the log. The run's user
+# <program> <out.png> <log> [its arguments...]: one frame, its output in the log. The run's user
 # directory is its own and empty, so no one's settings or saves are in the frame.
 capture() {
-	local out="$1" log="$2"
-	shift 2
+	local program="$1" out="$2" log="$3"
+	shift 3
 	local user status=0
 	user="$(mktemp -d "${TMPDIR:-/tmp}/jettison-capture-user.XXXXXX")"
 	# llvmpipe's vector width pinned to what it picks here, so a runner with wider vectors compiles
 	# the same shaders.
-	env DISPLAY="$HEADLESS_DISPLAY" LP_NATIVE_VECTOR_WIDTH=256 "$executable" --window "$window" --no-sound --user-dir "$user" \
+	env DISPLAY="$HEADLESS_DISPLAY" LP_NATIVE_VECTOR_WIDTH=256 "$program" --window "$window" --no-sound --user-dir "$user" \
 		--frame-step 0.0166666666666667 --after-frames "$frames" --screenshot "$out" "$@" \
 		>"$log" 2>&1 || status=$?
 	rm -rf "$user"
@@ -94,9 +105,9 @@ if [ "$references" -eq 0 ]; then
 	out="$(realpath -m "$1")"
 	shift
 	log="$(mktemp "${TMPDIR:-/tmp}/jettison-capture.XXXXXX")"
-	if ! capture "$out" "$log" "$@"; then
+	if ! capture "$executable" "$out" "$log" "$@"; then
 		tail -n 20 "$log" >&2
-		echo "capture: render_test failed (log: $log)" >&2
+		echo "capture: $(basename "$executable") failed (log: $log)" >&2
 		exit 1
 	fi
 	issues="$(validation_issues "$log")"
@@ -127,7 +138,12 @@ for name in "${names[@]}"; do
 	# (a console line given to --run).
 	read -r -a args <<<"${view_args[$name]//\$PWD/$PWD}"
 	args=("${args[@]//|/ }")
-	capture "$PWD/$out_dir/$name.png" "$out_dir/$name.log" "${args[@]}" &
+	program="$build_dir/source/test/render_test"
+	if [ "${args[0]:-}" = "--ground" ]; then
+		program="$ground"
+		args=("${args[@]:1}")
+	fi
+	capture "$program" "$PWD/$out_dir/$name.png" "$out_dir/$name.log" "${args[@]}" &
 	pids+=($!)
 done
 status=0
@@ -135,7 +151,7 @@ for index in "${!names[@]}"; do
 	name="${names[$index]}"
 	if ! wait "${pids[$index]}"; then
 		tail -n 20 "$out_dir/$name.log" >&2
-		echo "capture: $name: render_test failed (log: $out_dir/$name.log)" >&2
+		echo "capture: $name: the program failed (log: $out_dir/$name.log)" >&2
 		status=1
 		continue
 	fi

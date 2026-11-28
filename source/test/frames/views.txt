@@ -35,6 +35,9 @@ dock-sequence --scene $PWD/source/test/content/scene/orbit.yaml --run orbit|3.14
 # The texture table's bench: the sixteen-slot fixture program on a board, each slot in a cell of a four
 # by four grid from the bottom left, seven textures past the eighth slot and four fallbacks among them.
 slots --scene $PWD/source/test/content/scene/slots.yaml
+# The ground sample as it opens (--ground: its own program, over its own content): the rover on its
+# slab, from the chase camera behind it.
+ground --ground
 # The orbit scene with the engine's saves screen shown in German, every word of it from the engine's
 # tables (assets/strings/de): its title, the empty list's line and the footer.
 saves-de --scene $PWD/source/test/content/scene/orbit.yaml --run language|de --run saves|on
