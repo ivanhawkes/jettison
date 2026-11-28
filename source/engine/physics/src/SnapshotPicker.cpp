@@ -10,6 +10,7 @@
 #include <Jolt/Physics/Collision/RayCast.h>
 #include <Jolt/Physics/Collision/Shape/Shape.h>
 #include <Jolt/Physics/Collision/Shape/SubShapeID.h>
+#include <Jolt/Renderer/DebugRendererSimple.h>
 
 #include <glm/gtc/quaternion.hpp>
 
@@ -26,6 +27,41 @@
 
 namespace Jettison::Physics
 {
+namespace
+{
+// Jolt's drawing of a shape, each line handed on as a segment of the body being drawn. Jolt's
+// colours and text are dropped: the caller colours a body as it chooses.
+class LineRenderer final : public JPH::DebugRendererSimple
+{
+  public:
+	void Begin(entt::entity entity, const Body &body, const BodyLine &line)
+	{
+		m_entity = entity;
+		m_pBody = &body;
+		m_pLine = &line;
+	}
+
+
+	void DrawLine(JPH::RVec3Arg from, JPH::RVec3Arg to, JPH::ColorArg /*color*/) override
+	{
+		(*m_pLine)(m_entity, *m_pBody, Detail::ToGlm(from), Detail::ToGlm(to));
+	}
+
+
+	void DrawText3D(
+	    JPH::RVec3Arg /*position*/, const std::string_view & /*text*/, JPH::ColorArg /*color*/,
+	    float /*height*/) override
+	{
+	}
+
+  private:
+	entt::entity m_entity{entt::null};
+	const Body *m_pBody{nullptr};
+	const BodyLine *m_pLine{nullptr};
+};
+} // namespace
+
+
 struct SnapshotPicker::Impl
 {
 	const PhysicsWorld *pWorld{nullptr};
@@ -35,6 +71,9 @@ struct SnapshotPicker::Impl
 
 	// Built once a name, from a definition given here or the world's; mutable, as a cache.
 	mutable std::map<std::string, JPH::RefConst<JPH::Shape>, std::less<>> shapes;
+
+	// Made by the first draw, since Jolt builds its round shapes' geometry as it is made.
+	mutable std::unique_ptr<LineRenderer> pRenderer;
 
 
 	const JPH::Shape *Find(std::string_view name) const
@@ -161,5 +200,33 @@ std::optional<CastHit> SnapshotPicker::CastRay(
 		    glm::normalize(normal), Detail::PartOf(*pShape, hit.mSubShapeID2)};
 	}
 	return nearest;
+}
+
+
+void SnapshotPicker::DrawBodies(
+    const Sim::Snapshot &previous, const Sim::Snapshot &current, double alpha, std::uint64_t frame,
+    const glm::dvec3 &camera, const BodyLine &line) const
+{
+	if (!m_pImpl->pRenderer)
+		m_pImpl->pRenderer = std::make_unique<LineRenderer>();
+	LineRenderer &renderer = *m_pImpl->pRenderer;
+	renderer.SetCameraPos(Detail::ToJolt(camera));
+	for (const auto &[entity, body] : current.Components<Body>())
+	{
+		const Sim::TransformSample *pSample = current.FindSample(entity);
+		if (pSample == nullptr || pSample->frame != frame)
+			continue;
+		const JPH::Shape *pShape = m_pImpl->Find(body.shape);
+		const std::optional<Sim::Transform> place = Sim::Interpolate(previous, current, entity, alpha);
+		if (pShape == nullptr || !place)
+			continue;
+
+		// Jolt draws a shape from its centre of mass, as it casts against one.
+		const JPH::Quat rotation = Detail::ToJolt(place->orientation);
+		const JPH::RMat44 centre = JPH::RMat44::sRotationTranslation(
+		    rotation, Detail::ToJolt(place->position) + rotation * pShape->GetCenterOfMass());
+		renderer.Begin(entity, body, line);
+		pShape->Draw(&renderer, centre, JPH::Vec3::sOne(), JPH::Color::sWhite, false, true);
+	}
 }
 } // namespace Jettison::Physics

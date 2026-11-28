@@ -1,5 +1,6 @@
 #pragma once
 
+#include <jettison/physics/Components.h>
 #include <jettison/physics/Layer.h>
 #include <jettison/physics/PhysicsWorld.h>
 #include <jettison/physics/Shape.h>
@@ -8,6 +9,7 @@
 #include <glm/vec3.hpp>
 
 #include <cstdint>
+#include <functional>
 #include <memory>
 #include <optional>
 #include <string>
@@ -37,6 +39,10 @@ struct PickOptions
 	// layer would meet. None hits every layer.
 	std::optional<std::string> layer{};
 };
+
+// A segment of a body's shape as Jolt draws it, in its frame's coordinates, and the body it is of.
+using BodyLine = std::function<void(
+    entt::entity entity, const Body &body, const glm::dvec3 &from, const glm::dvec3 &to)>;
 
 // A pick presentation makes for itself (docs/physics.md, "Picking"): a ray against the bodies as the
 // two newest snapshots draw them, each at the transform between them that the frame shows, so it is
@@ -84,6 +90,17 @@ class SnapshotPicker
 	    const Sim::Snapshot &previous, const Sim::Snapshot &current, double alpha, std::uint64_t frame,
 	    const glm::dvec3 &origin, const glm::dvec3 &direction, double maxDistance,
 	    const PickOptions &options = {}) const;
+
+	// Every body of the frame drawn as Jolt draws its shape (docs/physics.md, "Seeing the bodies"),
+	// in wireframe: each edge of its triangles, compound parts and offsets included, with each body
+	// placed as CastRay places it. Jolt draws a round shape in less detail the farther it is from the
+	// camera, in the frame. Sensors are drawn too; a body whose shape is not defined is passed over.
+	// For presentation's dev tools: Jolt keeps one debug renderer in a process, which the first draw
+	// makes and the picker keeps, so a second picker drawing while the first lives asserts in a Debug
+	// tree.
+	void DrawBodies(
+	    const Sim::Snapshot &previous, const Sim::Snapshot &current, double alpha, std::uint64_t frame,
+	    const glm::dvec3 &camera, const BodyLine &line) const;
 
   private:
 	struct Impl;

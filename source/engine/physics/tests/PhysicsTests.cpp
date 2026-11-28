@@ -17,9 +17,11 @@
 #include <filesystem>
 #include <fstream>
 #include <limits>
+#include <map>
 #include <stdexcept>
 #include <string>
 #include <unistd.h>
+#include <vector>
 
 using namespace Jettison;
 using Physics::Body;
@@ -405,6 +407,86 @@ TEST_CASE("Physics: a compound body is its parts, each placed, and a hit names t
 	CHECK(fixture.physics.Touching(thrown) == std::vector{across});
 	CHECK(fixture.Position(thrown).x < 6.1);
 	CHECK(fixture.Position(thrown).x > 5.0);
+}
+
+
+TEST_CASE("Physics: the bodies are drawn as Jolt draws their shapes, each part where it sits")
+{
+	Fixture fixture;
+	fixture.world.ShowInSnapshots<Body>();
+
+	// Two bars, one along x at x = 3 and one stood upright at x = -3, all raised 1 m in the body.
+	ShapeDefinition pair;
+	pair.kind = ShapeKind::Compound;
+	pair.offset = {0.0f, 1.0f, 0.0f};
+	pair.parts = {Box({1.0f, 0.5f, 0.5f}), Box({1.0f, 0.5f, 0.5f})};
+	pair.parts[0].offset = {3.0f, 0.0f, 0.0f};
+	pair.parts[1].offset = {-3.0f, 0.0f, 0.0f};
+	pair.parts[1].turn = glm::angleAxis(glm::radians(90.0f), glm::vec3{0.0f, 0.0f, 1.0f});
+	fixture.physics.DefineShape("pair", pair);
+
+	Body wall;
+	wall.kind = BodyKind::Static;
+	wall.shape = "wall";
+	Body pairBody;
+	pairBody.kind = BodyKind::Kinematic;
+	pairBody.shape = "pair";
+	const entt::entity crate = fixture.Add(Dynamic("crate"), {0.0, 0.0, 50.0});
+	const entt::entity compound = fixture.Add(pairBody, {0.0, 0.0, -50.0});
+	const entt::entity barrier = fixture.Add(wall, {0.0, 0.0, 0.0});
+	fixture.Add(Dynamic("crate"), {0.0, 0.0, 0.0}, glm::vec3{0.0f}, kVesper);
+	fixture.world.Step();
+	const Sim::Snapshot previous = Sim::Capture(fixture.world);
+	fixture.world.Step();
+	const Sim::Snapshot current = Sim::Capture(fixture.world);
+
+	struct Segment
+	{
+		BodyKind kind;
+		glm::dvec3 from;
+		glm::dvec3 to;
+	};
+	std::map<entt::entity, std::vector<Segment>> drawn;
+	const Physics::SnapshotPicker picker{fixture.physics};
+	picker.DrawBodies(
+	    previous, current, 1.0, kHalcyon, {0.0, 0.0, 0.0},
+	    [&](entt::entity entity, const Body &body, const glm::dvec3 &from, const glm::dvec3 &to)
+	    { drawn[entity].push_back({body.kind, from, to}); });
+
+	// Only the frame's bodies, each its triangles' edges: a box's twelve, a mesh's two.
+	REQUIRE(drawn.size() == 3);
+	REQUIRE(drawn[crate].size() == 36);
+	REQUIRE(drawn[barrier].size() == 6);
+	REQUIRE(drawn[compound].size() == 72);
+	CHECK(drawn[crate].front().kind == BodyKind::Dynamic);
+	CHECK(drawn[barrier].front().kind == BodyKind::Static);
+	CHECK(drawn[compound].front().kind == BodyKind::Kinematic);
+
+	// Every end at a corner of the shape where it sits: |p - centre| is the half extents on each axis.
+	const auto atCorner = [](const glm::dvec3 &point, const glm::dvec3 &centre, const glm::dvec3 &half)
+	{
+		const glm::dvec3 off = glm::abs(point - centre) - half;
+		return std::abs(off.x) < 1e-4 && std::abs(off.y) < 1e-4 && std::abs(off.z) < 1e-4;
+	};
+	for (const Segment &segment : drawn[crate])
+		for (const glm::dvec3 &end : {segment.from, segment.to})
+			CHECK(atCorner(end, {0.0, 0.0, 50.0}, {1.0, 1.0, 1.0}));
+	for (const Segment &segment : drawn[barrier])
+		for (const glm::dvec3 &end : {segment.from, segment.to})
+			CHECK(atCorner(end, {10.0, 0.0, 0.0}, {0.0, 20.0, 20.0}));
+	int alongX = 0;
+	int upright = 0;
+	for (const Segment &segment : drawn[compound])
+		for (const glm::dvec3 &end : {segment.from, segment.to})
+		{
+			const bool first = atCorner(end, {3.0, 1.0, -50.0}, {1.0, 0.5, 0.5});
+			const bool second = atCorner(end, {-3.0, 1.0, -50.0}, {0.5, 1.0, 0.5});
+			CHECK((first || second));
+			alongX += first ? 1 : 0;
+			upright += second ? 1 : 0;
+		}
+	CHECK(alongX == 72);
+	CHECK(upright == 72);
 }
 
 

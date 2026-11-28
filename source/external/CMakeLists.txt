@@ -455,6 +455,9 @@ endif()
 #    suite pins them). physics routes a failed assertion through the engine's.
 #  - The external profiler: Jolt's zones become Tracy's (physics/src/JoltProfile.cpp) rather than
 #    Jolt's own sampling profiler, which keeps global state and a mutex for a dump nothing reads.
+#  - The debug renderer on, as Jolt's default has it in Debug and Release, the configurations the
+#    presets build: the dev tools draw bodies' shapes with it (physics' SnapshotPicker::DrawBodies).
+#    It adds drawing code and no state, so it changes no step, save or hash.
 #  - The Vulkan and CPU compute backends off (they serve hair and cloth), and Jolt's own
 #    warnings-as-errors, install, LTO, flag overrides and sample programs off, so it builds with
 #    the toolchain's flags and nothing else.
@@ -472,6 +475,7 @@ block()
 		set(USE_ASSERTS ON)
 	endif()
 	set(JPH_USE_EXTERNAL_PROFILE ON)
+	set(DEBUG_RENDERER_IN_DEBUG_AND_RELEASE ON)
 	set(JPH_USE_VK OFF)
 	set(JPH_USE_CPU_COMPUTE OFF)
 	set(ENABLE_ALL_WARNINGS OFF)

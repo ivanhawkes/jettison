@@ -129,6 +129,13 @@ What moves a frame's bodies and what pulls in it are under [Physics](#physics).
   parts it carries; a cast is cast as a layer (`CastOptions::layer`), hitting what a body of that
   layer would meet, rather than given a list of layers to hit, so one table says what meets what.
   [Physics](physics.md)
+- **The bodies are drawn from the snapshots, by Jolt's debug renderer** (2026-11-28). The dev tools'
+  Physics bodies draws each body's shape with Jolt's own `Shape::Draw` through a
+  `DebugRendererSimple` held by the snapshot picker, at the snapshots' places, rather than Jolt's
+  `PhysicsSystem::DrawBodies` over the live worlds: that would read simulation state from
+  presentation, draw the newest step rather than the frame shown between two, and its positions are
+  each local frame's, not the scene's. The shapes are the picker's, built from the same definitions
+  by the same code, so the lines are what Jolt has and what a pick hits. [Physics](physics.md)
 
 ## Transit
 
