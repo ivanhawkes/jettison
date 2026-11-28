@@ -23,6 +23,7 @@ jettison_add_module(dock
 		tests/DefinitionTests.cpp
 		tests/PadTests.cpp
 		tests/ApproachTests.cpp
+		tests/ClampTests.cpp
 	PUBLIC_LIBRARIES
 		glm
 		EnTT::EnTT

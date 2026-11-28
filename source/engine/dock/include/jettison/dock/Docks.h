@@ -4,6 +4,8 @@
 #include <glm/gtc/quaternion.hpp>
 #include <glm/vec3.hpp>
 
+#include <array>
+#include <cstddef>
 #include <cstdint>
 #include <functional>
 #include <map>
@@ -186,6 +188,30 @@ struct ReleaseBerth
 // and at the lift's 20 m/s about three seconds from the clamps opening.
 inline constexpr double kLiftHeight = 40.0;
 
+// A berth's clamps (docs/docks.md, "Where the clamps grip"): two each side of the vehicle it holds, a
+// quarter of its length fore and aft of its middle, in the order starboard fore, starboard aft, port
+// fore, port aft. Each stands beside the vehicle's box, and its jaw comes in across the berth, at
+// kClampGripHeight of the vehicle's height above the deck, as far as kClampTravel of its beam past
+// the box's side.
+inline constexpr std::size_t kClamps = 4;
+inline constexpr double kClampAlong = 0.25;
+
+// The height the retired space sample's clamps bit at: their jaws 0.85 up a clamp 0.4 of the
+// vehicle's height tall, as the test content's clamp clip moves them.
+inline constexpr double kClampGripHeight = 0.34;
+
+// Halfway in to the vehicle's middle: past that a jaw would reach under the vehicle rather than hold
+// its side.
+inline constexpr double kClampTravel = 0.25;
+
+// Where each of a berth's clamps meets the vehicle docked on it, in the berth's axes, the vehicle
+// resting on it as the docks clamp it: on the side of its box, or, for a vehicle that collides as a
+// collision file, the first of that shape its jaw meets coming in, which is the box's side for a
+// shape out past it there. None for a clamp with no side within its travel, which stays open. A
+// vehicle definition's, found once as it is defined (Docks::FindClampGrips), and no state: the
+// clamps are presentation's.
+using ClampGrips = std::array<std::optional<glm::dvec3>, kClamps>;
+
 // Why a berth is refused or not given up (Sim::Reason), each worded by the string tables under
 // reason.dock.<name>; the arguments, where there are any, follow. Registered with Reflect as
 // "Dock.Reason" by RegisterTypes.
@@ -326,7 +352,8 @@ class Docks
 	void DefineBerthClass(std::string name, BerthClassDefinition berthClass);
 
 	// A vehicle and a layout, checked (CheckVehicle, CheckLayout) against the berth classes defined,
-	// and their shapes defined in physics. Throws Serialise::FormatError for one that does not fit, and
+	// and their shapes defined in physics; and for a vehicle, where a berth's clamps grip it
+	// (FindClampGrips). Throws Serialise::FormatError for one that does not fit, and
 	// std::invalid_argument for a name already defined. A vehicle naming a collision file has it read
 	// through the files given, and throws as Physics::ReadCollisionFile does, Serialise::FormatError
 	// for one holding a mesh, and std::invalid_argument when it is given none.
@@ -354,6 +381,9 @@ class Docks
 	bool Offers(const entt::registry &registry, entt::entity berth, std::string_view feature) const;
 
 	const VehicleDefinition *FindVehicle(std::string_view name) const;
+
+	// Where a berth's clamps meet a vehicle of that definition, or null for one not defined.
+	const ClampGrips *FindClampGrips(std::string_view vehicle) const;
 
 	const PlatformLayout *FindLayout(std::string_view name) const;
 
@@ -467,12 +497,16 @@ class Docks
 	// in the berth's axes.
 	static double RestingHeight(const VehicleDefinition &vehicle);
 
+	// Where a berth's clamps meet the vehicle (ClampGrips), its shape defined in physics.
+	ClampGrips GripsOf(std::string_view name, const VehicleDefinition &vehicle) const;
+
 	// The steps a reservation lasts with no progress: the layout's reservationSeconds, rounded up.
 	static std::uint64_t ReservationSteps(const Sim::SimWorld &world, const PlatformLayout &layout);
 
 	Physics::PhysicsWorld &m_physics;
 	BerthClasses m_berthClasses;
 	std::map<std::string, VehicleDefinition, std::less<>> m_vehicles;
+	std::map<std::string, ClampGrips, std::less<>> m_clampGrips;
 	std::map<std::string, PlatformLayout, std::less<>> m_layouts;
 	Control m_control;
 };

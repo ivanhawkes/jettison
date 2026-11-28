@@ -209,6 +209,11 @@ What moves a frame's bodies and what pulls in it are under [Physics](#physics).
   within reach, and nothing in the simulation waits on a clamp; presentation animates the clamps
   from the snapshots, their sounds the clip's events ([Audio](#audio)). The motion changes nothing
   the step reads, so a save does not carry it. [Docks](docks.md)
+- **A clamp with no side in its reach stays open** (2026-11-28). Where a berth's clamps grip a
+  vehicle that collides as a collision file is found against that shape, once as the vehicle is
+  defined (`Docks::FindClampGrips`); a clamp whose jaw meets no side within a quarter of the beam
+  is left open rather than shut to its limit, which would show a grip that holds nothing. The
+  vehicle is held by its berth's rails either way. [Docks](docks.md#where-the-clamps-grip)
 - **A display berth's vehicle is presentation's** (2026-11-12). No vehicle is given a display berth:
   its layout names the vehicle definition shown, and presentation draws it. That vehicle never moves
   or docks, so a body there would be state every save carries for nothing. [Docks](docks.md)

@@ -205,6 +205,7 @@ void Docks::DefineVehicle(std::string name, VehicleDefinition vehicle, const Vfs
 			    name, vehicle.collision)};
 	}
 	m_physics.DefineShape(VehicleShape(name), shape);
+	m_clampGrips.emplace(name, GripsOf(name, vehicle));
 	m_vehicles.emplace(std::move(name), std::move(vehicle));
 }
 
@@ -262,6 +263,13 @@ const VehicleDefinition *Docks::FindVehicle(std::string_view name) const
 {
 	const auto found = m_vehicles.find(name);
 	return found == m_vehicles.end() ? nullptr : &found->second;
+}
+
+
+const ClampGrips *Docks::FindClampGrips(std::string_view vehicle) const
+{
+	const auto found = m_clampGrips.find(vehicle);
+	return found == m_clampGrips.end() ? nullptr : &found->second;
 }
 
 
@@ -1103,5 +1111,30 @@ std::uint64_t Docks::ReservationSteps(const Sim::SimWorld &world, const Platform
 double Docks::RestingHeight(const VehicleDefinition &vehicle)
 {
 	return double{vehicle.height} * 0.5;
+}
+
+
+ClampGrips Docks::GripsOf(std::string_view name, const VehicleDefinition &vehicle) const
+{
+	// From the berth's axes to the vehicle's, which rests its centre over the berth.
+	const glm::dvec3 rest{0.0, RestingHeight(vehicle), 0.0};
+	const std::string shape = VehicleShape(name);
+	ClampGrips grips;
+	for (std::size_t index = 0; index < kClamps; ++index)
+	{
+		const double side = index < kClamps / 2 ? 1.0 : -1.0;
+		const double along = (index % 2 == 0 ? -kClampAlong : kClampAlong) * double{vehicle.length};
+		const glm::dvec3 onBox{
+		    side * 0.5 * double{vehicle.beam}, kClampGripHeight * double{vehicle.height}, along};
+		if (vehicle.collision.empty())
+		{
+			grips.at(index) = onBox;
+			continue;
+		}
+		if (const std::optional<Physics::CastHit> hit = m_physics.CastRayOnShape(
+		        shape, onBox - rest, {-side, 0.0, 0.0}, kClampTravel * double{vehicle.beam}))
+			grips.at(index) = hit->point + rest;
+	}
+	return grips;
 }
 } // namespace Jettison::Dock

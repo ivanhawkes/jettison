@@ -242,6 +242,33 @@ Clamped, the vehicle's body becomes kinematic, on the platform's rails at its pl
 held exactly in the platform's frame, out of flight, and making no contacts with the deck. Its
 steering destination and flight controls are cleared.
 
+### Where the clamps grip
+
+A berth's clamps are presentation's ([decided](decisions.md#docks)), but where they close on a
+vehicle is its definition's, so every game and every client draws them alike.
+`Docks::FindClampGrips(vehicle)` gives the four (`Dock::kClamps`), found once as the vehicle is
+defined: two each side, a quarter of its length fore and aft of its middle (`kClampAlong`), in the
+order starboard fore, starboard aft, port fore, port aft. Each is a point in the berth's axes, the
+vehicle resting on it as it is clamped, at 0.34 of its height above the deck (`kClampGripHeight`,
+where the retired space sample's clamps bit).
+
+| The vehicle | Where each clamp grips |
+| --- | --- |
+| Collides as its box | On the box's side |
+| Collides as a collision file | Where a ray from the box's side, in across the berth, first meets the shape (`PhysicsWorld::CastRayOnShape`), within a quarter of the beam (`kClampTravel`, halfway to its middle); on the box's side where the shape stands out past it |
+| No side within that | Nowhere: the clamp stays open |
+
+A clamp with nothing in its reach stays open rather than closing to its limit on nothing: a jaw shut
+in the air would show a grip that holds nothing, and the vehicle is held by its berth's rails
+whatever its clamps do ([decided](decisions.md#docks)). The grips are no state: nothing in the step
+reads them, a save does not carry them, and no hash moves with them. A game's dressing places each
+clamp's rig so that its jaw closes on its grip, and leaves one with none stowed.
+
+In the dock suite (`ClampTests.cpp`), a vehicle 6 m in the beam drawn as two pods and a keel is
+gripped on its pods' outer sides, half a metre in from its box's; its port aft clamp, where there is
+only the keel, 2.5 m in, stays open. Parked on a berth, each grip is where a ray in from beside the
+berth meets its body. A box vehicle of the same size is gripped on its box's sides.
+
 ### Leaving
 
 `ReleaseBerth` on a docked vehicle makes its body dynamic again where it lay and raises `Left`. The
@@ -423,7 +450,7 @@ Manifest docks every ship through these commands, in its travel module
 
 The settled choices (docking as the simulation's, the approach from outside the platform's sphere,
 a docked vehicle on its platform's rails, a display berth's vehicle and the clamps' motion as
-presentation's) are in [decided](decisions.md#docks). How the module came to be is in
+presentation's, a clamp with no side in reach left open) are in [decided](decisions.md#docks). How the module came to be is in
 [history](history.md). Formats change in place until player testing
 ([decided](decisions.md#persistence)).
 
@@ -436,5 +463,6 @@ presentation's) are in [decided](decisions.md#docks). How the module came to be 
 - `source/engine/dock/include/jettison/dock/Docks.h`: the components, commands, events and reasons,
   and `Docks`.
 - `source/engine/dock/src/Docks.cpp`: the step, the way in and the clamp's limits.
-- Tests: `source/engine/dock/tests` (`DefinitionTests.cpp`, `PadTests.cpp`, `ApproachTests.cpp`),
+- Tests: `source/engine/dock/tests` (`DefinitionTests.cpp`, `PadTests.cpp`, `ApproachTests.cpp`,
+  `ClampTests.cpp`),
   with the retired space sample's definitions under `tests/fixtures`.

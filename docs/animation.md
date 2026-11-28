@@ -92,7 +92,10 @@ the rig does not have is reported once, and the model is posed at rest.
 
 A clip file moves a rig built of the scene's own entities: a clamp's post, arm and jaw, each an
 entity with a mesh. The file names nodes, and a player binds each name to entities. So one file
-moves every rig built to the same names, and the rig needs no model.
+moves every rig built to the same names, and the rig needs no model. Where a berth's clamps close on
+a docked vehicle, on its box's sides or on the shape of its collision file, is the docks'
+(`Dock::Docks::FindClampGrips`, [docks](docks.md#where-the-clamps-grip)); the game's dressing places
+and scales each clamp's rig there, and leaves a clamp with no grip stowed.
 
 A file is read through the resource manager (`Animation::RegisterClipFileLoader`): the bytes on the
 I/O worker, the YAML on the main thread, since the archive reads the reflection tables that thread
