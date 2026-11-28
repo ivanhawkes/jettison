@@ -4,12 +4,12 @@
 # ktx_read beside it (source/external/CMakeLists.txt says why), and compiles stb_image's
 # implementation in Texture.cpp.
 add_library(jettison_cook_tree STATIC
-	CookTree.cpp CookTree.h Settings.cpp Settings.h Texture.cpp Texture.h)
+	CookTree.cpp CookTree.h Settings.cpp Settings.h Texture.cpp Texture.h Watch.cpp Watch.h)
 target_include_directories(jettison_cook_tree PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}")
 target_link_libraries(jettison_cook_tree
 	PUBLIC Jettison::Geometry
-	PRIVATE jettison_collision_bake Jettison::Physics Jettison::Serialise Jettison::Reflect Jettison::Core
-		fastgltf ktx stb jettison_warnings)
+	PRIVATE jettison_collision_bake Jettison::Physics Jettison::Platform Jettison::Serialise
+		Jettison::Reflect Jettison::Core fastgltf ktx stb jettison_warnings)
 set_property(TARGET jettison_cook_tree PROPERTY FOLDER "Tools")
 
 add_executable(jettison_cook main.cpp)

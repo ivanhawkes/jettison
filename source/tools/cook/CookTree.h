@@ -29,6 +29,11 @@ struct CookReport
 	std::vector<std::string> refusals;
 };
 
+// Throws std::runtime_error naming both trees when the output is the source, lies inside it or holds
+// it, by their weakly canonical paths: the cook would read its own outputs as sources, and a watch
+// would see each record it writes as a change and cook forever. CookTree and WatchTree call it first.
+void CheckTrees(const std::filesystem::path &source, const std::filesystem::path &output);
+
 // Cooks the source tree into the output tree once (docs/dense-geometry-and-ray-tracing.md, "The
 // cook"). A source's output is at its relative path: a model (.gltf, .glb) as the engine's GLB
 // (Geometry::CookModel), its images KTX 2 inside it, with its collision file
@@ -46,7 +51,7 @@ struct CookReport
 // A source the cook cannot take is refused, naming it, and the rest are cooked: a name that breaks
 // the content-file rule (docs/coding-standards.md, "Content files"), a model that does not read, a
 // reference out of the model's directory, bad settings, two sources with one output. A refused
-// source's outputs from an earlier run are kept. Throws std::runtime_error for a source that is not a
-// directory or a record that does not read.
+// source's outputs from an earlier run are kept. Throws std::runtime_error, before anything is cooked,
+// for trees CheckTrees refuses, a source that is not a directory or a record that does not read.
 CookReport CookTree(const std::filesystem::path &source, const std::filesystem::path &output);
 } // namespace Jettison::Cook

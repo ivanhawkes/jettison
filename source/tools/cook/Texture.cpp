@@ -12,6 +12,7 @@
 #include <cstring>
 #include <format>
 #include <memory>
+#include <mutex>
 #include <stdexcept>
 #include <string>
 
@@ -220,7 +221,20 @@ std::vector<std::byte> EncodeTexture(
 	params.uastcFlags = settings.quality;
 	params.uastcRDO = settings.rdo ? KTX_TRUE : KTX_FALSE;
 	params.uastcRDONoMultithreading = KTX_TRUE;
-	Check(ktxTexture2_CompressBasisEx(pTexture.get(), &params), name, "UASTC encoding");
+
+	// libktx starts Basis Universal's encoder on its first compression behind a static flag with no
+	// lock (lib/basis_encode.cpp), so that one runs alone; one that throws leaves the next to start it.
+	static std::once_flag started;
+	bool compressed = false;
+	std::call_once(
+	    started,
+	    [&]
+	    {
+		    Check(ktxTexture2_CompressBasisEx(pTexture.get(), &params), name, "UASTC encoding");
+		    compressed = true;
+	    });
+	if (!compressed)
+		Check(ktxTexture2_CompressBasisEx(pTexture.get(), &params), name, "UASTC encoding");
 	Check(ktxTexture2_DeflateZstd(pTexture.get(), settings.zstdLevel), name, "zstd");
 
 	ktx_uint8_t *pBytes = nullptr;

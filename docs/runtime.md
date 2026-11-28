@@ -2,8 +2,8 @@
 
 The rest of the engine stands on four small modules. `core` is the common vocabulary: logging,
 assertions, layered configuration, hashes, string IDs, typed handles and the engine's version.
-`platform` is the contact with the operating system: where user files live, the start-up CPU check
-and the crash handler. `jobs` holds the one worker thread that reads and decodes files. `profile`
+`platform` is the contact with the operating system: where user files live, the start-up CPU check,
+the crash handler and the directory watcher. `jobs` holds the one worker thread that reads and decodes files. `profile`
 puts Tracy behind macros that cost nothing when profiling is compiled out. They are the bottom of
 the [module graph](architecture.md#module-dependencies) and know nothing of the simulation, the
 renderer or a game.
@@ -290,6 +290,15 @@ false, since the sanitiser's report names more. Tracy's crash handler is compile
 (`TRACY_NO_CRASH_HANDLER`), so there is only one. The console's `crash fault | assert |
 exception` command crashes the shell each way, to see a report.
 
+### Watching a directory
+
+`Platform::DirectoryWatcher` (`platform/DirectoryWatcher.h`, which documents the contract) reports
+the files and directories that change under a directory, new directories watched as they appear. A
+caller waits on it with a timeout and gets the changed paths, so it can look at a stop flag between
+waits; it needs no thread of its own. On Linux it is inotify, a watch a directory. The cook's watch
+is its user ([the cook](dense-geometry-and-ray-tracing.md#the-cook)); the resource manager's hot
+reload still polls the file system's stamps, since a pack or a mod's directory is not a tree to watch.
+
 ### The I/O worker
 
 Reading and decoding a model or a texture can take longer than a frame, so `Jobs::IoWorker`
@@ -467,7 +476,8 @@ the steps a frame ran:
   the console's variables are the devtools' ([console variables](ui.md#console-variables)).
 - `StringId` is used little so far; most of the engine still keys on strings.
 - Jolt runs its single-threaded job system: [J07](roadmap.md#j07).
-- Paths, the CPU check and the crash handler are Linux and x86-64 only, as the engine is.
+- Paths, the CPU check, the crash handler and the directory watcher are Linux and x86-64 only, as
+  the engine is.
 
 ## Decisions
 
@@ -480,7 +490,7 @@ is under [build and platform](decisions.md#build-and-platform). The modules' his
 | Module | Key headers | Tests |
 | --- | --- | --- |
 | `core` | `source/engine/core/include/jettison/core/Log.h`, `Assert.h`, `Config.h`, `Hash.h`, `StringId.h`, `Handle.h`, `Version.h` (and `File.h`, `FileLock.h`: [persistence](persistence.md)) | `source/engine/core/tests` |
-| `platform` | `source/engine/platform/include/jettison/platform/Paths.h`, `Cpu.h`, `Crash.h` | `source/engine/platform/tests` |
+| `platform` | `source/engine/platform/include/jettison/platform/Paths.h`, `Cpu.h`, `Crash.h`, `DirectoryWatcher.h` | `source/engine/platform/tests` |
 | `jobs` | `source/engine/jobs/include/jettison/jobs/IoWorker.h` | `source/engine/jobs/tests` |
 | `profile` | `source/engine/profile/include/jettison/profile/Profile.h` | `source/engine/profile/tests` |
 

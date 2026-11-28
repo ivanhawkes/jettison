@@ -47,8 +47,8 @@ on a server ([its graphical client](../../manifest/docs/roadmap.md#the-graphical
 
 Placed by the user on 2026-11-28: the geometry module, the cook and levels of detail for model
 files, [J37](history.md#j37), the dense-geometry track's stage that the rest of that track, the
-characters track and the art standards' support stand on, is done; the cook's watch mode,
-[J38](#j38), placed the same day, is in progress.
+characters track and the art standards' support stand on, is done, and so is the cook's watch mode,
+[J38](history.md#j38), placed the same day.
 
 ## Waiting on you
 
@@ -367,14 +367,13 @@ Nothing stands on it.
 Meshlets drawn by mesh shaders, an asset cook, streaming, and ray-traced shadows, ambient occlusion
 and reflections, with RTX Mega Geometry on NVIDIA: the plan agreed on 2026-11-25, for Manifest's
 station kits, instance fields and asteroids. It is scheduled apart from the backlog's tiers until
-the user places it; J36 and J68, placed on 2026-11-27, and J37, placed on 2026-11-28, are built, and J38 was placed on 2026-11-28 ([current
+the user places it; J36 and J68, placed on 2026-11-27, and J37 and J38, placed on 2026-11-28, are built ([current
 deliveries](#current-deliveries)). Its design, decisions, budgets, risks and each
 stage's exit criterion are in [dense geometry and ray tracing](dense-geometry-and-ray-tracing.md#stages);
 the rows below say what each stage is, what it waits on, and which backlog items it touches.
 
 | Stage | What it is | Needs | Touches |
 | --- | --- | --- | --- |
-| <a id="j38"></a>J38. The cook's watch mode | `jettison_cook --watch`: the artists' daemon, cooking a source tree outside the game's repository into its asset folder as files change. | J37 | — |
 | <a id="j39"></a>J39. The meshlet hierarchy, cooked, and its page file | Each static mesh cooked into a meshlet hierarchy (`clusterlod.h`) and a page file beside its GLB; the meshlet size chosen by measurement. | J37 | — |
 | <a id="j40"></a>J40. GPU culling and mesh-shader drawing | Instances and meshlets culled on the GPU, drawn by task and mesh shaders in the prepass, opaque pass and cascades, in a deterministic order; the indexed path the fallback. | J39 | The reference frames, the ground sample's included ([J28](history.md#j28)), recorded again |
 | <a id="j41"></a>J41. Occlusion culling | Two passes against a depth pyramid; scope says In. | J40 | — |

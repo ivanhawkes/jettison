@@ -5,6 +5,7 @@
 
 #include <algorithm>
 #include <array>
+#include <atomic>
 #include <format>
 #include <fstream>
 #include <iterator>
@@ -14,6 +15,7 @@
 #include <set>
 #include <span>
 #include <stdexcept>
+#include <thread>
 #include <type_traits>
 #include <utility>
 #include <variant>
@@ -27,6 +29,7 @@
 #include <jettison/geometry/Cook.h>
 #include <jettison/geometry/GltfFile.h>
 #include <jettison/physics/CollisionFile.h>
+#include <jettison/physics/Components.h>
 #include <jettison/reflect/Reflect.h>
 #include <jettison/serialise/Archive.h>
 
@@ -103,6 +106,25 @@ struct Source
 	std::string path;
 	Kind kind{Kind::Copy};
 	std::vector<std::string> outputs;
+};
+
+enum class Result
+{
+	Cooked,
+	Skipped,
+	Refused
+};
+
+// What became of a source on the cook's threads, taken into the report and the record in the sources'
+// order, so neither depends on which thread finished first.
+struct Outcome
+{
+	Result result{Result::Refused};
+	RecordEntry entry;
+	std::string refusal;
+
+	// The files the source references, which are not sources of their own even when it is refused.
+	std::vector<std::string> references;
 };
 
 
@@ -366,27 +388,41 @@ class TreeCook
 	{
 	}
 
+
 	CookReport Run()
 	{
+		CheckTrees(m_source, m_output);
 		if (!fs::is_directory(m_source))
 			throw std::runtime_error("The cook's source is not a directory: " + m_source.string());
 		ReadRecord();
 		const std::vector<Source> sources = FindSources();
 
+		// The reflection tables are global and not locked, so every type the threads read or write is
+		// registered before they start.
+		m_defaults = DefaultSettingsLayer();
+		Physics::RegisterTypes();
+
 		// A model goes first, since the files it references are not sources of their own.
-		std::set<std::string> referenced;
+		std::vector<const Source *> models;
 		for (const Source &source : sources)
 			if (source.kind == Kind::Model)
-				for (std::string &reference : Process(source))
-					referenced.insert(std::move(reference));
+				models.push_back(&source);
+		std::set<std::string> referenced;
+		for (Outcome &outcome : ProcessAll(models))
+			referenced.insert(outcome.references.begin(), outcome.references.end());
+		std::vector<const Source *> others;
 		for (const Source &source : sources)
 			if (source.kind != Kind::Model && !referenced.contains(source.path))
-				Process(source);
+				others.push_back(&source);
+		ProcessAll(others);
 
 		DeleteLostOutputs();
-		RegisterTypes();
 		Core::WriteFileDurably(
 		    m_output / kRecordName, Serialise::YamlArchive::Write(m_next, kRecordVersion));
+		Core::Log(
+		    Core::Severity::Info, kCook, "{} cooked, {} unchanged, {} deleted, {} refused",
+		    m_report.cooked.size(), m_report.skipped.size(), m_report.deleted.size(),
+		    m_report.refusals.size());
 		return std::move(m_report);
 	}
 
@@ -409,6 +445,7 @@ class TreeCook
 			        error.what()));
 		}
 	}
+
 
 	// Every file in the source, sorted, hidden ones left out, refusing a name that breaks the rule and
 	// two sources with one output.
@@ -477,6 +514,7 @@ class TreeCook
 		return sources;
 	}
 
+
 	bool IsSettingsFile(const std::string &path) const
 	{
 		return path == kGameSettingsName ||
@@ -484,9 +522,10 @@ class TreeCook
 		        m_present.contains(path.substr(0, path.size() - kSettingsExtension.size())));
 	}
 
+
 	std::vector<SettingsLayer> LayersFor(const std::string &path) const
 	{
-		std::vector<SettingsLayer> layers{DefaultSettingsLayer()};
+		std::vector<SettingsLayer> layers{m_defaults};
 		if (m_gameSettings)
 			layers.push_back(*m_gameSettings);
 		const std::string own = path + std::string{kSettingsExtension};
@@ -495,6 +534,7 @@ class TreeCook
 		return layers;
 	}
 
+
 	void Refuse(const std::string &path, const std::string &message)
 	{
 		Core::Log(Core::Severity::Error, kCook, "{}", message);
@@ -502,6 +542,7 @@ class TreeCook
 		if (const auto found = m_previous.sources.find(path); found != m_previous.sources.end())
 			m_next.sources.insert(*found);
 	}
+
 
 	bool Unchanged(const std::string &path, const std::string &key) const
 	{
@@ -512,11 +553,55 @@ class TreeCook
 		           { return StaysWithin(output) && fs::exists(m_output / output); });
 	}
 
-	// The source cooked, or skipped if unchanged, and the files it references, which are not sources of
-	// their own even when it is refused.
-	std::vector<std::string> Process(const Source &source)
+
+	// Each source processed on the cook's threads, as many as the machine runs at once, its outcome
+	// taken in the order given.
+	std::vector<Outcome> ProcessAll(std::span<const Source *const> sources)
 	{
-		std::vector<std::string> references;
+		std::vector<Outcome> outcomes(sources.size());
+		std::atomic<std::size_t> next{0};
+		const auto work = [&]
+		{
+			for (std::size_t index = next++; index < sources.size(); index = next++)
+				outcomes[index] = Process(*sources[index]);
+		};
+		{
+			const std::size_t threads = std::min<std::size_t>(
+			    std::max(1u, std::thread::hardware_concurrency()), sources.size());
+			std::vector<std::jthread> pool;
+			for (std::size_t thread = 1; thread < threads; ++thread)
+				pool.emplace_back(work);
+			work();
+		}
+		for (std::size_t index = 0; index < sources.size(); ++index)
+			Take(*sources[index], outcomes[index]);
+		return outcomes;
+	}
+
+
+	void Take(const Source &source, const Outcome &outcome)
+	{
+		switch (outcome.result)
+		{
+			case Result::Cooked:
+				Core::Log(Core::Severity::Info, kCook, "cooked {}", source.path);
+				m_report.cooked.push_back(source.path);
+				m_next.sources[source.path] = outcome.entry;
+				break;
+			case Result::Skipped:
+				m_report.skipped.push_back(source.path);
+				m_next.sources[source.path] = outcome.entry;
+				break;
+			case Result::Refused: Refuse(source.path, outcome.refusal); break;
+		}
+	}
+
+
+	// Reads only what no thread writes: the record read, the trees and the settings found.
+	Outcome Process(const Source &source) const
+	{
+		Outcome outcome;
+		std::vector<std::string> &references = outcome.references;
 		try
 		{
 			const Bytes bytes = ReadFile(m_source / source.path);
@@ -536,9 +621,9 @@ class TreeCook
 			}
 			if (Unchanged(source.path, key))
 			{
-				m_report.skipped.push_back(source.path);
-				m_next.sources[source.path] = m_previous.sources.at(source.path);
-				return references;
+				outcome.result = Result::Skipped;
+				outcome.entry = m_previous.sources.at(source.path);
+				return outcome;
 			}
 
 			switch (source.kind)
@@ -555,22 +640,23 @@ class TreeCook
 					Core::WriteFileDurably(m_output / source.outputs.front(), bytes);
 					break;
 			}
-			Core::Log(Core::Severity::Info, kCook, "cooked {}", source.path);
-			m_report.cooked.push_back(source.path);
-			m_next.sources[source.path] = RecordEntry{key, source.outputs, references};
-			return references;
+			outcome.result = Result::Cooked;
+			outcome.entry = RecordEntry{key, source.outputs, references};
+			return outcome;
 		}
 		catch (const std::exception &error)
 		{
-			Refuse(source.path, error.what());
-			return references;
+			outcome.result = Result::Refused;
+			outcome.refusal = error.what();
+			return outcome;
 		}
 	}
+
 
 	// The model's collision file is written before its GLB, which names the cook key the pair shares.
 	void CookModel(
 	    const Source &source, const Bytes &bytes, std::span<const SettingsLayer> layers,
-	    const std::string &key)
+	    const std::string &key) const
 	{
 		const Settings settings = ReadSettings(layers);
 		const auto pFile =
@@ -591,6 +677,7 @@ class TreeCook
 		    Physics::WriteCollisionFile(Bake::CollisionShape(m_source / source.path), collision));
 		Core::WriteFileDurably(m_output / source.outputs[0], model);
 	}
+
 
 	// Only outputs the last record names, and only within the output.
 	void DeleteLostOutputs()
@@ -615,9 +702,34 @@ class TreeCook
 	Record m_next;
 	std::set<std::string> m_present;
 	std::optional<SettingsLayer> m_gameSettings;
+	SettingsLayer m_defaults;
 	CookReport m_report;
 };
 } // namespace
+
+
+void CheckTrees(const std::filesystem::path &source, const std::filesystem::path &output)
+{
+	// Without a trailing separator, which leaves an empty last part that no path is within.
+	const auto canonical = [](const fs::path &path)
+	{
+		fs::path resolved = fs::weakly_canonical(path);
+		return resolved.has_filename() ? resolved : resolved.parent_path();
+	};
+	const auto within = [](const fs::path &path, const fs::path &directory)
+	{
+		const fs::path relative = path.lexically_relative(directory);
+		return !relative.empty() && *relative.begin() != "..";
+	};
+	const fs::path from = canonical(source);
+	const fs::path to = canonical(output);
+	if (within(to, from) || within(from, to))
+		throw std::runtime_error(
+		    std::format(
+		        "The cook's output {} and source {} overlap: the output is the source, lies inside it "
+		        "or holds it",
+		        to.string(), from.string()));
+}
 
 
 CookReport CookTree(const std::filesystem::path &source, const std::filesystem::path &output)

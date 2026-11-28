@@ -270,7 +270,7 @@ flowchart LR
 
 **Built (J37c): one-shot mode.** `jettison_cook <source> <output>` (`source/tools/cook`, the
 library `Cook::CookTree`, `CookTree.h`, which documents the contract); the watch is
-[J38](roadmap.md#j38), the meshlet page file [J39](roadmap.md#j39), the engine's own content cooked
+below, the meshlet page file [J39](roadmap.md#j39), the engine's own content cooked
 at build time below. As built:
 
 - **Outputs.** A model (`.gltf`, `.glb`) becomes `.glb` through `Geometry::CookModel`, every one of
@@ -322,7 +322,32 @@ committed, and the content logs no uncooked model.
   built without FMA contraction, so every build type writes the same bytes.
 - **Cost**, measured 2026-11-28 over the whole tree (77 MB, 42 sources, the planet's 75 MB of KTX 2
   copied): a cold cook 3.0 s in Debug and 7.9 s under the sanitisers, the generator 0.1 s; a build
-  with nothing changed 0.44 s and 1.3 s, the record hashing every source.
+  with nothing changed 0.44 s and 1.3 s, the record hashing every source. Cooked on the machine's
+  threads (J38), the cold cook took 1.9 s in Debug, measured 2026-11-28.
+
+**Built (J38): the watch.** `jettison_cook <source> <output> --watch` (`Cook::WatchTree`,
+`Watch.h`, which documents the contract) watches the source through `Platform::DirectoryWatcher`
+([runtime](runtime.md#watching-a-directory)), cooks the tree once, then runs the same `CookTree`
+again each time the source has been quiet for 250 ms after a change, until SIGINT or SIGTERM. The
+record decides what is cooked again, so the watch has no rules of its own: an edited, added or
+renamed source is cooked, a deleted or renamed one's outputs deleted, a changed buffer, image or
+settings file cooks every source that uses it, and a refused source (a glTF half-written mid-save)
+is logged with its outputs kept while the watch goes on. A change under a hidden path starts no
+cook. An editor's save, written to a temporary name and renamed, is a change like any other.
+
+- **Threads.** `CookTree` cooks its sources on as many threads as the machine runs, one source a
+  thread, in the watch and once alike: the models first, then the rest, each source's outcome taken
+  into the report and the record in the sources' order, so neither depends on which thread finished
+  first and the outputs are the same bytes. The types the threads read are registered before they
+  start, and libktx's first compression, which starts Basis Universal's encoder behind an unlocked
+  flag, runs alone.
+- **Checked by** the `cook` suite: a watch over a fixture tree follows an edit, an addition, an
+  editor's save, a rename, a deletion, a file in a new directory and a buffer edited alone, each
+  polled for within a bound; and a broken model leaves its outputs while a change beside it is
+  cooked, the model cooked again once whole. A render_test run on the watch's output
+  (`--offscreen --content <output>`, the `main.yaml` scene) drew the arm where the crates were
+  0.7 s after `crate.glb`'s source was replaced, through the resource manager's hot reload, with no
+  restart.
 
 ### Cooked formats
 

@@ -4,14 +4,17 @@ jettison_add_module(platform
 	HEADERS
 		include/jettison/platform/Cpu.h
 		include/jettison/platform/Crash.h
+		include/jettison/platform/DirectoryWatcher.h
 		include/jettison/platform/Paths.h
 	SOURCES
 		src/Cpu.cpp
 		src/Crash.cpp
+		src/DirectoryWatcher.cpp
 		src/Paths.cpp
 	TESTS
 		tests/CpuTests.cpp
 		tests/CrashTests.cpp
+		tests/DirectoryWatcherTests.cpp
 		tests/PathsTests.cpp
 )
 

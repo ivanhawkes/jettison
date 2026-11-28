@@ -7,6 +7,8 @@
 #include <stb_image_write.h>
 
 #include <algorithm>
+#include <atomic>
+#include <chrono>
 #include <cmath>
 #include <cstring>
 #include <filesystem>
@@ -14,9 +16,11 @@
 #include <fstream>
 #include <iterator>
 #include <string>
+#include <thread>
 #include <vector>
 
 #include "CookTree.h"
+#include "Watch.h"
 #include <jettison/geometry/GltfFile.h>
 #include <jettison/physics/CollisionFile.h>
 
@@ -151,19 +155,24 @@ struct Fixture
 		WriteText(source / "notes" / "read-me.txt", "Not cooked, copied.\n");
 	}
 
+
 	~Fixture()
 	{
 		fs::remove_all(root);
 	}
 
+
 	Fixture(const Fixture &) = delete;
 
+
 	Fixture &operator=(const Fixture &) = delete;
+
 
 	Cook::CookReport Run() const
 	{
 		return Cook::CookTree(source, output);
 	}
+
 
 	std::unique_ptr<Geometry::GltfFile> Model() const
 	{
@@ -189,6 +198,56 @@ bool Mentions(const std::vector<std::string> &messages, const std::string &text)
 	return std::ranges::any_of(
 	    messages, [&](const std::string &message) { return message.find(text) != std::string::npos; });
 }
+
+
+// Whether the condition holds within a bound far past any cook of the fixture, the sanitised build's
+// included.
+template <typename Condition> bool Eventually(Condition condition)
+{
+	const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds{30};
+	while (std::chrono::steady_clock::now() < deadline)
+	{
+		if (condition())
+			return true;
+		std::this_thread::sleep_for(std::chrono::milliseconds{20});
+	}
+	return false;
+}
+
+
+// The cook key the model's GLB carries, or empty when there is none.
+std::string ModelKey(const Fixture &fixture)
+{
+	const fs::path path = fixture.output / "models" / "terrain.glb";
+	return fs::exists(path) ? fixture.Model()->CookKey() : std::string{};
+}
+
+
+// The watch on its own thread, stopped and joined as it goes.
+class Watching
+{
+  public:
+	explicit Watching(const Fixture &fixture)
+	    : m_thread{[&] { Cook::WatchTree(fixture.source, fixture.output, m_stop); }}
+	{
+	}
+
+
+	~Watching()
+	{
+		m_stop = true;
+	}
+
+
+	Watching(const Watching &) = delete;
+
+
+	Watching &operator=(const Watching &) = delete;
+
+  private:
+	std::atomic<bool> m_stop{false};
+	std::jthread m_thread;
+};
 } // namespace
 
 
@@ -365,4 +424,97 @@ TEST_CASE("A font keeps its upstream name and is copied, though its directory fo
 	CHECK(
 	    Read(fixture.output / "fonts" / "Roboto-Medium.ttf") ==
 	    Read(fixture.source / "fonts" / "Roboto-Medium.ttf"));
+}
+
+
+TEST_CASE("The watch follows sources edited, added, renamed and deleted, and a buffer edited alone")
+{
+	const Fixture fixture{"watch"};
+	const fs::path notes = fixture.source / "notes";
+	const fs::path cooked = fixture.output / "notes";
+	const Watching watching{fixture};
+	REQUIRE(Eventually([&] { return fs::exists(fixture.output / "cook-record.yaml"); }));
+	const std::string key = ModelKey(fixture);
+	REQUIRE(!key.empty());
+
+	WriteText(notes / "read-me.txt", "Edited.\n");
+	CHECK(Eventually([&] { return ReadText(cooked / "read-me.txt") == "Edited.\n"; }));
+
+	WriteText(notes / "added.txt", "Added.\n");
+	CHECK(Eventually([&] { return fs::exists(cooked / "added.txt"); }));
+
+	// An editor's save: written to a temporary name, then renamed over the source.
+	WriteText(notes / "read-me.txt.tmp", "Saved.\n");
+	fs::rename(notes / "read-me.txt.tmp", notes / "read-me.txt");
+	CHECK(Eventually([&] { return ReadText(cooked / "read-me.txt") == "Saved.\n"; }));
+
+	fs::rename(notes / "added.txt", notes / "renamed.txt");
+	CHECK(Eventually(
+	    [&] { return fs::exists(cooked / "renamed.txt") && !fs::exists(cooked / "added.txt"); }));
+
+	fs::remove(notes / "renamed.txt");
+	CHECK(Eventually([&] { return !fs::exists(cooked / "renamed.txt"); }));
+
+	// A new directory is watched: a file written into it later is cooked too.
+	fs::create_directories(fixture.source / "more");
+	WriteText(fixture.source / "more" / "later.txt", "Later.\n");
+	CHECK(Eventually([&] { return fs::exists(fixture.output / "more" / "later.txt"); }));
+
+	// The buffer alone: the .gltf is not written.
+	WriteTerrain(fixture.root / "staging", 0.3f);
+	fs::copy_file(
+	    fixture.root / "staging" / "terrain.bin", fixture.source / "models" / "terrain.bin",
+	    fs::copy_options::overwrite_existing);
+	CHECK(Eventually([&] { return ModelKey(fixture) != key; }));
+}
+
+
+TEST_CASE("The watch reports a source it refuses, keeps its outputs and goes on")
+{
+	const Fixture fixture{"watch-refused"};
+	const Watching watching{fixture};
+	REQUIRE(Eventually([&] { return fs::exists(fixture.output / "cook-record.yaml"); }));
+	const std::string key = ModelKey(fixture);
+	REQUIRE(!key.empty());
+
+	// Half written, as an exporter leaves it mid-save, with another source changed beside it so the
+	// cook that took it is known to be done.
+	WriteText(fixture.source / "models" / "terrain.gltf", "{\"asset\":");
+	WriteText(fixture.source / "notes" / "read-me.txt", "Edited.\n");
+	REQUIRE(
+	    Eventually([&] { return ReadText(fixture.output / "notes" / "read-me.txt") == "Edited.\n"; }));
+	CHECK(ModelKey(fixture) == key);
+	CHECK(fs::exists(fixture.output / "collision" / "terrain.collision"));
+
+	WriteTerrain(fixture.source / "models", 0.3f);
+	CHECK(Eventually([&] { return !ModelKey(fixture).empty() && ModelKey(fixture) != key; }));
+}
+
+
+TEST_CASE(
+    "An output inside the source, or holding it, is refused naming both, before anything is cooked")
+{
+	const Fixture fixture{"overlap"};
+	const std::atomic<bool> stop{true};
+	for (const fs::path &output :
+	     {fixture.source, fixture.source / "cooked", fixture.source / "models" / "", fixture.root})
+	{
+		CAPTURE(output);
+		const std::string source = fs::weakly_canonical(fixture.source).string();
+		std::string cooked = fs::weakly_canonical(output).string();
+		if (cooked.ends_with('/'))
+			cooked.pop_back();
+		CHECK_THROWS_WITH_AS(
+		    Cook::CookTree(fixture.source, output), doctest::Contains(cooked), std::runtime_error);
+		CHECK_THROWS_WITH_AS(
+		    Cook::CookTree(fixture.source, output), doctest::Contains(source), std::runtime_error);
+		CHECK_THROWS_WITH_AS(
+		    Cook::WatchTree(fixture.source, output, stop), doctest::Contains(source),
+		    std::runtime_error);
+		CHECK(!fs::exists(output / "cook-record.yaml"));
+	}
+	CHECK(!fs::exists(fixture.source / "cooked"));
+
+	// Beside it, with a name that starts as the source's does, is no overlap.
+	CHECK(Cook::CookTree(fixture.source, fixture.root / "source-cooked").refusals.empty());
 }

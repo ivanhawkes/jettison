@@ -46,7 +46,7 @@ jettison/
     │   ├── core/               assert, log, config, files, string IDs, handles, hashing
     │   ├── math/               GLM additions: bounds, intersection, splines, easing, random
     │   │                       numbers, noise, tangents
-    │   ├── platform/           OS layer: paths, crash handling, CPU queries
+    │   ├── platform/           OS layer: paths, crash handling, CPU queries, directory watching
     │   ├── profile/            Tracy wrapper (compiled out unless JETTISON_PROFILE is on)
     │   ├── time/               clocks, fixed-step accumulator, time compression, calendar
     │   ├── jobs/               the I/O worker thread
@@ -80,7 +80,8 @@ jettison/
     │                           the game a program composes into it (App::Game, app/Game.h)
     ├── tools/
     │   ├── collision/          jettison_bake_collision: a model's collision file, and its library
-    │   ├── cook/               jettison_cook: a source tree cooked once into a game's asset tree
+    │   ├── cook/               jettison_cook: a source tree cooked into a game's asset tree, once
+    │   │                       or as it changes (--watch)
     │   ├── flotsam/            the editor's entry point (today the shell with no game)
     │   └── pack/               jettison_pack: a directory into a pack file
     ├── samples/
