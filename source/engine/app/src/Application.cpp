@@ -1485,8 +1485,11 @@ void Application::DrawUI()
 {
 	// One call a frame, and it does nothing when nothing has changed, which is how `dev.palette mocha`
 	// takes effect on the frame after it is typed. It is here, once the renderer has made the UI's
-	// context, because the style is that context's.
+	// context, because the style is that context's. The game UI takes the same palette by its name,
+	// which its stylesheets' @media (theme: ...) blocks match (ui/base.rcss).
 	DevTools::ApplyThemeIfChanged(m_theme);
+	if (m_pUi)
+		m_pUi->SetTheme(DevTools::PaletteName(m_theme.palette));
 	m_pRenderer->BeginUi();
 	if (m_showUI)
 	{

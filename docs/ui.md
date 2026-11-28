@@ -449,7 +449,7 @@ writes the file's name onto it; the console finds its mono face by that name (`M
 The game UI wears the dev tools' palette, so a game's screens and the tools read as one design.
 `assets/ui/base.rcss` holds every colour the engine's screens are drawn in, each one of Mocha's
 roles (`DevTools::Token`), and `ThemeTests.cpp` holds every hex in `base.rcss` and `saves.rcss`
-to Mocha's table:
+to its palette's table:
 
 | Where | Role |
 | --- | --- |
@@ -470,10 +470,15 @@ The colours land on the frame as written, through the overlay's decode (`overlay
 on lavapipe (2026-11-28), a button's ground reads `#45475a` and a disabled one's `#181825`. A
 panel is 97 % opaque, as the tools' are, so its ground is exact only over a dark enough scene.
 
-The game UI is Mocha alone: it does not follow `dev.palette`. That needs code, not a stylesheet:
-RmlUi's `@media (theme: latte) { ... }` blocks in the base, switched by
-`Rml::Context::ActivateTheme` when the shell applies the theme, which `UiSystem` does not offer
-([J26](roadmap.md#j26)).
+The game UI follows `dev.palette` as the tools do. The rules above are Mocha's, and the base ends
+with an `@media (theme: latte)` block, and one for Frappé and Macchiato, each restating every rule
+that carries a colour in its palette's roles (`ThemeTests` holds each block to its table, and to as
+many colours as the plain rules have). `UiSystem::SetTheme` activates one theme by name, RmlUi's
+`Rml::Context::ActivateTheme`, deactivating the one before; the shell sets the palette's name
+(`DevTools::PaletteName`) where it applies the dev tools' theme, every frame, and it does nothing
+when the name is unchanged, so a change lands on the next frame. Mocha has no block: its name, or
+none, draws the plain rules, so a run that never changes the palette draws as before. A mod's
+`base.patch.rcss` changes a variety by restating its block.
 
 ## Using it
 
@@ -639,8 +644,7 @@ The theme's `dev.` variables ([the dev tools' theme](#the-dev-tools-theme)) are 
 - Right-to-left and shaped scripts, and a first-start language from the platform:
   [J15](roadmap.md#j15).
 - RmlUi's clip masks, layers, filters and shaders draw nothing: [J23](roadmap.md#j23).
-- The game UI following `dev.palette`, and the palette as a player setting:
-  [J26](roadmap.md#j26).
+- The palette as a player setting on a game's own settings screen: [J26](roadmap.md#j26).
 - One `UiSystem` at a time in a process, because RmlUi is one library-wide instance.
 - A key tapped and released inside one frame can be missed, since the shell polls the actions.
 - Two joysticks of one model cannot be told apart, since GLFW gives no device path.

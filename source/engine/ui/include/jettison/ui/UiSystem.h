@@ -90,6 +90,12 @@ class UiSystem
 	// LoadFont does.
 	std::size_t LoadFallbackFonts(std::string_view virtualDirectory, std::size_t firstMount);
 
+	// The theme the stylesheets' @media (theme: <name>) blocks are matched against: one at a time, the
+	// one before it deactivated, and none for an empty name. Documents open are styled again on the
+	// next Update. The shell sets the dev tools' palette's name (ui/base.rcss has a block for each
+	// palette but Mocha, which its plain rules are).
+	void SetTheme(std::string_view theme);
+
 	// A data model, which every document that names it (data-model="market") reads. Before the
 	// documents that read it are loaded; throws std::logic_error for a name already made.
 	DataModel &CreateDataModel(std::string_view name);

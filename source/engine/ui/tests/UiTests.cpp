@@ -11,6 +11,7 @@
 #include <unistd.h>
 
 #include <algorithm>
+#include <array>
 #include <cstdint>
 #include <filesystem>
 #include <fstream>
@@ -471,6 +472,44 @@ TEST_CASE("Ui: a game's face under fonts/ draws what the engine's lack, and what
 	// once however often a document has it.
 	CHECK(drawnWidth(false) != doctest::Approx(drawn));
 	CHECK(problems == 1);
+}
+
+
+TEST_CASE("Ui: the theme set picks the base stylesheet's @media block of its name, Mocha with none")
+{
+	Scratch scratch;
+	scratch.Put(
+	    "base/ui/themed.rml", "<rml><head><link type=\"text/rcss\" href=\"base.rcss\"/></head>"
+	                          "<body><p>Corva</p></body></rml>");
+	Ui::UiSystem ui{scratch.Files(), 640, 480};
+	ui.LoadFont("fonts/Roboto-Medium.ttf");
+	const Ui::DocumentHandle document = ui.LoadDocument("ui/themed.rml");
+	ui.Show(document);
+	double time = 0.0;
+	const auto drawnIn = [&ui, &time](const std::array<std::uint8_t, 4> &colour)
+	{
+		ui.Update(time += 0.1);
+		return std::ranges::any_of(
+		    ui.Overlay().Vertices(),
+		    [&colour](const Render::OverlayVertex &vertex) { return vertex.color == colour; });
+	};
+
+	// The text's role, Foreground: Mocha's #cdd6f4, Latte's #4c4f69.
+	const std::array<std::uint8_t, 4> mocha{0xcd, 0xd6, 0xf4, 0xff};
+	const std::array<std::uint8_t, 4> latte{0x4c, 0x4f, 0x69, 0xff};
+	CHECK(drawnIn(mocha));
+	ui.SetTheme("latte");
+	CHECK(drawnIn(latte));
+	CHECK_FALSE(drawnIn(mocha));
+
+	// Mocha has no block of its own: its name, or none, is the plain rules.
+	ui.SetTheme("mocha");
+	CHECK(drawnIn(mocha));
+	CHECK_FALSE(drawnIn(latte));
+	ui.SetTheme("latte");
+	ui.SetTheme("");
+	CHECK(drawnIn(mocha));
+	CHECK(ui.Problems() == 0);
 }
 
 

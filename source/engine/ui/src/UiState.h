@@ -101,6 +101,7 @@ class UiState
 	Rml::Context *pContext{nullptr};
 	std::vector<DocumentSlot> documents;
 	std::map<std::string, std::unique_ptr<DataModel>, std::less<>> models;
+	std::string theme;
 	bool debuggerShown{false};
 	bool debuggerMade{false};
 

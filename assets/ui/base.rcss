@@ -2,9 +2,10 @@
    documents, and the palette every screen shares. A mod restyles every screen by shipping its own
    ui/base.rcss, or one screen by shipping that screen's stylesheet (docs/ui.md).
 
-   The palette is the dev tools' (devtools/Theme.h), Catppuccin Mocha, so a game's screens and the
-   tools read as one design. Every colour of the engine's screens is in this file, by the dev tools'
-   role, and ThemeTests holds each to Mocha's table. RmlUi has no variables, so a mod changes the
+   The palette is the dev tools' (devtools/Theme.h), Catppuccin Mocha and, in the @media blocks at
+   the end, the other three, so a game's screens and the tools read as one design and follow the
+   same setting. Every colour of the engine's screens is in this file, by the dev tools' role, and
+   ThemeTests holds each to its palette's table. RmlUi has no variables, so a mod changes the
    palette by restating the rules that carry a colour in ui/base.patch.rcss, which comes after this
    file and wins (docs/ui.md, "The game UI's palette"). */
 
@@ -75,4 +76,64 @@ button.disabled, button.disabled:hover {
 	background-color: #181825; /* Surface, mantle */
 	color: #6c7086;            /* Faint */
 	cursor: arrow;
+}
+
+/* The other three varieties, as the dev tools' palette switches (dev.palette): each restates every
+   rule above that carries a colour, in its own palette's roles, and is active while the shell has
+   its theme set (UiSystem::SetTheme). Mocha, the rules above, is what draws with no theme active. */
+@media (theme: latte) {
+	body { color: #4c4f69; }
+	.panel { border-color: #ccd0da; background-color: #eff1f5f7; }
+	.muted { color: #6c6f85; }
+	.faint { color: #9ca0b0; }
+	.warning { color: #df8e1d; }
+	.danger { color: #d20f39; }
+	thead td { border-color: #ccd0da; }
+	tbody td { border-color: #ccd0da99; }
+	button { border-color: #ccd0da; background-color: #bcc0cc; color: #4c4f69; }
+	button:hover { background-color: #acb0be; }
+	button:active { background-color: #1e66f5; color: #eff1f5; }
+	button.disabled, button.disabled:hover {
+		border-color: #ccd0da;
+		background-color: #e6e9ef;
+		color: #9ca0b0;
+	}
+}
+
+@media (theme: frappe) {
+	body { color: #c6d0f5; }
+	.panel { border-color: #414559; background-color: #303446f7; }
+	.muted { color: #a5adce; }
+	.faint { color: #737994; }
+	.warning { color: #e5c890; }
+	.danger { color: #e78284; }
+	thead td { border-color: #414559; }
+	tbody td { border-color: #41455999; }
+	button { border-color: #414559; background-color: #51576d; color: #c6d0f5; }
+	button:hover { background-color: #626880; }
+	button:active { background-color: #8caaee; color: #232634; }
+	button.disabled, button.disabled:hover {
+		border-color: #414559;
+		background-color: #292c3c;
+		color: #737994;
+	}
+}
+
+@media (theme: macchiato) {
+	body { color: #cad3f5; }
+	.panel { border-color: #363a4f; background-color: #24273af7; }
+	.muted { color: #a5adcb; }
+	.faint { color: #6e738d; }
+	.warning { color: #eed49f; }
+	.danger { color: #ed8796; }
+	thead td { border-color: #363a4f; }
+	tbody td { border-color: #363a4f99; }
+	button { border-color: #363a4f; background-color: #494d64; color: #cad3f5; }
+	button:hover { background-color: #5b6078; }
+	button:active { background-color: #8aadf4; color: #181926; }
+	button.disabled, button.disabled:hover {
+		border-color: #363a4f;
+		background-color: #1e2030;
+		color: #6e738d;
+	}
 }

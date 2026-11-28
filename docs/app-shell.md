@@ -289,7 +289,8 @@ messages are in it. A game adds its own commands in `Game::AddCommands`. The she
 | `script_bindings <directory>` | Writes the C and Rust bindings for this build's types |
 | `crash fault, assert or exception` | Ends the run as a defect would, to see the crash report |
 
-The dev tools' theme is bound as console variables under `dev.`, such as `dev.palette`.
+The dev tools' theme is bound as console variables under `dev.`, such as `dev.palette`, which the
+game UI's screens follow too ([the game UI's palette](ui.md#the-game-uis-palette)).
 
 ### The user's directories
 

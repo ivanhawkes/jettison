@@ -205,6 +205,18 @@ std::size_t UiSystem::LoadFallbackFonts(std::string_view virtualDirectory, std::
 }
 
 
+void UiSystem::SetTheme(std::string_view theme)
+{
+	if (theme == m_pState->theme)
+		return;
+	if (!m_pState->theme.empty())
+		m_pState->pContext->ActivateTheme(m_pState->theme, false);
+	m_pState->theme = theme;
+	if (!m_pState->theme.empty())
+		m_pState->pContext->ActivateTheme(m_pState->theme, true);
+}
+
+
 DataModel &UiSystem::CreateDataModel(std::string_view name)
 {
 	const std::string key{name};

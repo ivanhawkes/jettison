@@ -528,6 +528,11 @@ What moves a frame's bodies and what pulls in it are under [Physics](#physics).
   which would put several megabytes and a third-party licence into every game's assets for the
   scripts one game uses, and a choice of subset only the game can make. [UI, input and
   localisation](ui.md#the-game-ui)
+- **The game UI follows the palette by RmlUi's themes** (2026-11-28). The base's plain rules are
+  Mocha's, and each other variety is an `@media (theme: <name>)` block restating the rules that
+  carry a colour, activated by the palette's name; Mocha has no block, so a run that never changes
+  the palette draws as before. RmlUi 6.3 has no variables, so the blocks are the cascade's.
+  [UI, input and localisation](ui.md#the-game-uis-palette)
 
 ## Audio
 

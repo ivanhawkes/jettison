@@ -18,7 +18,9 @@
 #include <filesystem>
 #include <fstream>
 #include <iterator>
+#include <map>
 #include <string>
+#include <string_view>
 #include <vector>
 
 using namespace Jettison;
@@ -499,17 +501,45 @@ TEST_CASE(
 }
 
 
-TEST_CASE("Theme: the game UI's stylesheets colour with the dev tools' palette, Mocha")
+TEST_CASE("Theme: the game UI's stylesheets colour with the dev tools' palette, each variety's")
 {
-	// Every colour the engine's screens are drawn in is one of Mocha's roles, so the game UI and the
-	// tools cannot drift apart; an alpha, where one is written, is the stylesheet's own.
-	const auto &mocha = PaletteTokens(Palette::Mocha);
-	int colours = 0;
+	// Every colour the engine's screens are drawn in is one of a palette's roles, so the game UI and
+	// the tools cannot drift apart: Mocha's in the plain rules, and another variety's in its
+	// @media (theme: <name>) block, which restates every colour the plain rules have. An alpha,
+	// where one is written, is the stylesheet's own.
+	const std::string_view kBlock = "@media (theme: ";
+	std::map<Palette, int> colours;
 	for (const char *name : {"base.rcss", "saves.rcss"})
 	{
 		std::ifstream stream{std::filesystem::path{JETTISON_ASSET_SOURCE_DIR "/ui/"} / name};
 		REQUIRE(stream);
 		const std::string text{std::istreambuf_iterator<char>{stream}, {}};
+
+		// Each block's palette, from its opening brace to its closing one.
+		struct Block
+		{
+			Palette palette;
+			std::size_t begin;
+			std::size_t end;
+		};
+		std::vector<Block> blocks;
+		for (std::size_t at = text.find(kBlock); at != std::string::npos;
+		     at = text.find(kBlock, at + 1))
+		{
+			const std::size_t nameAt = at + kBlock.size();
+			const std::string theme = text.substr(nameAt, text.find(')', nameAt) - nameAt);
+			const auto variants = PaletteVariants();
+			const auto found = std::ranges::find_if(
+			    variants, [&](Palette palette) { return PaletteName(palette) == theme; });
+			INFO(name << ": @media (theme: " << theme << ")");
+			REQUIRE(found != variants.end());
+			CHECK(*found != Palette::Mocha); // the plain rules are Mocha's
+			const std::size_t begin = text.find('{', at);
+			std::size_t end = begin + 1;
+			for (int depth = 1; depth > 0 && end < text.size(); ++end)
+				depth += text[end] == '{' ? 1 : text[end] == '}' ? -1 : 0;
+			blocks.push_back({*found, begin, end});
+		}
 		for (std::size_t at = text.find('#'); at != std::string::npos; at = text.find('#', at + 1))
 		{
 			std::size_t length = 0;
@@ -524,13 +554,21 @@ TEST_CASE("Theme: the game UI's stylesheets colour with the dev tools' palette, 
 				    std::stoi(text.substr(at + 1 + offset, 2), nullptr, 16));
 			};
 			const Rgb rgb{byte(0), byte(2), byte(4)};
-			INFO(name << ": " << text.substr(at, length + 1));
+			const auto block = std::ranges::find_if(
+			    blocks, [at](const Block &each) { return at > each.begin && at < each.end; });
+			const Palette palette = block != blocks.end() ? block->palette : Palette::Mocha;
+			INFO(name << ": " << text.substr(at, length + 1) << " in " << PaletteName(palette));
 			CHECK(
 			    std::ranges::any_of(
-			        mocha, [&](const Rgb &role)
+			        PaletteTokens(palette), [&](const Rgb &role)
 			        { return role.r == rgb.r && role.g == rgb.g && role.b == rgb.b; }));
-			++colours;
+			++colours[palette];
 		}
 	}
-	CHECK(colours > 0);
+	CHECK(colours[Palette::Mocha] > 0);
+	for (const Palette palette : PaletteVariants())
+	{
+		INFO(PaletteName(palette));
+		CHECK(colours[palette] == colours[Palette::Mocha]);
+	}
 }
