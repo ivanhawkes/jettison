@@ -23,6 +23,21 @@ set(BUILD_TESTING OFF)
 # this, the settings in its block below were discarded and it configured with its own defaults.
 set(CMAKE_POLICY_DEFAULT_CMP0077 NEW)
 
+# A patched dependency's patch step echoes its patches' hash. ExternalProject runs a patch step again
+# only when the step's command changes, so without the hash an edited patch would never reach a tree
+# that fetched the dependency before; the patch files are also configure dependencies, so editing one
+# reconfigures.
+function(jettison_patches_hash out)
+	set(hashes "")
+	foreach(patch IN LISTS ARGN)
+		file(SHA256 "${patch}" hash)
+		string(APPEND hashes "${hash}")
+		set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${patch}")
+	endforeach()
+	string(SHA256 digest "${hashes}")
+	set(${out} "${digest}" PARENT_SCOPE)
+endfunction()
+
 # EnTT 4 requires C++20 and CMake 3.28. Its one break in this tree was registry::has<>, which
 # is all_of<> now.
 set(ENTT_BUILD_TESTING OFF CACHE BOOL "" FORCE)
@@ -455,6 +470,10 @@ block()
 	set(BASISU_SUPPORT_OPENCL OFF)
 	set(ASTCENC_WERROR OFF)
 	find_package(Git REQUIRED)
+	jettison_patches_hash(ktx_patches_hash
+		"${CMAKE_CURRENT_SOURCE_DIR}/patches/ktx-uastc-rdo-hash.patch"
+		"${CMAKE_CURRENT_SOURCE_DIR}/patches/ktx-writer-leak.patch"
+		"${CMAKE_CURRENT_SOURCE_DIR}/patches/ktx-short-header-leak.patch")
 	FetchContent_Declare(
 	  KTX-Software
 	  DOWNLOAD_COMMAND "${CMAKE_COMMAND}" -E rm -rf <SOURCE_DIR>
@@ -463,6 +482,7 @@ block()
 	    --config filter.lfs.smudge= --config filter.lfs.process= --config filter.lfs.required=false
 	    https://github.com/KhronosGroup/KTX-Software.git <SOURCE_DIR>
 	  PATCH_COMMAND "${GIT_EXECUTABLE}" -C <SOURCE_DIR> checkout -- .
+	  COMMAND "${CMAKE_COMMAND}" -E echo "patches ${ktx_patches_hash}"
 	  COMMAND "${GIT_EXECUTABLE}" -C <SOURCE_DIR> apply
 	    "${CMAKE_CURRENT_SOURCE_DIR}/patches/ktx-uastc-rdo-hash.patch"
 	    "${CMAKE_CURRENT_SOURCE_DIR}/patches/ktx-writer-leak.patch"
@@ -549,12 +569,15 @@ block()
 	set(TARGET_SAMPLES OFF)
 	set(TARGET_VIEWER OFF)
 	find_package(Git REQUIRED)
+	jettison_patches_hash(jolt_patches_hash
+		"${CMAKE_CURRENT_SOURCE_DIR}/patches/jolt-restore-state.patch")
 	FetchContent_Declare(
 	  JoltPhysics
 	  GIT_REPOSITORY https://github.com/jrouwe/JoltPhysics.git
 	  GIT_TAG v5.6.0
 	  GIT_SHALLOW TRUE
 	  PATCH_COMMAND "${GIT_EXECUTABLE}" -C <SOURCE_DIR> checkout -- .
+	  COMMAND "${CMAKE_COMMAND}" -E echo "patches ${jolt_patches_hash}"
 	  COMMAND "${GIT_EXECUTABLE}" -C <SOURCE_DIR> apply
 	    "${CMAKE_CURRENT_SOURCE_DIR}/patches/jolt-restore-state.patch"
 	  SOURCE_SUBDIR Build
