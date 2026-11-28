@@ -134,18 +134,6 @@ proxy (`dock/Definitions.h`).
 
 **Feature doc:** [physics](physics.md).
 
-<a id="j14"></a>
-### J14. UI
-
-**What remains.**
-
-- A document's images decoded on the I/O worker. They are decoded on the main thread as the document
-  lays out, which is fine for a screen's icons.
-
-**Why.** Decoding off the main thread matters once a screen shows large images.
-
-**Feature doc:** [UI, input and localisation](ui.md).
-
 <a id="j15"></a>
 ### J15. Localisation
 
