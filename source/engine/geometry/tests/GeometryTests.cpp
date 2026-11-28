@@ -274,6 +274,74 @@ std::span<const std::byte> AsBytes(const std::string &text)
 }
 
 
+// A .gltf whose buffer 0 is three positions, (0, 0, 0), (1, 0, 0) and (0, 1, 0), embedded, with the
+// rest of its buffers and the rest of the file after it.
+std::string WithTriangleData(const std::string &rest)
+{
+	return R"({"asset":{"version":"2.0"},"buffers":[{"uri":"data:application/octet-stream;base64,)"
+	       R"(AAAAAAAAAAAAAAAAAACAPwAAAAAAAAAAAAAAAAAAgD8AAAAA","byteLength":36})" +
+	       rest + "}";
+}
+
+
+// One mesh node, its mesh one primitive of these attributes, and these mesh extras.
+std::string OneMesh(const std::string &attributes, const std::string &extras = "{}")
+{
+	return R"("meshes":[{"primitives":[{"attributes":)" + attributes + R"(}],"extras":)" + extras +
+	       R"(}],"nodes":[{"mesh":0}],"scenes":[{"nodes":[0]}],"scene":0)";
+}
+
+
+// The triangle, with these accessors on a view of all of buffer 0, and the rest of the file after.
+std::string TriangleAccessors(const std::string &accessors, const std::string &rest)
+{
+	return WithTriangleData(
+	    R"(],"bufferViews":[{"buffer":0,"byteLength":36}],"accessors":)" + accessors + "," + rest);
+}
+
+
+// The triangle's positions as one view compressed with these parameters, decoding into buffer 1.
+std::string Compressed(
+    const char *mode, std::size_t stride, std::size_t count, const char *offset = "0")
+{
+	return WithTriangleData(
+	    R"(,{"byteLength":36}],"extensionsUsed":["EXT_meshopt_compression"],)"
+	    R"("extensionsRequired":["EXT_meshopt_compression"],"bufferViews":[{"buffer":1,"byteLength":)" +
+	    std::to_string(stride * count) +
+	    R"(,"extensions":{"EXT_meshopt_compression":{"buffer":0,"byteOffset":)" + offset +
+	    R"(,"byteLength":36,"byteStride":)" + std::to_string(stride) + R"(,"count":)" +
+	    std::to_string(count) + R"(,"mode":")" + mode +
+	    R"("}}}],"accessors":[{"bufferView":0,"componentType":5126,"count":3,"type":"VEC3"}],)" +
+	    OneMesh(R"({"POSITION":0})"));
+}
+
+
+// A GLB with one edit to its JSON chunk's text, from the first from to to, padded as the format
+// requires.
+std::vector<std::byte> EditJson(
+    const std::vector<std::byte> &glb, const std::string &from, const std::string &to)
+{
+	std::uint32_t length{};
+	std::memcpy(&length, glb.data() + 12, sizeof length);
+	std::string json{reinterpret_cast<const char *>(glb.data() + 20), length};
+	const auto found = json.find(from);
+	REQUIRE(found != std::string::npos);
+	json.replace(found, from.size(), to);
+	json.resize((json.size() + 3) / 4 * 4, ' ');
+	const auto jsonLength = static_cast<std::uint32_t>(json.size());
+	const auto total = static_cast<std::uint32_t>(glb.size() - length + json.size());
+	std::vector<std::byte> edited{glb.begin(), glb.begin() + 12};
+	std::memcpy(edited.data() + 8, &total, sizeof total);
+	const auto *pLength = reinterpret_cast<const std::byte *>(&jsonLength);
+	edited.insert(edited.end(), pLength, pLength + sizeof jsonLength);
+	edited.insert(edited.end(), glb.begin() + 16, glb.begin() + 20);
+	const auto *pJson = reinterpret_cast<const std::byte *>(json.data());
+	edited.insert(edited.end(), pJson, pJson + json.size());
+	edited.insert(edited.end(), glb.begin() + 20 + length, glb.end());
+	return edited;
+}
+
+
 std::pair<glm::vec3, glm::vec3> Extent(const std::vector<glm::vec3> &positions)
 {
 	glm::vec3 low{1e9f}, high{-1e9f};
@@ -555,7 +623,9 @@ TEST_CASE("A .gltf's buffer in a file of its own is read from its directory, and
 	CHECK_THROWS_WITH_AS(
 	    Geometry::GltfFile::Parse(AsBytes(gltf), "triangle.gltf"), doctest::Contains("triangle.gltf"),
 	    std::runtime_error);
-	for (const std::string &uri : {std::string{"../outside.bin"}, (directory / "outside.bin").string()})
+	std::filesystem::create_symlink(directory / "outside.bin", directory / "inside" / "link.bin");
+	for (const std::string &uri :
+	     {std::string{"../outside.bin"}, (directory / "outside.bin").string(), std::string{"link.bin"}})
 		CHECK_THROWS_WITH_AS(
 		    Geometry::GltfFile::Parse(
 		        AsBytes(TriangleWithBuffer(uri)), "escape.gltf", directory / "inside"),
@@ -565,4 +635,144 @@ TEST_CASE("A .gltf's buffer in a file of its own is read from its directory, and
 	        AsBytes(TriangleWithBuffer("missing.bin")), "missing.gltf", directory / "inside"),
 	    doctest::Contains("missing.gltf"), std::runtime_error);
 	std::filesystem::remove_all(directory);
+}
+
+
+TEST_CASE(
+    "An accessor outside its view or buffer, or a primitive's attributes of two counts, is refused")
+{
+	constexpr const char *kPositions =
+	    R"({"bufferView":0,"componentType":5126,"count":3,"type":"VEC3"})";
+	const std::string twoPositions = R"({"bufferView":0,"componentType":5126,"count":2,"type":"VEC3"})";
+	const std::string position = OneMesh(R"({"POSITION":0})");
+	const std::pair<std::string, const char *> cases[] = {
+	    // Normals past the positions' count, which a reader sized by POSITION wrote past.
+	    {TriangleAccessors(
+	         "[" + twoPositions + "," + kPositions + "]", OneMesh(R"({"POSITION":0,"NORMAL":1})")),
+	     "different counts"},
+	    {TriangleAccessors(
+	         R"([{"bufferView":0,"componentType":5126,"count":4,"type":"VEC3"}])", position),
+	     "outside its view or buffer"},
+	    {TriangleAccessors(
+	         R"([{"bufferView":0,"byteOffset":4,"componentType":5126,"count":3,"type":"VEC3"}])",
+	         position),
+	     "outside its view or buffer"},
+	    {WithTriangleData(
+	         R"(],"bufferViews":[{"buffer":0,"byteLength":48}],"accessors":[)" +
+	         std::string{kPositions} + "]," + position),
+	     "buffer view 0 lies outside its buffer"},
+	    {TriangleAccessors(
+	         R"([{"bufferView":0,"componentType":5126,"count":3,"type":"VEC3","sparse":{"count":1,)"
+	         R"("indices":{"bufferView":0,"componentType":5125},"values":{"bufferView":0}}}])",
+	         position),
+	     "sparse"},
+	    {TriangleAccessors(
+	         "[" + std::string{kPositions} + "]", OneMesh(R"({"POSITION":0,"NORMAL":7})")),
+	     "lacks"},
+	    {TriangleAccessors(
+	         "[" + std::string{kPositions} + "]",
+	         OneMesh(R"({"POSITION":0})") + R"(,"skins":[{"joints":[0],"inverseBindMatrices":7}])"),
+	     "lacks"},
+	};
+	for (const auto &[gltf, reason] : cases)
+	{
+		CAPTURE(gltf);
+		CHECK_THROWS_WITH_AS(
+		    Geometry::GltfFile::Parse(AsBytes(gltf), "bad.gltf"), doctest::Contains(reason),
+		    std::runtime_error);
+		CHECK_THROWS_WITH_AS(
+		    Geometry::GltfFile::Parse(AsBytes(gltf), "bad.gltf"), doctest::Contains("bad.gltf"),
+		    std::runtime_error);
+	}
+	CHECK(
+	    Geometry::GltfFile::Parse(
+	        AsBytes(TriangleAccessors("[" + std::string{kPositions} + "]", position)), "good.gltf"));
+}
+
+
+TEST_CASE(
+    "A compressed view that breaks EXT_meshopt_compression, or lies outside its buffers, is refused")
+{
+	const std::pair<std::string, const char *> cases[] = {
+	    {Compressed("ATTRIBUTES", 3, 12), "breaks EXT_meshopt_compression"},
+	    {Compressed("TRIANGLES", 2, 5), "breaks EXT_meshopt_compression"},
+	    {Compressed("TRIANGLES", 3, 3), "breaks EXT_meshopt_compression"},
+	    {Compressed("INDICES", 1, 36), "breaks EXT_meshopt_compression"},
+	    // An offset that wraps past the end of memory to land within the buffer.
+	    {Compressed("ATTRIBUTES", 4, 9, "18446744073709551600"), "out of its buffers' range"},
+	};
+	for (const auto &[gltf, reason] : cases)
+	{
+		CAPTURE(gltf);
+		CHECK_THROWS_WITH_AS(
+		    Geometry::GltfFile::Parse(AsBytes(gltf), "compressed.gltf"), doctest::Contains(reason),
+		    std::runtime_error);
+	}
+}
+
+
+TEST_CASE("Levels that are empty, or whose errors are negative, past a float or shrinking, are refused")
+{
+	constexpr const char *kPositions =
+	    R"([{"bufferView":0,"componentType":5126,"count":3,"type":"VEC3"}])";
+	for (const char *levels :
+	     {"[]", R"([{"primitives":1,"error":-1}])", R"([{"primitives":1,"error":1e300}])"})
+	{
+		CAPTURE(levels);
+		const std::string gltf = TriangleAccessors(
+		    kPositions,
+		    OneMesh(R"({"POSITION":0})", std::string{R"({"jettison":{"levels":)"} + levels + "}}"));
+		CHECK_THROWS_WITH_AS(
+		    Geometry::GltfFile::Parse(AsBytes(gltf), "levels.gltf"),
+		    doctest::Contains("extras are malformed: levels.gltf"), std::runtime_error);
+	}
+
+	const auto twoLevels = [&](const char *second)
+	{
+		return TriangleAccessors(
+		    kPositions,
+		    std::string{
+		        R"("meshes":[{"primitives":[{"attributes":{"POSITION":0}},{"attributes":{"POSITION":0}}],)"} +
+		        R"("extras":{"jettison":{"levels":[{"primitives":1,"error":0.5},{"primitives":1,"error":)" +
+		        second + R"(}]}}}],"nodes":[{"mesh":0}],"scenes":[{"nodes":[0]}],"scene":0)");
+	};
+	CHECK_THROWS_WITH_AS(
+	    Geometry::GltfFile::Parse(AsBytes(twoLevels("0.25")), "levels.gltf"),
+	    doctest::Contains("extras are malformed"), std::runtime_error);
+	const auto file = Geometry::GltfFile::Parse(AsBytes(twoLevels("0.5")), "levels.gltf");
+	REQUIRE(file->Levels(0).size() == 2);
+	CHECK(file->Levels(0)[1].error == 0.5f);
+}
+
+
+TEST_CASE("A fallback buffer is made as long as its views reach, and one reaching too far is refused")
+{
+	const auto source = Geometry::GltfFile::Parse(MakeRock(), "rock.glb");
+	const auto cooked = Geometry::CookModel(*source, {}, "key");
+	const auto declared = [&](const std::vector<std::byte> &glb)
+	{
+		const auto file = Geometry::GltfFile::Parse(glb, "rock.glb");
+		const auto &buffer = file->Asset().buffers[1];
+		return std::get<fastgltf::sources::Vector>(buffer.data).bytes.size();
+	};
+	const std::size_t length = declared(cooked);
+	const std::string fallback = R"({"fallback":true}},"byteLength":)";
+
+	// A terabyte declared, which was allocated, and the views' reach made.
+	const auto vast = EditJson(cooked, fallback + std::to_string(length), fallback + "1099511627776");
+	CHECK(declared(vast) == length);
+
+	// A view placed a terabyte in, within what the buffer declares: past the buffer's limit.
+	const auto far = EditJson(
+	    EditJson(cooked, fallback + std::to_string(length), fallback + "2199023255552"),
+	    R"({"buffer":1,)", R"({"buffer":1,"byteOffset":1099511627776,)");
+	CHECK_THROWS_WITH_AS(
+	    Geometry::GltfFile::Parse(far, "far.glb"),
+	    doctest::Contains("fallback buffer decodes to more than 1073741824 bytes: far.glb"),
+	    std::runtime_error);
+
+	// A view that would decode to more than its limit.
+	CHECK_THROWS_WITH_AS(
+	    Geometry::GltfFile::Parse(AsBytes(Compressed("ATTRIBUTES", 256, 1048577)), "large.gltf"),
+	    doctest::Contains("decodes to more than 268435456 bytes: large.gltf"), std::runtime_error);
 }

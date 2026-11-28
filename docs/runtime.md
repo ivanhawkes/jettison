@@ -295,7 +295,8 @@ exception` command crashes the shell each way, to see a report.
 `Platform::DirectoryWatcher` (`platform/DirectoryWatcher.h`, which documents the contract) reports
 the files and directories that change under a directory, new directories watched as they appear. A
 caller waits on it with a timeout and gets the changed paths, so it can look at a stop flag between
-waits; it needs no thread of its own. On Linux it is inotify, a watch a directory. The cook's watch
+waits; it needs no thread of its own. On Linux it is inotify, a watch a directory; a link below the
+root is not followed, so nothing outside the tree is watched. The cook's watch
 is its user ([the cook](dense-geometry-and-ray-tracing.md#the-cook)); the resource manager's hot
 reload still polls the file system's stamps, since a pack or a mod's directory is not a tree to watch.
 

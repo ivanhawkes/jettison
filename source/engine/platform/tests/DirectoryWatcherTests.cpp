@@ -109,6 +109,23 @@ TEST_CASE("DirectoryWatcher: a directory made or moved in is watched, one moved 
 }
 
 
+TEST_CASE("DirectoryWatcher: a link below the root is not followed, so nothing outside is watched")
+{
+	const Tree tree{"links"};
+	fs::create_directories(tree.root / "watched");
+	fs::create_directories(tree.root / "outside");
+	fs::create_directory_symlink(tree.root / "outside", tree.root / "watched" / "linked");
+	fs::create_directory_symlink(tree.root / "watched", tree.root / "root-link");
+	DirectoryWatcher watcher{tree.root / "root-link"};
+	WriteText(tree.root / "outside" / "a.txt", "one");
+	CHECK(watcher.Wait(200ms).empty());
+
+	// The root is followed: a link to the tree watches the tree.
+	WriteText(tree.root / "watched" / "b.txt", "two");
+	CHECK(Reports(watcher, tree.root / "root-link" / "b.txt"));
+}
+
+
 TEST_CASE("DirectoryWatcher: what is not a directory is refused, naming it")
 {
 	const Tree tree{"refused"};

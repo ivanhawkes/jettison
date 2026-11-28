@@ -211,8 +211,8 @@ bool FollowsNamingRule(const std::string &relative)
 }
 
 
-// A relative path that stays where it starts: no root and no "..". A model's files are beside it or
-// below it, as geometry's reader holds its buffers to, and the record's outputs within the output.
+// A relative path that stays where it starts: no root and no "..", as the record's outputs do within
+// the output.
 bool StaysWithin(const fs::path &path)
 {
 	return !path.empty() && path.is_relative() && !path.has_root_name() &&
@@ -220,21 +220,38 @@ bool StaysWithin(const fs::path &path)
 }
 
 
-// The source-relative path of a file a model at modelPath names by uri.
-std::string ReferencePath(const std::string &modelPath, const fastgltf::URI &uri)
+// The first symbolic link on relative's way down from root, relative itself included.
+std::optional<std::string> LinkWithin(const fs::path &root, const fs::path &relative)
+{
+	fs::path walked;
+	for (const fs::path &part : relative)
+	{
+		walked /= part;
+		std::error_code error;
+		if (fs::is_symlink(root / walked, error))
+			return walked.generic_string();
+	}
+	return std::nullopt;
+}
+
+
+// The source-relative path of a file a model at modelPath names by uri, which is beside it or below
+// it by the rule geometry's reader holds its buffers to (Geometry::FileWithin).
+std::string ReferencePath(const fs::path &root, const std::string &modelPath, const fastgltf::URI &uri)
 {
 	const fs::path relative = uri.fspath();
-	if (!uri.isLocalPath() || !StaysWithin(relative))
+	const fs::path directory = fs::path{modelPath}.parent_path();
+	if (!uri.isLocalPath() || !Geometry::FileWithin(root / directory, relative))
 		throw std::runtime_error(
 		    std::format(
 		        "{}: it references '{}', which is not a file beside it or below it", modelPath,
 		        uri.string()));
-	return (fs::path{modelPath}.parent_path() / relative).lexically_normal().generic_string();
+	return (directory / relative).lexically_normal().generic_string();
 }
 
 
 // The files a glTF's buffers and images are in, sorted.
-std::vector<std::string> References(const Bytes &bytes, const std::string &path)
+std::vector<std::string> References(const Bytes &bytes, const fs::path &root, const std::string &path)
 {
 	auto data = fastgltf::GltfDataBuffer::FromBytes(bytes.data(), bytes.size());
 	if (data.error() != fastgltf::Error::None)
@@ -250,7 +267,7 @@ std::vector<std::string> References(const Bytes &bytes, const std::string &path)
 	const auto add = [&](const auto &data)
 	{
 		if (const auto *pUri = std::get_if<fastgltf::sources::URI>(&data))
-			references.insert(ReferencePath(path, *pUri->uri));
+			references.insert(ReferencePath(root, path, *pUri->uri));
 	};
 	for (const auto &buffer : parsed->buffers)
 		add(buffer.data);
@@ -275,7 +292,11 @@ std::string CookKey(
 	for (const std::string &reference : references)
 	{
 		hash = Core::HashCombine(hash, Core::Fnv1a64(reference));
-		const std::optional<Bytes> referenced = TryReadFile(root / reference);
+
+		// The record's list is not parsed again, so a link changed since to lead out of the tree is
+		// not read: it hashes as missing, and the model, parsed again, is refused.
+		const std::optional<fs::path> within = Geometry::FileWithin(root, reference);
+		const std::optional<Bytes> referenced = within ? TryReadFile(*within) : std::nullopt;
 		hash = Core::HashCombine(hash, referenced ? HashBytes(*referenced) : kMissingFile);
 	}
 	for (const SettingsLayer &layer : layers)
@@ -362,7 +383,7 @@ Bytes ImageBytes(
 	    {
 		    using Data = std::decay_t<decltype(data)>;
 		    if constexpr (std::is_same_v<Data, fastgltf::sources::URI>)
-			    return ReadFile(root / ReferencePath(path, *data.uri));
+			    return ReadFile(root / ReferencePath(root, path, *data.uri));
 		    else if constexpr (std::is_same_v<Data, fastgltf::sources::BufferView>)
 		    {
 			    const auto bytes = fastgltf::DefaultBufferDataAdapter{}(asset, data.bufferViewIndex);
@@ -402,11 +423,13 @@ class TreeCook
 		m_defaults = DefaultSettingsLayer();
 		Physics::RegisterTypes();
 
-		// A model goes first, since the files it references are not sources of their own.
+		// A model goes first, since the files it references are not sources of their own, so the rest
+		// clash with the models' outputs and each other's once those are known.
 		std::vector<const Source *> models;
 		for (const Source &source : sources)
 			if (source.kind == Kind::Model)
 				models.push_back(&source);
+		models = WithoutClashes(std::move(models), {});
 		std::set<std::string> referenced;
 		for (Outcome &outcome : ProcessAll(models))
 			referenced.insert(outcome.references.begin(), outcome.references.end());
@@ -414,7 +437,7 @@ class TreeCook
 		for (const Source &source : sources)
 			if (source.kind != Kind::Model && !referenced.contains(source.path))
 				others.push_back(&source);
-		ProcessAll(others);
+		ProcessAll(WithoutClashes(std::move(others), models));
 
 		DeleteLostOutputs();
 		Core::WriteFileDurably(
@@ -447,8 +470,7 @@ class TreeCook
 	}
 
 
-	// Every file in the source, sorted, hidden ones left out, refusing a name that breaks the rule and
-	// two sources with one output.
+	// Every file in the source, sorted, hidden ones left out, refusing a name that breaks the rule.
 	std::vector<Source> FindSources()
 	{
 		std::vector<std::string> files;
@@ -460,8 +482,20 @@ class TreeCook
 				entry.disable_recursion_pending();
 				continue;
 			}
+			std::string path = entry->path().lexically_relative(m_source).generic_string();
+
+			// The watch cannot see a change to what a link out of the tree leads to, so the record
+			// would go stale. A directory's link within it is not walked, its files being sources
+			// at their own paths.
+			if (entry->is_symlink() && !Geometry::FileWithin(m_source, path))
+			{
+				Refuse(
+				    path,
+				    std::format("{}: it is a symbolic link that leads out of the source tree", path));
+				continue;
+			}
 			if (entry->is_regular_file())
-				files.push_back(entry->path().lexically_relative(m_source).generic_string());
+				files.push_back(std::move(path));
 		}
 		std::ranges::sort(files);
 		m_present = {files.begin(), files.end()};
@@ -470,7 +504,6 @@ class TreeCook
 			    std::string{kGameSettingsName}, AsText(ReadFile(m_source / kGameSettingsName))};
 
 		std::vector<Source> sources;
-		std::map<std::string, std::vector<std::string>> writers;
 		for (const std::string &path : files)
 		{
 			if (!FollowsNamingRule(path))
@@ -497,20 +530,37 @@ class TreeCook
 				    {WithExtension(path, kModelOutputExtension), CollisionPath(path)}};
 			else if (HasExtension(path, kImageExtensions))
 				source = {path, Kind::Image, {WithExtension(path, kTextureOutputExtension)}};
-			for (const std::string &output : source.outputs)
-				writers[output].push_back(path);
 			sources.push_back(std::move(source));
 		}
+		return sources;
+	}
 
-		std::set<std::string> clashing;
-		for (const auto &[output, paths] : writers)
-			if (paths.size() > 1)
-				for (const std::string &path : paths)
-					if (clashing.insert(path).second)
+
+	// The sources, less those refused for writing an output that another of them or one of the models
+	// writes. The models have been processed already, so they keep their outputs.
+	std::vector<const Source *> WithoutClashes(
+	    std::vector<const Source *> sources, std::span<const Source *const> models)
+	{
+		std::map<std::string, std::vector<const Source *>> writers;
+		const auto add = [&](std::span<const Source *const> list)
+		{
+			for (const Source *pSource : list)
+				for (const std::string &output : pSource->outputs)
+					writers[output].push_back(pSource);
+		};
+		add(sources);
+		add(models);
+		std::set<const Source *> clashing;
+		for (const auto &[output, writing] : writers)
+			if (writing.size() > 1)
+				for (const Source *pSource : writing)
+					if (std::ranges::find(models, pSource) == models.end() &&
+					    clashing.insert(pSource).second)
 						Refuse(
-						    path,
-						    std::format("{}: it and another source would both write {}", path, output));
-		std::erase_if(sources, [&](const Source &source) { return clashing.contains(source.path); });
+						    pSource->path, std::format(
+						                       "{}: it and another source would both write {}",
+						                       pSource->path, output));
+		std::erase_if(sources, [&](const Source *pSource) { return clashing.contains(pSource); });
 		return sources;
 	}
 
@@ -616,7 +666,7 @@ class TreeCook
 			std::string key = CookKey(bytes, m_source, references, layers);
 			if (!Unchanged(source.path, key) && source.kind == Kind::Model)
 			{
-				references = References(bytes, source.path);
+				references = References(bytes, m_source, source.path);
 				key = CookKey(bytes, m_source, references, layers);
 			}
 			if (Unchanged(source.path, key))
@@ -625,6 +675,15 @@ class TreeCook
 				outcome.entry = m_previous.sources.at(source.path);
 				return outcome;
 			}
+
+			// A link in the output could lead anywhere, so nothing is written through one.
+			for (const std::string &output : source.outputs)
+				if (const auto link = LinkWithin(m_output, output))
+					throw std::runtime_error(
+					    std::format(
+					        "{}: its output {} would be written through {}, a symbolic link in the "
+					        "output",
+					        source.path, output, *link));
 
 			switch (source.kind)
 			{
@@ -679,7 +738,8 @@ class TreeCook
 	}
 
 
-	// Only outputs the last record names, and only within the output.
+	// Only outputs the last record names, and only within the output. One below a symbolic link there
+	// is not deleted but reported, its record entry kept so the next run tries again.
 	void DeleteLostOutputs()
 	{
 		std::set<std::string> kept;
@@ -687,13 +747,26 @@ class TreeCook
 			kept.insert(entry.outputs.begin(), entry.outputs.end());
 		for (const auto &[path, entry] : m_previous.sources)
 			for (const std::string &output : entry.outputs)
-				if (!kept.contains(output) && StaysWithin(output) && fs::remove(m_output / output))
+			{
+				if (kept.contains(output) || !StaysWithin(output))
+					continue;
+				if (const auto link = LinkWithin(m_output, fs::path{output}.parent_path()))
+				{
+					const std::string message = std::format(
+					    "{}: not deleted, since {} in the output is a symbolic link", output, *link);
+					Core::Log(Core::Severity::Error, kCook, "{}", message);
+					m_report.refusals.push_back(message);
+					m_next.sources.try_emplace(path, entry);
+					continue;
+				}
+				if (fs::remove(m_output / output))
 				{
 					Core::Log(
 					    Core::Severity::Info, kCook, "deleted {}, which {} no longer makes", output,
 					    path);
 					m_report.deleted.push_back(output);
 				}
+			}
 	}
 
 	fs::path m_source;

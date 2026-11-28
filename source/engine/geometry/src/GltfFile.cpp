@@ -13,6 +13,7 @@
 #include <iterator>
 #include <limits>
 #include <stdexcept>
+#include <system_error>
 #include <utility>
 #include <variant>
 
@@ -24,6 +25,14 @@ namespace
 constexpr auto kExtensions = fastgltf::Extensions::EXT_meshopt_compression |
                              fastgltf::Extensions::KHR_mesh_quantization |
                              fastgltf::Extensions::KHR_texture_basisu;
+
+// EXT_meshopt_compression's limits on an attribute view's stride, which meshoptimizer asserts rather
+// than checks.
+constexpr std::size_t kAttributeStrideAlignment = 4;
+
+constexpr std::size_t kMaxAttributeStride = 256;
+
+constexpr std::size_t kTriangleCorners = 3;
 
 
 bool IsGltf(std::string_view path)
@@ -80,7 +89,7 @@ void ReadExtras(
 	if (category != fastgltf::Category::Meshes)
 		return;
 	simdjson::dom::array levels;
-	if (ours[kLevelsName].get(levels) != simdjson::SUCCESS)
+	if (ours[kLevelsName].get(levels) != simdjson::SUCCESS || levels.size() == 0)
 	{
 		parsed.malformed = true;
 		return;
@@ -92,10 +101,15 @@ void ReadExtras(
 		std::uint64_t count{};
 		simdjson::dom::element errorElement;
 		double error{};
+
+		// An error is a float, never negative, and none is less than the finer level's, as the cook
+		// writes them.
+		const double finer = read.empty() ? 0.0 : double{read.back().error};
 		if (level[kPrimitivesName].get(count) != simdjson::SUCCESS ||
 		    level[kErrorName].get(errorElement) != simdjson::SUCCESS ||
 		    !ReadNumber(errorElement, error) || count == 0 ||
-		    count > std::numeric_limits<std::uint32_t>::max())
+		    count > std::numeric_limits<std::uint32_t>::max() || error < finer ||
+		    error > std::numeric_limits<float>::max())
 		{
 			parsed.malformed = true;
 			return;
@@ -131,13 +145,12 @@ std::vector<std::byte> ReadBufferFile(
     const std::filesystem::path &directory, const fastgltf::Buffer &buffer, const std::string &name)
 {
 	const auto &uri = *std::get<fastgltf::sources::URI>(buffer.data).uri;
-	const std::filesystem::path relative = uri.fspath();
-	const bool inside = uri.isLocalPath() && relative.is_relative() && !relative.has_root_name() &&
-	                    std::ranges::none_of(relative, [](const auto &part) { return part == ".."; });
-	if (!inside)
+	const std::optional<std::filesystem::path> path =
+	    uri.isLocalPath() ? FileWithin(directory, uri.fspath()) : std::nullopt;
+	if (!path)
 		throw std::runtime_error(
 		    std::format("glTF model's buffer '{}' is outside its directory: {}", uri.string(), name));
-	std::ifstream stream{directory / relative, std::ios::binary};
+	std::ifstream stream{*path, std::ios::binary};
 	const std::vector<char> chars{
 	    std::istreambuf_iterator<char>{stream}, std::istreambuf_iterator<char>{}};
 	if (!stream || chars.size() < buffer.byteLength)
@@ -150,28 +163,93 @@ std::vector<std::byte> ReadBufferFile(
 }
 
 
+bool ValidCompression(const fastgltf::CompressedBufferView &compressed)
+{
+	switch (compressed.mode)
+	{
+		case fastgltf::MeshoptCompressionMode::Attributes:
+			return compressed.byteStride != 0 &&
+			       compressed.byteStride % kAttributeStrideAlignment == 0 &&
+			       compressed.byteStride <= kMaxAttributeStride;
+		case fastgltf::MeshoptCompressionMode::Triangles:
+			if (compressed.count % kTriangleCorners != 0)
+				return false;
+			[[fallthrough]];
+		case fastgltf::MeshoptCompressionMode::Indices:
+			return compressed.byteStride == sizeof(std::uint16_t) ||
+			       compressed.byteStride == sizeof(std::uint32_t);
+	}
+	return false;
+}
+
+
+bool InRange(std::size_t offset, std::size_t length, std::size_t size)
+{
+	return offset <= size && length <= size - offset;
+}
+
+
+// The most one compressed view decodes to, one attribute or one level's indices of one primitive, so
+// a file cannot make the reader allocate more for it: 22 million float positions, or 22 million
+// triangles' 32-bit indices, about 540 times the largest view the test content cooks to (496,200
+// bytes, the large asteroid's 81,920 triangles, measured 2026-11-28).
+constexpr std::size_t kMaxDecodedViewBytes = std::size_t{256} * 1024 * 1024;
+
+// The most a fallback buffer decodes to, its furthest view's end, so a view's offset cannot make it
+// large when the views are small: four views at their limit, 470 times the large asteroid's buffer
+// (2,275,520 bytes).
+constexpr std::size_t kMaxDecodedBufferBytes = 4 * kMaxDecodedViewBytes;
+
+
 // Each compressed view decoded into its fallback buffer, which then holds the bytes the file's
-// accessors read, as an uncompressed file's buffer does.
+// accessors read, as an uncompressed file's buffer does. A fallback is made only as long as its views
+// reach, whatever length it declares.
 void DecodeCompressedViews(fastgltf::Asset &asset, const std::string &name)
 {
+	const auto isFallback = [&](std::size_t index)
+	{
+		return index < asset.buffers.size() &&
+		       std::holds_alternative<fastgltf::sources::Fallback>(asset.buffers[index].data);
+	};
+	std::vector<std::size_t> extents(asset.buffers.size());
+	for (const auto &view : asset.bufferViews)
+	{
+		if (!view.meshoptCompression)
+			continue;
+		const fastgltf::CompressedBufferView &compressed = *view.meshoptCompression;
+		if (!isFallback(view.bufferIndex))
+			throw std::runtime_error(
+			    "A compressed glTF view decodes into a buffer that is not its fallback: " + name);
+		if (!ValidCompression(compressed))
+			throw std::runtime_error(
+			    "A compressed glTF view's stride or count breaks EXT_meshopt_compression: " + name);
+		if (compressed.count > kMaxDecodedViewBytes / compressed.byteStride)
+			throw std::runtime_error(
+			    std::format(
+			        "A compressed glTF view decodes to more than {} bytes: {}", kMaxDecodedViewBytes,
+			        name));
+		if (compressed.count * compressed.byteStride != view.byteLength ||
+		    !InRange(view.byteOffset, view.byteLength, asset.buffers[view.bufferIndex].byteLength))
+			throw std::runtime_error("A compressed glTF view is out of its buffers' range: " + name);
+		auto &extent = extents[view.bufferIndex];
+		extent = std::max(extent, view.byteOffset + view.byteLength);
+		if (extent > kMaxDecodedBufferBytes)
+			throw std::runtime_error(
+			    std::format(
+			        "A glTF fallback buffer decodes to more than {} bytes: {}", kMaxDecodedBufferBytes,
+			        name));
+	}
+
 	std::vector<std::vector<std::byte>> decoded(asset.buffers.size());
 	for (std::size_t index = 0; index < asset.buffers.size(); ++index)
-		if (std::holds_alternative<fastgltf::sources::Fallback>(asset.buffers[index].data))
-			decoded[index].resize(asset.buffers[index].byteLength);
-
+		decoded[index].resize(extents[index]);
 	for (auto &view : asset.bufferViews)
 	{
 		if (!view.meshoptCompression)
 			continue;
 		const fastgltf::CompressedBufferView &compressed = *view.meshoptCompression;
 		const auto source = BufferBytes(asset, compressed.bufferIndex);
-		if (view.bufferIndex >= decoded.size() || decoded[view.bufferIndex].empty())
-			throw std::runtime_error(
-			    "A compressed glTF view decodes into a buffer that is not its fallback: " + name);
-		auto &target = decoded[view.bufferIndex];
-		if (compressed.byteOffset + compressed.byteLength > source.size() ||
-		    view.byteOffset + view.byteLength > target.size() ||
-		    compressed.count * compressed.byteStride != view.byteLength)
+		if (!InRange(compressed.byteOffset, compressed.byteLength, source.size()))
 			throw std::runtime_error("A compressed glTF view is out of its buffers' range: " + name);
 		if (compressed.filter != fastgltf::MeshoptCompressionFilter::None)
 			throw std::runtime_error(
@@ -179,7 +257,7 @@ void DecodeCompressedViews(fastgltf::Asset &asset, const std::string &name)
 
 		const auto *pSource =
 		    reinterpret_cast<const unsigned char *>(source.data() + compressed.byteOffset);
-		void *pTarget = target.data() + view.byteOffset;
+		void *pTarget = decoded[view.bufferIndex].data() + view.byteOffset;
 		int result = -1;
 		switch (compressed.mode)
 		{
@@ -203,10 +281,105 @@ void DecodeCompressedViews(fastgltf::Asset &asset, const std::string &name)
 	}
 
 	for (std::size_t index = 0; index < asset.buffers.size(); ++index)
-		if (std::holds_alternative<fastgltf::sources::Fallback>(asset.buffers[index].data))
+		if (isFallback(index))
+		{
+			asset.buffers[index].byteLength = extents[index];
 			asset.buffers[index].data = fastgltf::sources::Vector{std::move(decoded[index])};
+		}
+}
+
+
+// fastgltf's accessor tools and buffer adapter read wherever a view or accessor points, so every view
+// is held within its buffer, every accessor within its view, and every index naming one to the
+// file's, before a reader iterates them. glTF gives a primitive's attributes one count, which a
+// reader sizes its vertices by.
+void CheckAccessors(const fastgltf::Asset &asset, const std::string &name)
+{
+	for (std::size_t index = 0; index < asset.bufferViews.size(); ++index)
+	{
+		const fastgltf::BufferView &view = asset.bufferViews[index];
+		if (view.bufferIndex >= asset.buffers.size() ||
+		    !InRange(view.byteOffset, view.byteLength, BufferBytes(asset, view.bufferIndex).size()))
+			throw std::runtime_error(
+			    std::format("glTF model's buffer view {} lies outside its buffer: {}", index, name));
+	}
+
+	const auto &accessors = asset.accessors;
+	for (std::size_t index = 0; index < accessors.size(); ++index)
+	{
+		if (accessors[index].sparse)
+			throw std::runtime_error(
+			    std::format("glTF model's accessor {} is sparse, which is not read: {}", index, name));
+		if (fastgltf::validateAccessorBounds(asset, accessors[index]) != fastgltf::Error::None)
+			throw std::runtime_error(
+			    std::format(
+			        "glTF model's accessor {} lies outside its view or buffer: {}", index, name));
+	}
+
+	const auto lacks = [&](std::size_t accessor) { return accessor >= accessors.size(); };
+	for (std::size_t mesh = 0; mesh < asset.meshes.size(); ++mesh)
+		for (std::size_t primitive = 0; primitive < asset.meshes[mesh].primitives.size(); ++primitive)
+		{
+			const fastgltf::Primitive &read = asset.meshes[mesh].primitives[primitive];
+			const bool missing = std::ranges::any_of(
+			                         read.attributes, [&](const auto &attribute)
+			                         { return lacks(attribute.accessorIndex); }) ||
+			                     (read.indicesAccessor && lacks(*read.indicesAccessor));
+			if (missing)
+				throw std::runtime_error(
+				    std::format(
+				        "glTF mesh {}'s primitive {} names an accessor the model lacks: {}", mesh,
+				        primitive, name));
+			const bool even = std::ranges::all_of(
+			    read.attributes,
+			    [&](const auto &attribute)
+			    {
+				    return accessors[attribute.accessorIndex].count ==
+				           accessors[read.attributes[0].accessorIndex].count;
+			    });
+			if (!even)
+				throw std::runtime_error(
+				    std::format(
+				        "glTF mesh {}'s primitive {} has attributes of different counts: {}", mesh,
+				        primitive, name));
+		}
+
+	const bool skinsRead = std::ranges::none_of(
+	    asset.skins, [&](const fastgltf::Skin &skin)
+	    { return skin.inverseBindMatrices && lacks(*skin.inverseBindMatrices); });
+	const bool clipsRead = std::ranges::none_of(
+	    asset.animations,
+	    [&](const fastgltf::Animation &animation)
+	    {
+		    return std::ranges::any_of(
+		        animation.samplers, [&](const fastgltf::AnimationSampler &sampler)
+		        { return lacks(sampler.inputAccessor) || lacks(sampler.outputAccessor); });
+	    });
+	if (!skinsRead || !clipsRead)
+		throw std::runtime_error(
+		    "glTF model's skin or clip names an accessor the model lacks: " + name);
 }
 } // namespace
+
+
+std::optional<std::filesystem::path> FileWithin(
+    const std::filesystem::path &directory, const std::filesystem::path &relative)
+{
+	const bool lexical = !relative.empty() && relative.is_relative() && !relative.has_root_name() &&
+	                     std::ranges::none_of(relative, [](const auto &part) { return part == ".."; });
+	if (!lexical)
+		return std::nullopt;
+	std::error_code error;
+	const std::filesystem::path root = std::filesystem::canonical(directory, error);
+	std::filesystem::path path = error ? std::filesystem::path{}
+	                                   : std::filesystem::weakly_canonical(directory / relative, error);
+	if (error)
+		return std::nullopt;
+	const std::filesystem::path within = path.lexically_relative(root);
+	if (within.empty() || *within.begin() == "..")
+		return std::nullopt;
+	return path;
+}
 
 
 std::unique_ptr<GltfFile> GltfFile::Parse(
@@ -245,6 +418,7 @@ std::unique_ptr<GltfFile> GltfFile::Parse(
 	if (extras.malformed)
 		throw std::runtime_error("glTF model's cook extras are malformed: " + label);
 	DecodeCompressedViews(asset, label);
+	CheckAccessors(asset, label);
 
 	// A .glb's binary chunk is copied into the asset, so it outlives the data buffer.
 	std::unique_ptr<GltfFile> pFile{

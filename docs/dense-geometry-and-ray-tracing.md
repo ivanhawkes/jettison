@@ -275,12 +275,22 @@ at build time below. As built:
 
 - **Outputs.** A model (`.gltf`, `.glb`) becomes `.glb` through `Geometry::CookModel`, every one of
   its images KTX 2 inside it; an image (`.png`, `.jpg`, `.jpeg`, `.tga`) no model references
-  becomes `.ktx2`; anything else is copied. A model's collision file is baked by `Bake::CollisionShape`
-  at the path [physics](physics.md#a-models-collision-shape) gives it (`models/rover.gltf`'s at
+  becomes `.ktx2`; anything else is copied. Two sources with one output are both refused; a file a
+  model references has none, and a model keeps its outputs against a source that is not a model.
+  A model's collision file is baked by `Bake::CollisionShape` at the path
+  [physics](physics.md#a-models-collision-shape) gives it (`models/rover.gltf`'s at
   `collision/rover.collision`), written before its GLB. A model's buffers and images are beside it
   or below it, never `..` (`GltfFile::Parse` reads a `.gltf`'s buffers from its directory and
   refuses one outside it). Hidden files (a leading dot) are not sources, so a source tree can be a
   git checkout.
+- **Symbolic links.** Neither tree's root needs to be a real directory. A link in the source that
+  leads out of the tree, to a file or a directory, is refused, naming it, since the watch cannot
+  see what it leads to change; one to a file within the tree cooks as that file, and one to a
+  directory within it is not walked, its files cooking at their own paths. A model's buffer or
+  image that leads out of its directory through a link is refused as one named with `..` is
+  (`Geometry::FileWithin`). Nothing is written or deleted through a link in the output: a source
+  whose output has one at or above it is refused, and an output below one is not deleted but
+  reported, until a run can delete it (`CookTree.h`).
 - **Settings.** `Cook::Settings` (`Settings.h`): `lod` (`maxLevels`, `reduction`, `maxError`,
   `Geometry::LodSettings`) and `textures` (`quality`, `rdo`, `zstdLevel`, `mipmaps`: UASTC level
   2, rate-distortion optimised, zstd 19, mipmapped, the import script's `ktx create` line). A

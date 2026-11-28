@@ -10,9 +10,10 @@ namespace Jettison::Platform
 // Watches a directory and every directory below it for what changes there: a file written and closed,
 // a file or directory made or deleted, or renamed into, out of or within the tree. A directory made or
 // moved in is watched from then on, and what is already in it is reported, since they can be
-// written before its watch is added; one moved out is no longer watched. On Linux it is inotify, whose
-// queue is per user and bounded: a change lost to its overflow is reported as the root, and the tree's
-// directories are watched again. One thread at a time.
+// written before its watch is added; one moved out is no longer watched. A symbolic link below the
+// root is reported as a file and not followed, so nothing outside the tree is watched. On Linux it is
+// inotify, whose queue is per user and bounded: a change lost to its overflow is reported as the root,
+// and the tree's directories are watched again. One thread at a time.
 class DirectoryWatcher
 {
   public:

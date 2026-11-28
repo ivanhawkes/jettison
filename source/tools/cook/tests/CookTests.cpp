@@ -413,6 +413,102 @@ TEST_CASE("A source whose name breaks the rule, or a glTF the cook cannot read, 
 }
 
 
+TEST_CASE("Two sources with one output are refused, a file a model references being no source")
+{
+	const Fixture fixture{"clash"};
+	const fs::path gltf = fixture.source / "models" / "terrain.gltf";
+	std::string text = ReadText(gltf);
+	const std::string image = R"({"uri":"textures/terrain-color.png"})";
+	text.replace(text.find(image), image.size(), image + R"(,{"uri":"textures/terrain-color.jpg"})");
+	WriteText(gltf, text);
+	WritePng(fixture.source / "models" / "textures" / "terrain-color.jpg", 32);
+	WritePng(fixture.source / "textures" / "panel-color.jpg", 32);
+	WriteText(fixture.source / "collision" / "terrain.collision", "not the model's");
+	const Cook::CookReport report = fixture.Run();
+	CHECK(report.refusals.size() == 3);
+	CHECK(Mentions(report.refusals, "textures/panel-color.png"));
+	CHECK(Mentions(report.refusals, "textures/panel-color.jpg"));
+	CHECK(Mentions(report.refusals, "collision/terrain.collision: it and another source"));
+	CHECK(fixture.Model()->Asset().images.size() == 2);
+	CHECK(!fs::exists(fixture.output / "models" / "textures" / "terrain-color.ktx2"));
+	CHECK_NOTHROW(
+	    Physics::ReadCollisionFile(
+	        Read(fixture.output / "collision" / "terrain.collision"), "collision/terrain.collision"));
+}
+
+
+TEST_CASE("A link in the source is followed within the tree, and one that leads out of it is refused")
+{
+	const Fixture fixture{"source-links"};
+	fs::create_symlink("read-me.txt", fixture.source / "notes" / "linked.txt");
+	WriteText(fixture.root / "outside" / "secret.txt", "Not the cook's.\n");
+	fs::create_symlink(
+	    fixture.root / "outside" / "secret.txt", fixture.source / "notes" / "secret.txt");
+	fs::create_directory_symlink(fixture.root / "outside", fixture.source / "elsewhere");
+	const Cook::CookReport report = fixture.Run();
+	CHECK(report.refusals.size() == 2);
+	CHECK(Mentions(report.refusals, "notes/secret.txt: it is a symbolic link"));
+	CHECK(Mentions(report.refusals, "elsewhere: it is a symbolic link"));
+	CHECK(ReadText(fixture.output / "notes" / "linked.txt") == "Not cooked, copied.\n");
+	CHECK(!fs::exists(fixture.output / "notes" / "secret.txt"));
+	CHECK(!fs::exists(fixture.output / "elsewhere"));
+}
+
+
+TEST_CASE("A model's image linked out of the tree is refused, on its first cook and on a later one")
+{
+	const Fixture fixture{"image-link"};
+	CHECK(fixture.Run().refusals.empty());
+	const fs::path image = fixture.source / "models" / "textures" / "terrain-color.png";
+	WritePng(fixture.root / "outside" / "terrain-color.png", 99);
+	fs::remove(image);
+	fs::create_symlink(fixture.root / "outside" / "terrain-color.png", image);
+	const Cook::CookReport report = fixture.Run();
+	CHECK(Mentions(
+	    report.refusals,
+	    "models/terrain.gltf: it references 'textures/terrain-color.png', which is not"));
+	CHECK(Mentions(report.refusals, "models/textures/terrain-color.png: it is a symbolic link"));
+
+	const Fixture fresh{"image-link-fresh"};
+	fs::remove(fresh.source / "models" / "textures" / "terrain-color.png");
+	WritePng(fresh.root / "outside" / "terrain-color.png", 99);
+	fs::create_symlink(
+	    fresh.root / "outside" / "terrain-color.png",
+	    fresh.source / "models" / "textures" / "terrain-color.png");
+	CHECK(Mentions(fresh.Run().refusals, "models/terrain.gltf: it references"));
+	CHECK(!fs::exists(fresh.output / "models" / "terrain.glb"));
+}
+
+
+TEST_CASE("The output root may be a link, and the cook writes and deletes through no link inside it")
+{
+	const Fixture fixture{"output-links"};
+	fs::create_directories(fixture.root / "real-output");
+	fs::create_directory_symlink(fixture.root / "real-output", fixture.root / "output-link");
+	CHECK(Cook::CookTree(fixture.source, fixture.root / "output-link").refusals.empty());
+	CHECK(fs::exists(fixture.root / "real-output" / "models" / "terrain.glb"));
+
+	// The copy's directory moved aside and linked back: the copy is not written through the link.
+	const fs::path output = fixture.root / "real-output";
+	fs::rename(output / "notes", fixture.root / "aside");
+	fs::create_directory_symlink(fixture.root / "aside", output / "notes");
+	WriteText(fixture.source / "notes" / "read-me.txt", "Changed.\n");
+	Cook::CookReport report = Cook::CookTree(fixture.source, output);
+	CHECK(
+	    Mentions(report.refusals, "notes/read-me.txt: its output notes/read-me.txt would be written"));
+	CHECK(ReadText(fixture.root / "aside" / "read-me.txt") == "Not cooked, copied.\n");
+
+	// Nor deleted through it once its source has gone, and the next run tries again.
+	fs::remove(fixture.source / "notes" / "read-me.txt");
+	for (int run = 0; run < 2; ++run)
+	{
+		report = Cook::CookTree(fixture.source, output);
+		CHECK(Mentions(report.refusals, "notes/read-me.txt: not deleted, since notes in the output"));
+		CHECK(fs::exists(fixture.root / "aside" / "read-me.txt"));
+	}
+}
+
+
 TEST_CASE("A font keeps its upstream name and is copied, though its directory follows the rule")
 {
 	const Fixture fixture{"font"};

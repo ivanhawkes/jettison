@@ -50,8 +50,18 @@ void CheckTrees(const std::filesystem::path &source, const std::filesystem::path
 //
 // A source the cook cannot take is refused, naming it, and the rest are cooked: a name that breaks
 // the content-file rule (docs/coding-standards.md, "Content files"), a model that does not read, a
-// reference out of the model's directory, bad settings, two sources with one output. A refused
+// reference out of the model's directory, bad settings, two sources with one output (a file a model
+// references has none, and a model keeps its outputs against a source that is not one). A refused
 // source's outputs from an earlier run are kept. Throws std::runtime_error, before anything is cooked,
 // for trees CheckTrees refuses, a source that is not a directory or a record that does not read.
+//
+// Symbolic links: either root may be one, and is resolved. In the source, a link to a file within the
+// tree is a source like any other, a link to a directory within it is not walked (its files are
+// sources at their own paths), and a link that leads out of the tree, file or directory, is refused,
+// naming it: the watch cannot see what it leads to change, so the record would go stale. A model's
+// reference that leads out of its directory through a link is refused as one by its path is
+// (Geometry::FileWithin). In the output nothing is written or deleted through a link: a source whose
+// output path has a link at or above it is refused, naming the link, and an output whose directories
+// hold one is not deleted but reported as a refusal, its record entry kept to try again.
 CookReport CookTree(const std::filesystem::path &source, const std::filesystem::path &output);
 } // namespace Jettison::Cook

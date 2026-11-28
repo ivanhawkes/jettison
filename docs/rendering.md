@@ -428,7 +428,12 @@ the table, that a reload replaced waits in a queue for `kFramesInFlight` frames.
 
 The cook's model file (`Geometry::CookModel`, `geometry/Cook.h`), a binary glTF 2.0 that any
 glTF reader with these extensions opens, which `Geometry::GltfFile` reads, and the model and rig
-loaders with it ([models](#models-and-textures)).
+loaders with it ([models](#models-and-textures)). The reader refuses any glTF, cooked or not, that
+fastgltf's accessor tools would read outside its buffers from: an accessor outside its view or
+buffer, or sparse; a primitive's attributes of different counts; a compressed view outside its
+buffers, against the extension's limits on stride and count, or decoding to more than 256 MiB,
+or into a fallback that reaches past 1 GiB, which is made only as long as its views reach
+(`GltfFile.h` lists every refusal).
 
 - **Extensions.** `EXT_meshopt_compression` and `KHR_mesh_quantization`, used and required, beside
   the source's own ([decided](decisions.md#rendering)). `asset.generator` is `Jettison's cook
@@ -460,7 +465,9 @@ loaders with it ([models](#models-and-textures)).
   `maxLevels` (5); one that keeps more than 90% of the last level's ends them, and a primitive that
   would vanish keeps the last level's triangles. Its error is the largest of its primitives', in
   the mesh's units, never less than the finer level's. The mesh's extras say so:
-  `{"jettison": {"levels": [{"primitives": 2, "error": 0}, {"primitives": 2, "error": 0.0037}]}}`.
+  `{"jettison": {"levels": [{"primitives": 2, "error": 0}, {"primitives": 2, "error": 0.0037}]}}`;
+  levels that are empty, or an error that is negative, past a float's range or less than the finer
+  level's, are refused as malformed.
 - **The cook key.** `{"jettison": {"cookKey": "..."}}` in the default scene's extras, what the cook
   record names the source by (`GltfFile::CookKey`, empty for a file that was not cooked).
 - **The rest, as it was.** Nodes, materials, textures, samplers, cameras and lights are copied. A

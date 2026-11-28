@@ -70,10 +70,12 @@ struct DirectoryWatcher::State
 
 
 	// The directory watched, and each below it, what is in them reported as changed. A directory that
-	// has gone by the time it is reached is passed over: its deletion is an event of its own.
+	// has gone by the time it is reached is passed over: its deletion is an event of its own. A link to
+	// a directory is not followed below the root, so the watch stays within the tree.
 	void Watch(const fs::path &directory, std::vector<fs::path> &changed)
 	{
-		const int watch = inotify_add_watch(descriptor, directory.c_str(), kEvents);
+		const std::uint32_t follow = directory == root ? 0 : IN_DONT_FOLLOW;
+		const int watch = inotify_add_watch(descriptor, directory.c_str(), kEvents | follow);
 		if (watch < 0)
 		{
 			if (directory != root && (errno == ENOENT || errno == ENOTDIR))
@@ -86,7 +88,7 @@ struct DirectoryWatcher::State
 		     entry.increment(error))
 		{
 			changed.push_back(entry->path());
-			if (entry->is_directory(error))
+			if (entry->is_directory(error) && !entry->is_symlink(error))
 				Watch(entry->path(), changed);
 		}
 	}
