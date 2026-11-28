@@ -5,7 +5,6 @@
 #include <cstddef>
 #include <cstdint>
 #include <memory>
-#include <span>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -13,6 +12,15 @@
 #include <jettison/render/Mesh.h>
 
 #include "vulkan/DeviceContext.h"
+
+namespace fastgltf
+{
+class Asset;
+}
+namespace Jettison::Animation
+{
+class ModelFile;
+}
 
 namespace Jettison::Render
 {
@@ -46,11 +54,11 @@ class Model
 
 	Model &operator=(const Model &) = delete;
 
-	// The geometry in a glTF file's bytes: its one mesh node's triangle primitives, each with the
-	// base colour image its material names. A binary .glb, or a .gltf whose buffers and images are
-	// embedded, since the bytes are all there is. The node hierarchy, skin and clips are the
-	// animation module's to read (Animation::ReadGltfRig). Throws naming the file.
-	static std::unique_ptr<Model> FromGltf(std::span<const std::byte> bytes, std::string_view name);
+	// The geometry in a parsed glTF file: its one mesh node's triangle primitives, each with the base
+	// colour image its material names, embedded, since the file's bytes are all there is. The node
+	// hierarchy, skin and clips are the animation module's to read from the same parse
+	// (Animation::ReadGltfRig), so the file is read once for both. Throws naming the file.
+	static std::unique_ptr<Model> FromGltf(const Animation::ModelFile &file);
 
 	// A model from geometry made in code: a primitive per level of detail, finest first, untextured.
 	// Each level's indices are into its own vertices.
@@ -88,7 +96,7 @@ class Model
 	Buffer m_indexBuffer{};
 
   private:
-	void ReadGltf(std::span<const std::byte> bytes, const std::string &name);
+	void ReadGltf(const fastgltf::Asset &asset, const std::string &name);
 
 	void ComputeBounds();
 

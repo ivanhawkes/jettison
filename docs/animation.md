@@ -73,12 +73,13 @@ its last after its last key. It slerps rotations the shorter way and normalises 
 
 A model's file carries its rig: the node hierarchy, the skin on its one mesh node, and its clips.
 `Animation::ReadGltfRig` (`animation/RigLoader.h`) reads it through the resource manager, on the
-I/O worker, apart from the renderer's read of its geometry, so posing a rig on the CPU waits on no
-GPU device and needs no module that has one.
+I/O worker, from the file's one parse (`Animation::ModelFile`), which the renderer's geometry is
+made from too, so the file is read once for both ([models](rendering.md#models-and-textures)).
+Posing a rig on the CPU waits on no GPU device and needs no module that has one.
 
-The rig loader accepts a binary `.glb`, or a `.gltf` with its buffers embedded, since a resource's
-decode is given only the file's own bytes. It refuses a file with no nodes, or with other than one
-mesh node.
+The model file's parse accepts a binary `.glb`, or a `.gltf` with its buffers embedded, since a
+resource's decode is given only the file's own bytes. The rig loader refuses a file with no nodes,
+or with other than one mesh node.
 
 Each frame, the update advances the entity's `AnimationPlayerComponent`, wrapping a looping clip and
 holding one that does not loop at its end. It then calls `Rig::EvaluateSkin`, which writes a matrix
@@ -407,7 +408,6 @@ A game whose own system places the camera orders it after `camera.rig` and befor
 - The shell does not collect a sequence's events, so none is heard yet; a shot has no roll or depth
   of field; a blend cannot steer round an obstacle; a sequence cannot blend between two colour
   grades: [J22](roadmap.md#j22).
-- A model file is parsed twice, once for its rig and once for its geometry: [J27](roadmap.md#j27).
 - No blend shapes, blend spaces, layers or IK, and one mesh node a model: planned in
   [characters](characters.md), J51 to J60.
 
@@ -420,7 +420,7 @@ were built is in [history](history.md).
 
 | Module | Key headers |
 | --- | --- |
-| `engine/animation` | `animation/Clip.h` (tracks, clips, sampling), `animation/Playback.h` (advancing a rotation, a player, a clip and its events), `animation/Components.h`, `animation/Rig.h`, `animation/RigLoader.h`, `animation/ClipFile.h` (the clip file's format and loader) |
+| `engine/animation` | `animation/Clip.h` (tracks, clips, sampling), `animation/Playback.h` (advancing a rotation, a player, a clip and its events), `animation/Components.h`, `animation/Rig.h`, `animation/ModelFile.h` (a model file's one parse), `animation/RigLoader.h`, `animation/ClipFile.h` (the clip file's format and loader) |
 | `engine/scene` | `scene/Sequence.h` (the sequence's format, rails, sampling and loader), `scene/SceneSystems.h` (`SceneUpdateSystem`, `SequenceSystem`, `ClipEventFired`, `SequenceEventFired`), `scene/Components.h` (`ClipPlayerComponent`, `NodePoseComponent`, `SequencePlayerComponent`, `CameraPoseComponent`) |
 | `engine/app` | `source/engine/app/src/Application.cpp` (the frame systems, `PlaySequence`, the `sequence` command, clip events to sounds) |
 

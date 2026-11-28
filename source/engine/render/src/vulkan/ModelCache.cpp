@@ -1,11 +1,10 @@
 #include "vulkan/ModelCache.h"
 
 #include <algorithm>
-#include <cctype>
-#include <stdexcept>
 #include <string>
 #include <utility>
 
+#include <jettison/animation/ModelFile.h>
 #include <jettison/render/Procedural.h>
 #include <jettison/resource/ResourceManager.h>
 #include <jettison/scene/Components.h>
@@ -16,19 +15,6 @@ namespace Jettison::Render
 {
 namespace
 {
-bool IsGltf(std::string_view path)
-{
-	const auto dot = path.rfind('.');
-	if (dot == std::string_view::npos)
-		return false;
-	std::string extension{path.substr(dot)};
-	std::ranges::transform(
-	    extension, extension.begin(),
-	    [](unsigned char ch) { return static_cast<char>(std::tolower(ch)); });
-	return extension == ".gltf" || extension == ".glb";
-}
-
-
 // One model per shape and colour, shared by every entity that asks for it, as a model file is.
 std::string ShapeKey(const Scene::MeshComponent &mesh)
 {
@@ -56,14 +42,8 @@ void ModelCache::Init()
 	if (m_loaderRegistered)
 		return;
 	m_resources.RegisterLoader(
-	    Resource::Loader<Model>{
-	        [](std::span<const std::byte> bytes, std::string_view path)
-	        {
-		        if (!IsGltf(path))
-			        throw std::runtime_error(
-			            "Unsupported model format; expected .gltf or .glb: " + std::string{path});
-		        return Model::FromGltf(bytes, path);
-	        },
+	    Resource::DerivedLoader<Model, Animation::ModelFile>{
+	        [](const Animation::ModelFile &file, std::string_view) { return Model::FromGltf(file); },
 	        [this](Model &model, std::string_view path)
 	        { model.Upload(*m_pDeviceContext, "model-" + std::string{path}); },
 	        [this](Model &model) { Retire(model); }});

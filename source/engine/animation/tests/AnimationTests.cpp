@@ -348,7 +348,11 @@ TEST_CASE("Rig loader: a glTF file's hierarchy, skin and clips, through the reso
 	// Bytes that are not glTF fail with the file named, as a resource's error.
 	const std::vector<std::byte> junk(16, std::byte{0x2a});
 	CHECK_THROWS_WITH_AS(
-	    ReadGltfRig(junk, "models/junk.glb"), doctest::Contains("models/junk.glb"), std::runtime_error);
+	    ModelFile::Parse(junk, "models/junk.glb"), doctest::Contains("models/junk.glb"),
+	    std::runtime_error);
+	CHECK_THROWS_WITH_AS(
+	    ModelFile::Parse(junk, "models/junk.obj"), doctest::Contains("expected .gltf or .glb"),
+	    std::runtime_error);
 	resources.Release(arm);
 	resources.Release(crate);
 	resources.Release(missing);

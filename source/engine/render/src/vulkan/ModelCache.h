@@ -25,8 +25,9 @@ namespace Jettison::Render
 class MaterialCache;
 
 // The models a scene draws, by what the scene names (Scene::MeshComponent). A model file is a
-// resource: decoded on the I/O worker, uploaded by its loader's finish, reloaded when its file
-// changes, and keyed on its virtual path. A procedural shape is made here on first use, keyed on its
+// resource: made on the I/O worker from the file's one parse, which the scene's rig of it is made
+// from too (Animation::ModelFile), uploaded by its loader's finish, reloaded when its file changes,
+// and keyed on its virtual path. A procedural shape is made here on first use, keyed on its
 // shape, colour and inner radius. Neither is keyed on an address, so a scene reload that frees one
 // model and makes another where it was cannot be mistaken for the old one.
 //
@@ -44,7 +45,9 @@ class ModelCache
 
 	ModelCache &operator=(const ModelCache &) = delete;
 
-	// Registers the model loader, so a renderer is made once per resource manager.
+	// Registers the model loader, so a renderer is made once per resource manager. The model file's
+	// own loader is the animation module's (Animation::RegisterRigLoader), registered before a model
+	// is first resolved.
 	void Init();
 
 	// Releases every model and frees everything, queued or not: the device has to be idle.

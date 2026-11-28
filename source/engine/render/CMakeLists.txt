@@ -106,6 +106,7 @@ jettison_add_module(render
 		tests/EnvironmentTests.cpp
 		tests/LargeWorldTests.cpp
 		tests/MaterialTests.cpp
+		tests/ModelTests.cpp
 		tests/OverlayTests.cpp
 		tests/ParticleTests.cpp
 		tests/PassListTests.cpp

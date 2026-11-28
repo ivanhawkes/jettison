@@ -401,6 +401,17 @@ What moves a frame's bodies and what pulls in it are under [Physics](#physics).
 
 ## Rendering
 
+- **A model file is parsed once, in animation, and its model and rig are made from the parse**
+  (2026-11-28, J27). The parse is `Animation::ModelFile`, in the module the rig's reader is in and
+  render already depends on, so no module's dependencies widen; the resource manager makes the model
+  and the rig from it as resources of their own (`Resource::DerivedLoader`), each keeping its own
+  handle, references and reload, which the scene and the renderer hold apart. The parse is dropped
+  once they have it rather than kept for a type asked for later, which reads the file again: keeping
+  it would hold every model file in memory beside its rig and its GPU copy. Rejected: the bytes read
+  once and handed to two parses, which parses twice; one resource holding the rig and the CPU
+  geometry, which would move the geometry's reader out of render and keep it resident; and a
+  `geometry` module now, which is [J37](roadmap.md#j37)'s.
+  [Rendering](rendering.md#models-and-textures)
 - **A draw's glow is scaled per instance** (2026-11-28, `Scene::MeshComponent::emissiveScale`). The
   scale multiplies the material's emissive parameter and travels in the instance buffer with the
   draw's transform, so a glow a game moves each frame makes no material, no model and no batch of

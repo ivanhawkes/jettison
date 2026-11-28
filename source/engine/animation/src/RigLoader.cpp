@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <memory>
 #include <optional>
+#include <span>
 #include <stdexcept>
 #include <string>
 #include <variant>
@@ -96,22 +97,10 @@ Clip ReadClip(const fastgltf::Asset &asset, const fastgltf::Animation &animation
 } // namespace
 
 
-Rig ReadGltfRig(std::span<const std::byte> bytes, std::string_view name)
+Rig ReadGltfRig(const ModelFile &file)
 {
-	const std::string label{name};
-	auto data = fastgltf::GltfDataBuffer::FromBytes(bytes.data(), bytes.size());
-	if (data.error() != fastgltf::Error::None)
-		throw std::runtime_error("Failed to read glTF model: " + label);
-	fastgltf::Parser parser;
-	auto parsed = parser.loadGltf(data.get(), {}, fastgltf::Options::DecomposeNodeMatrices);
-	if (parsed.error() != fastgltf::Error::None)
-		throw std::runtime_error("Failed to parse glTF model: " + label);
-	const fastgltf::Asset &asset = parsed.get();
-	for (const auto &buffer : asset.buffers)
-		if (std::holds_alternative<fastgltf::sources::URI>(buffer.data))
-			throw std::runtime_error(
-			    "glTF model keeps a buffer in another file, which a resource cannot read: " + label +
-			    " (make it a .glb, or embed the buffer)");
+	const std::string &label = file.Name();
+	const fastgltf::Asset &asset = file.Asset();
 	if (asset.nodes.empty())
 		throw std::runtime_error("glTF model has no nodes: " + label);
 
@@ -177,9 +166,16 @@ Rig ReadGltfRig(std::span<const std::byte> bytes, std::string_view name)
 void RegisterRigLoader(Resource::ResourceManager &resources)
 {
 	resources.RegisterLoader(
-	    Resource::Loader<Rig>{
+	    Resource::Loader<ModelFile>{
 	        [](std::span<const std::byte> bytes, std::string_view path)
-	        { return std::make_unique<Rig>(ReadGltfRig(bytes, path)); },
+	        { return ModelFile::Parse(bytes, path); },
+	        {},
+	        {},
+	        false});
+	resources.RegisterLoader(
+	    Resource::DerivedLoader<Rig, ModelFile>{
+	        [](const ModelFile &file, std::string_view)
+	        { return std::make_unique<Rig>(ReadGltfRig(file)); },
 	        {},
 	        {}});
 }

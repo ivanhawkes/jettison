@@ -7,6 +7,8 @@
 #include <string>
 #include <utility>
 
+#include <jettison/animation/ModelFile.h>
+
 namespace Jettison::Render
 {
 VkVertexInputBindingDescription VertexBindingDescription()
@@ -33,10 +35,10 @@ std::vector<VkVertexInputAttributeDescription> VertexAttributeDescriptions()
 }
 
 
-std::unique_ptr<Model> Model::FromGltf(std::span<const std::byte> bytes, std::string_view name)
+std::unique_ptr<Model> Model::FromGltf(const Animation::ModelFile &file)
 {
 	auto pModel = std::make_unique<Model>();
-	pModel->ReadGltf(bytes, std::string{name});
+	pModel->ReadGltf(file.Asset(), file.Name());
 	return pModel;
 }
 

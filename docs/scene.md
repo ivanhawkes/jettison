@@ -395,7 +395,6 @@ CHECK(index.QuerySphere({0.0, 0.0, 0.0}, 100.0) ==
 - Layers are for visibility only; nothing loads a scene layer by layer.
 - No test covers layer visibility (`SetLayerVisible`, `HiddenComponent`).
 - The spatial index holds points; an entity's extent is the querying system's to test.
-- A model file is read twice, once for its rig and once for its geometry: [J27](roadmap.md#j27).
 
 ## Decisions
 

@@ -358,10 +358,18 @@ of its primitives.
 
 `MeshComponent` names a model file by virtual path (`models/crate.glb`), so a
 [mod](glossary.md#mod) can shadow it, or a procedural shape sized by the transform's scale.
-`ModelCache` resolves either. A glTF file is loaded through fastgltf on the I/O worker, uploaded by
-its loader's `finish` on the main thread, and reloaded when its file changes. A procedural shape
-(`render/Procedural.h`: UV, ico and cube spheres, rings, cylinders, boxes) is made on first use,
-each with five levels of detail but the box, which has one.
+`ModelCache` resolves either. A glTF file is read and parsed once, through fastgltf on the I/O
+worker, for both its geometry and its [rig](animation.md#a-gltf-models-rig): the parse is the
+animation module's `Animation::ModelFile`, which render depends on, and the model and the rig are
+each a resource made from it (`Resource::DerivedLoader`, [resources](files-and-mods.md#resources)).
+One read on a change makes both again. The model is uploaded by its loader's `finish` on the main
+thread. The scene asks for a model's rig as it loads, and the renderer for the model straight after
+(below), while the rig's read is in flight, so the model is made from that read once it lands, an
+`Update` after the rig. The parse is dropped once the two have it, so the file is not held in
+memory beside them; a model first asked for after that reads the file again.
+
+A procedural shape (`render/Procedural.h`: UV, ico and cube spheres, rings, cylinders, boxes) is
+made on first use, each with five levels of detail but the box, which has one.
 
 A scene's models are asked for as it loads (`IRenderer::PrefetchScene`), not the first frame that
 draws each, and the shell holds the scene behind a full fade until every model file it names has
@@ -670,8 +678,7 @@ committed images.
   distance; programs and their descriptors hot-reloaded (materials and
   textures already are); cube maps and texture arrays from files; normal mapping on meshes (the BRDF
   has it, the vertex has no tangents); a glTF model's own metallic-roughness factors (it reads its
-  base-colour image only); a model file read once rather than for its mesh and again for its rig;
-  air over a mesh; the capture's planets and a gas giant's bands.
+  base-colour image only); air over a mesh; the capture's planets and a gas giant's bands.
 - Levels of detail for model files, with hysteresis between them (a draw at a threshold can switch
   level frame to frame), are [J37](roadmap.md#j37).
 - No spot or point light shadows; ray-traced ones are [J45](roadmap.md#j45), on devices with ray

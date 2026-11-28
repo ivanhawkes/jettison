@@ -56,25 +56,8 @@ std::vector<std::byte> ReadBaseColorImageData(
 } // namespace
 
 
-void Model::ReadGltf(std::span<const std::byte> bytes, const std::string &path)
+void Model::ReadGltf(const fastgltf::Asset &asset, const std::string &path)
 {
-	auto data = fastgltf::GltfDataBuffer::FromBytes(bytes.data(), bytes.size());
-	if (data.error() != fastgltf::Error::None)
-		throw std::runtime_error("Failed to read glTF model: " + path);
-
-	fastgltf::Parser parser;
-	auto parsed = parser.loadGltf(data.get(), {}, fastgltf::Options::DecomposeNodeMatrices);
-	if (parsed.error() != fastgltf::Error::None)
-		throw std::runtime_error("Failed to parse glTF model: " + path);
-	const fastgltf::Asset &asset = parsed.get();
-
-	// A resource's decode has the file's bytes and nothing beside them.
-	for (const auto &buffer : asset.buffers)
-		if (std::holds_alternative<fastgltf::sources::URI>(buffer.data))
-			throw std::runtime_error(
-			    "glTF model keeps a buffer in another file, which a resource cannot read: " + path +
-			    " (make it a .glb, or embed the buffer)");
-
 	std::optional<std::size_t> meshNode;
 	for (std::size_t nodeIndex = 0; nodeIndex < asset.nodes.size(); ++nodeIndex)
 	{
