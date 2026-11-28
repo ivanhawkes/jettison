@@ -30,6 +30,7 @@
 #include <ft2build.h>
 #include FT_FREETYPE_H
 #include <ktx.h>
+#include <meshoptimizer.h>
 #include <mikktspace.h>
 #include <miniaudio.h>
 #include <sodium.h>
@@ -120,6 +121,15 @@ TEST_CASE("fastgltf and its simdjson")
 	fastgltf::Parser parser;
 	auto asset = parser.loadGltfJson(data.get(), {});
 	REQUIRE(asset.error() == fastgltf::Error::None);
+}
+
+
+TEST_CASE("meshoptimizer")
+{
+	const std::array<unsigned int, 3> triangle{0, 1, 2};
+	std::array<unsigned int, 3> ordered{};
+	meshopt_optimizeVertexCache(ordered.data(), triangle.data(), triangle.size(), 3);
+	CHECK(ordered == triangle);
 }
 
 

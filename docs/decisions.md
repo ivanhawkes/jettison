@@ -406,6 +406,15 @@ What moves a frame's bodies and what pulls in it are under [Physics](#physics).
 
 ## Rendering
 
+- **The cooked GLB is compressed with `EXT_meshopt_compression`, and its levels and cook key are in
+  its mesh's and default scene's extras** (2026-11-28, J37a). fastgltf 1.0.1, the pinned reader and
+  writer, parses both meshopt extensions but writes only `EXT_meshopt_compression`
+  (`src/exporter.cpp`, its buffer and buffer-view writers), and writes no extras for the asset or a
+  primitive, where the plan put them. `KHR_meshopt_compression` adds the vertex codec's version 1 and
+  a colour filter, a few percent smaller; patching fastgltf's exporter for it, or writing the GLB's
+  JSON ourselves, was rejected for that. The vertex codec is version 0, the only one the `EXT`
+  extension allows. A model with no scene is refused, as nothing would carry its key.
+  [Rendering](rendering.md#the-cooked-model)
 - **A model file is parsed once, in animation, and its model and rig are made from the parse**
   (2026-11-28, J27). The parse is `Animation::ModelFile`, in the module the rig's reader is in and
   render already depends on, so no module's dependencies widen; the resource manager makes the model

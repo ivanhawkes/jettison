@@ -60,6 +60,7 @@ if(JETTISON_PLANNED_DEPENDENCIES)
 		GPUOpen::VulkanMemoryAllocator
 		FastNoiseLite
 		mikktspace
+		meshoptimizer
 		Jolt
 		Freetype::Freetype
 		RmlUi::RmlUi

@@ -26,7 +26,7 @@ for you; a checkout without LFS gives the render test 132-byte pointer files.
 There are no submodules. Every third-party library is pinned in `source/external/CMakeLists.txt` and
 downloaded by `FetchContent` on the first configure. Each pin's comment says why it is configured as
 it is, and why it is held back where it is older than upstream's newest release. Versions were last
-reviewed on 2026-11-10; ENet and libsodium were added on 2026-11-20.
+reviewed on 2026-11-10; ENet and libsodium were added on 2026-11-20, meshoptimizer on 2026-11-28.
 
 | Library | Pin | Linked by | Note |
 |---|---|---|---|
@@ -36,13 +36,14 @@ reviewed on 2026-11-10; ENet and libsodium were added on 2026-11-20.
 | Dear ImGui | v1.93.0 (commit) | `devtools`, `render` | GLFW and Vulkan backends from the same release; fonts through `imgui_freetype` |
 | stb | master, 2026-11-10 (commit) | `render` | No releases |
 | yaml-cpp | 0.9.0 | `core`, `serialise` and others | |
-| fastgltf | v1.0.1 | `render`, `animation` | Downloads its own simdjson 5.1.0 and simdutf |
+| fastgltf | v1.0.1 | `geometry`, `render`, `animation` | Downloads its own simdjson 5.1.0 and simdutf; `geometry` reads its extras through that simdjson |
 | spdlog | v1.17.0 | `core` | `SPDLOG_USE_STD_FORMAT` |
 | doctest | v2.5.3 | the suites | Fetched in every tree |
 | Tracy | v0.13.1 | `profile` | **Held back** from 0.15.0 to match devenv's profiler ([profiling](#profiling)) |
 | Vulkan Memory Allocator | v3.5.0 | `render`, privately | Header-only; `render` compiles the implementation |
 | FastNoiseLite | v1.1.1 | `math` | Header-only; output pinned by recorded values |
 | MikkTSpace | 2020 (only commit) | `math` | |
+| meshoptimizer | v1.3 | `geometry`, privately | Its vertex and index codecs are `EXT_meshopt_compression`'s ([the cooked model](rendering.md#the-cooked-model)) |
 | Jolt Physics | v5.6.0 | `physics`, privately | Double precision, deterministic across build types |
 | FreeType | 2.15.0 | `ui`, RmlUi, ImGui | Answers RmlUi's `find_package(Freetype)` |
 | RmlUi | 6.3 | `ui`, privately | |

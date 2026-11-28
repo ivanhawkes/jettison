@@ -410,6 +410,56 @@ opaque pass's cost (measured 2026-11-11 and 2026-11-12, [decided](decisions.md#r
 Nothing a frame in flight may read is freed on the spot. A model, or a texture and its element of
 the table, that a reload replaced waits in a queue for `kFramesInFlight` frames.
 
+### The cooked model
+
+The cook's model file (`Geometry::CookModel`, `geometry/Cook.h`), a binary glTF 2.0 that any
+glTF reader with these extensions opens, which `Geometry::GltfFile` reads. The model and rig
+loaders move to that reader in [J37](roadmap.md#j37); until then they read only uncooked files.
+
+- **Extensions.** `EXT_meshopt_compression` and `KHR_mesh_quantization`, used and required, beside
+  the source's own ([decided](decisions.md#rendering)). `asset.generator` is `Jettison's cook
+  (jettison_cook)`.
+- **Buffers.** Buffer 0 is the binary chunk, every stored byte. Buffer 1, when any view is
+  compressed, is the fallback: a length and no bytes, into which the compressed views decode. Views
+  are aligned to 4 bytes in both.
+- **Vertices.** Each source primitive's vertices are stored once, every level reading them: normals
+  where it had none (each vertex's face normals summed, as the renderer makes them for an uncooked
+  file), tangents by MikkTSpace where it has normals and `TEXCOORD_0` and no tangents (which splits
+  vertices on seams), in vertex-cache order and then in the order they are first fetched. One view
+  per attribute, in the codec's attribute mode, its stride padded to whole words:
+
+  | Attribute | Stored as |
+  | --- | --- |
+  | `POSITION` | float, with its bounds |
+  | `NORMAL`, `TANGENT` | 16-bit signed, normalised |
+  | `TEXCOORD_n` | 16-bit unsigned, normalised, where every value is within [0, 1]; float otherwise |
+  | `COLOR_n`, `WEIGHTS_n` | 16-bit unsigned, normalised |
+  | `JOINTS_n` | 8-bit unsigned, or 16-bit past joint 255 |
+  | any other | float |
+
+- **Levels.** A mesh's primitives are its levels in turn, finest first, each holding every source
+  primitive in its order with its material: level `k`'s primitive `p` is primitive `k × P + p`.
+  Each level's indices are a view of their own in the codec's triangle mode, 16-bit up to 65,536
+  vertices and 32-bit past them. A level is simplified from the finest (`meshopt_simplify`, borders
+  locked so primitives that meet stay joined) to `reduction` of the level before it's triangles
+  (`LodSettings`, a half by default), within `maxError` of the mesh's extent (5%), at most
+  `maxLevels` (5); one that keeps more than 90% of the last level's ends them, and a primitive that
+  would vanish keeps the last level's triangles. Its error is the largest of its primitives', in
+  the mesh's units, never less than the finer level's. The mesh's extras say so:
+  `{"jettison": {"levels": [{"primitives": 2, "error": 0}, {"primitives": 2, "error": 0.0037}]}}`.
+- **The cook key.** `{"jettison": {"cookKey": "..."}}` in the default scene's extras, what the cook
+  record names the source by (`GltfFile::CookKey`, empty for a file that was not cooked).
+- **The rest, as it was.** Nodes, materials, textures, samplers, cameras and lights are copied. A
+  skin's matrices and a clip's times and values are float accessors with their bounds, stored
+  uncompressed, a shared one once; images are stored in the binary chunk with their MIME type (an
+  image in a file of its own is refused until the cook reads source trees). A primitive that is not
+  triangles or has morph targets is refused, naming the file.
+
+The same source, settings and key give the same bytes. The geometry suite cooks a rock of 5,120
+triangles into five levels of 5,120, 2,560, 1,280, 640 and 320 with errors 0, 0.0037, 0.0078,
+0.0145 and 0.0279 on its 2 m, 113 KB into 84 KB; the arm with its skin, clip and image as they were;
+and the crate's two primitives into every level.
+
 ### Cameras
 
 The renderer draws from the scene's active camera (`Render::ActiveCameraView`). Its projection is

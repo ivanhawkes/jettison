@@ -301,6 +301,27 @@ FetchContent_MakeAvailable(mikktspace)
 add_library(mikktspace STATIC EXCLUDE_FROM_ALL "${mikktspace_SOURCE_DIR}/mikktspace.c")
 target_include_directories(mikktspace SYSTEM PUBLIC "${mikktspace_SOURCE_DIR}")
 
+# Mesh optimisation, behind geometry: vertex cache and fetch order, simplification for levels of
+# detail, and the vertex and index codecs of the cooked GLB's EXT_meshopt_compression. Chosen
+# because it is the reference for all three (its author wrote the extension), MIT, plain C++ with no
+# dependencies, and deterministic for the same input, which the cook's same-bytes rule needs.
+# In every tree, because geometry is a CPU module.
+block()
+	set(MESHOPT_BUILD_DEMO OFF)
+	set(MESHOPT_BUILD_GLTFPACK OFF)
+	set(MESHOPT_BUILD_SHARED_LIBS OFF)
+	set(MESHOPT_INSTALL OFF)
+	FetchContent_Declare(
+	  meshoptimizer
+	  GIT_REPOSITORY https://github.com/zeux/meshoptimizer.git
+	  GIT_TAG v1.3
+	  GIT_SHALLOW TRUE
+	  SYSTEM
+	  EXCLUDE_FROM_ALL
+	)
+	FetchContent_MakeAvailable(meshoptimizer)
+endblock()
+
 # Profiling, behind profile's Profile.h. Held at 0.13.1, two releases behind upstream's 0.15.0:
 # Tracy's client and profiler must speak the same protocol version, which changes between minor
 # releases, and the profiler the devenv nixpkgs pin provides is 0.13.1. Move this pin and the

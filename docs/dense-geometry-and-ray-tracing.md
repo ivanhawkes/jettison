@@ -203,7 +203,7 @@ names keep their own words where they are the API's: a CLAS is a cluster acceler
 
 | Part | Where | Depends on |
 | --- | --- | --- |
-| `geometry` | A new module in the Data tier, CPU only, built with presentation off: triangle meshes read from glTF, levels of detail, the meshlet hierarchy, the cooked formats' readers and writers | `core`, `math`, `vfs`; fastgltf, meshoptimizer, mikktspace |
+| `geometry` | A new module in the Data tier, CPU only, built with presentation off: triangle meshes read from glTF, levels of detail, the meshlet hierarchy, the cooked formats' readers and writers | `math` (mikktspace through it); fastgltf, meshoptimizer |
 | `jettison_cook` | `source/tools/cook`, beside the packer; CPU only | `geometry`, `serialise` (settings), `platform` (the watch), libktx (`ktx`, its encoder) |
 | Drawing, culling, acceleration structures | `render` | `geometry` (readers only) |
 | Rig and clips | `animation`, reading the cooked GLB through `geometry`'s reader | `geometry` (the reader) |
@@ -274,11 +274,13 @@ flowchart LR
 ### Cooked formats
 
 - **The model, `<name>.glb`.** Plain glTF 2.0 with `KHR_mesh_quantization` and
-  `KHR_meshopt_compression`, which fastgltf 1.0.1 parses and meshoptimizer decodes. Its levels of
-  detail are its primitives in order, finest first, with their errors in the primitive's extras;
-  `asset.extras` carries the cook key. `geometry`'s reader opens it with these and `KHR_texture_basisu`
-  enabled and
-  decodes the compressed buffer views, and the model loader and the rig loader both go through it
+  `EXT_meshopt_compression`, which fastgltf 1.0.1 writes and parses and meshoptimizer decodes
+  (`KHR_meshopt_compression` it parses but cannot write, [decided](decisions.md#rendering)). Its
+  levels of detail are its primitives in order, finest first, with their counts and errors in the
+  mesh's extras; the default scene's extras carry the cook key, since fastgltf writes neither an
+  asset's nor a primitive's ([the cooked model](rendering.md#the-cooked-model), built in J37a).
+  `geometry`'s reader opens it with these and `KHR_texture_basisu` enabled and decodes the
+  compressed buffer views, and the model loader and the rig loader both go through it
   (today each sets up its own parser, with no extensions, and would refuse the file). A GLB with no
   meshlet file beside it draws on the indexed path, so an uncooked glTF keeps working, with a
   warning naming the cook.

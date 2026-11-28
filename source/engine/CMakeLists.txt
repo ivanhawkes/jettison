@@ -13,7 +13,8 @@ add_subdirectory(jobs)
 add_subdirectory(reflect)
 add_subdirectory(vfs)
 
-# Data.
+# Data. geometry is the cook's and the model loaders' reading of a glTF file.
+add_subdirectory(geometry)
 add_subdirectory(serialise)
 add_subdirectory(resource)
 add_subdirectory(ecs)

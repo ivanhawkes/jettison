@@ -52,6 +52,8 @@ jettison/
     │   ├── jobs/               the I/O worker thread
     │   ├── reflect/            EnTT meta registration helpers
     │   ├── vfs/                virtual file system, mounts, packs
+    │   ├── geometry/           glTF models read, cooked or not; a model cooked: levels of detail,
+    │   │                       quantised and compressed
     │   ├── serialise/          YAML and binary archives over reflection, migrations
     │   ├── resource/           resource handles, asynchronous loads, reference counts, reloads
     │   ├── ecs/                the scheduler, tick phases, the state machine utility
@@ -164,7 +166,7 @@ flowchart TB
         animation; sim; spatial; scene; input
     end
     subgraph data["Data"]
-        serialise; resource; ecs
+        geometry; serialise; resource; ecs
     end
     subgraph services["Services"]
         platform; profile; time; jobs; reflect; vfs
@@ -205,6 +207,7 @@ flowchart TB
     scene --> animation
     scene --> sim
     input --> math
+    geometry --> math
     serialise --> reflect
     serialise --> vfs
     resource --> jobs
