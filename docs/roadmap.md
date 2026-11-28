@@ -111,28 +111,6 @@ release's debug files by build ID.
 
 **Feature doc:** [runtime](runtime.md).
 
-<a id="j12"></a>
-### J12. A glTF model's collision mesh
-
-**What remains.** A model's collision shape baked into a file of its own beside the model: the
-model's own collision mesh where its author made one (its `collision-` nodes, [J66](#j66)), or else
-convex hulls simplified from the drawn mesh. The file is world content, kept in the server's pack,
-which holds no models, and read by physics as it is, so the client and the server collide with the
-same bytes. The cook ([J37](#j37)) bakes it once it exists; until then a small tool does, so this
-waits on none of the dense-geometry track.
-
-**Why.** A vehicle drawn from a model collides as the box of its definition's size. Physics is the
-server's, and the server reads no model, so the shape cannot be read from the glTF at run time
-(decided 2026-11-27).
-
-**What exists.** `Physics::ShapeKind::Mesh` and `ConvexHull` take vertices given in data or code
-(`source/engine/physics/include/jettison/physics/Shape.h`). A platform built to a layout collides as
-its decks, a mesh the docks make from the layout's boxes (`dock/src/Definitions.cpp`). A
-`Dock::VehicleDefinition` has a length, beam and height, and an optional model drawn in place of its
-proxy (`dock/Definitions.h`).
-
-**Feature doc:** [physics](physics.md).
-
 <a id="j15"></a>
 ### J15. Localisation
 
@@ -392,7 +370,7 @@ the rows below say what each stage is, what it waits on, and which backlog items
 
 | Stage | What it is | Needs | Touches |
 | --- | --- | --- | --- |
-| <a id="j37"></a>J37. The geometry module, the cook, and levels of detail for model files | meshoptimizer added; the CPU module `geometry`; `jettison_cook` cooking models and textures once, with layered settings files and a cook record over each source's references; the cooked GLB's reader for models, rigs and KTX 2 textures; the engine's content cooked at build time, dense test meshes generated; levels of detail and hysteresis for model files; `SetLodThreshold` on `IRenderer`. | J36 | Takes [J27](#j27)'s level-of-detail row; leaves [J12](#j12) small |
+| <a id="j37"></a>J37. The geometry module, the cook, and levels of detail for model files | meshoptimizer added; the CPU module `geometry`; `jettison_cook` cooking models and textures once, with layered settings files and a cook record over each source's references; the cooked GLB's reader for models, rigs and KTX 2 textures; the engine's content cooked at build time, dense test meshes generated; levels of detail and hysteresis for model files; `SetLodThreshold` on `IRenderer`. | J36 | Takes [J27](#j27)'s level-of-detail row; takes over [J12](history.md#j12)'s baker, `Bake::CollisionShape`, for every model it cooks |
 | <a id="j38"></a>J38. The cook's watch mode | `jettison_cook --watch`: the artists' daemon, cooking a source tree outside the game's repository into its asset folder as files change. | J37 | — |
 | <a id="j39"></a>J39. The meshlet hierarchy, cooked, and its page file | Each static mesh cooked into a meshlet hierarchy (`clusterlod.h`) and a page file beside its GLB; the meshlet size chosen by measurement. | J37 | — |
 | <a id="j40"></a>J40. GPU culling and mesh-shader drawing | Instances and meshlets culled on the GPU, drawn by task and mesh shaders in the prepass, opaque pass and cascades, in a deterministic order; the indexed path the fallback. | J39 | The reference frames, the ground sample's included ([J28](history.md#j28)), recorded again |
@@ -501,8 +479,8 @@ base-colour texture through `mesh` ([materials and programs](rendering.md#materi
   screen-space occlusion (the slot was renamed from `metallicRoughness` on 2026-11-27). A `mask`
   slot for programs that take one.
 - **Material extensions.** A glTF source using a material extension is refused, naming it.
-- **Role nodes.** `collision-` nodes kept out of the drawn mesh and handed to [J12](#j12)'s
-  collision file; `socket-` nodes kept in the cooked GLB, their transforms found by name on the
+- **Role nodes.** `collision-` nodes kept out of the drawn mesh and baked into the model's collision
+  file ([physics](physics.md#a-models-collision-shape)); `socket-` nodes kept in the cooked GLB, their transforms found by name on the
   model.
 
 **Why.** The [art standards](../../manifest/docs/art-standards.md#names) name maps and nodes by

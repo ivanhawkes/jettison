@@ -319,7 +319,7 @@ What moves a frame's bodies and what pulls in it are under [Physics](#physics).
   is committed. [Dense geometry and ray tracing](dense-geometry-and-ray-tracing.md)
 - **Device-free mesh work is the `geometry` module's** (2026-11-25, the user's). A CPU module in the
   data tier, so the cook, which builds without presentation, the renderer and later physics
-  ([J12](roadmap.md#j12)) share one reader of a model's triangles. [Dense geometry and ray tracing](dense-geometry-and-ray-tracing.md)
+  ([J12](history.md#j12)) share one reader of a model's triangles. [Dense geometry and ray tracing](dense-geometry-and-ray-tracing.md)
 - **A package holds both sides, split by directory; the server's bundle leaves presentation out**
   (2026-11-27, the user's). The world is the server's alone and a client is not trusted, so what a
   server reads (`defs/`, `scripts/`, and cooked collision shapes) is the world's, and models,
