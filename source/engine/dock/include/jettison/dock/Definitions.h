@@ -51,10 +51,12 @@ const BerthClassDefinition &BerthClassOf(
     const BerthClasses &classes, std::string_view berthClass, std::string_view namedBy);
 
 // A vehicle: its size and the berth class it lands on. defs/vehicles/<name>.yaml; its collision shape
-// is the box of its size (Docks::VehicleShape), whatever it is drawn as. The model is presentation's
-// alone, a glTF file by virtual path in the vehicle's axes and metres, drawn in place of its class's
-// proxy; the simulation never reads it. How it travels between platforms is the game's, as a
-// component the game gives its vehicles. Registered with Reflect as
+// (Docks::VehicleShape) is the box of its size, or, where it names one, a collision file baked from its
+// model (Physics::ReadCollisionFile), a virtual path, of convex hulls alone, since a vehicle flies as a
+// dynamic body and a mesh has no inside. Its size still says which berths it fits and where it rests
+// on one. The model is presentation's alone, a glTF file by virtual path in the vehicle's axes and
+// metres, drawn in place of its class's proxy; the simulation never reads it. How it travels between
+// platforms is the game's, as a component the game gives its vehicles. Registered with Reflect as
 // "Dock.VehicleDefinition", every field Saved and Moddable, by RegisterTypes.
 struct VehicleDefinition
 {
@@ -66,6 +68,7 @@ struct VehicleDefinition
 	// Its berth class's name.
 	std::string berthClass;
 	std::string model{};
+	std::string collision{};
 };
 
 // A box of a platform's structure, in its axes, square to them: its centre and its whole size.

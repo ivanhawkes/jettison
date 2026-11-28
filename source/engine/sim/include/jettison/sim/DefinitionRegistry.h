@@ -106,6 +106,13 @@ class DefinitionRegistry
 	// Definitions of every type.
 	std::size_t Count() const;
 
+	// The files it loads from, which a definition naming a file of its own is read through (a
+	// vehicle's collision file).
+	const Vfs::FileSystem &Files() const
+	{
+		return m_fileSystem;
+	}
+
   private:
 	using Definitions = std::map<std::string, entt::meta_any, std::less<>>;
 

@@ -16,10 +16,12 @@
 #include <jettison/ai/Courses.h>
 #include <jettison/ai/Steering.h>
 #include <jettison/core/Log.h>
+#include <jettison/physics/CollisionFile.h>
 #include <jettison/physics/Components.h>
 #include <jettison/physics/Flight.h>
 #include <jettison/physics/PhysicsWorld.h>
 #include <jettison/profile/Profile.h>
+#include <jettison/serialise/Archive.h>
 #include <jettison/sim/DefinitionRegistry.h>
 #include <jettison/sim/SimWorld.h>
 #include <jettison/sim/Snapshot.h>
@@ -176,14 +178,32 @@ void Docks::DefineBerthClass(std::string name, BerthClassDefinition berthClass)
 }
 
 
-void Docks::DefineVehicle(std::string name, VehicleDefinition vehicle)
+void Docks::DefineVehicle(std::string name, VehicleDefinition vehicle, const Vfs::FileSystem *pFiles)
 {
 	CheckVehicle(name, vehicle, m_berthClasses);
 	if (m_vehicles.contains(name))
 		throw std::invalid_argument{std::format("Dock: vehicle '{}' is already defined", name)};
 	Physics::ShapeDefinition shape;
-	shape.kind = Physics::ShapeKind::Box;
-	shape.halfExtents = glm::vec3{vehicle.beam, vehicle.height, vehicle.length} * 0.5f;
+	if (vehicle.collision.empty())
+	{
+		shape.kind = Physics::ShapeKind::Box;
+		shape.halfExtents = glm::vec3{vehicle.beam, vehicle.height, vehicle.length} * 0.5f;
+	}
+	else
+	{
+		if (!pFiles)
+			throw std::invalid_argument{std::format(
+			    "Dock: vehicle '{}' names the collision file '{}', and no files are given to read it",
+			    name, vehicle.collision)};
+		shape = Physics::ReadCollisionFile(*pFiles, vehicle.collision);
+		if (std::ranges::any_of(
+		        shape.parts, [](const Physics::ShapeDefinition &part)
+		        { return part.kind == Physics::ShapeKind::Mesh; }))
+			throw Serialise::FormatError{std::format(
+			    "Dock: vehicle '{}' names the collision file '{}', which holds a mesh: a vehicle flies "
+			    "as a dynamic body, and a mesh has no inside",
+			    name, vehicle.collision)};
+	}
 	m_physics.DefineShape(VehicleShape(name), shape);
 	m_vehicles.emplace(std::move(name), std::move(vehicle));
 }
@@ -204,7 +224,7 @@ void Docks::Define(const Sim::DefinitionRegistry &definitions)
 	for (const std::string &name : definitions.Names<BerthClassDefinition>())
 		DefineBerthClass(name, *definitions.Find<BerthClassDefinition>(name));
 	for (const std::string &name : definitions.Names<VehicleDefinition>())
-		DefineVehicle(name, *definitions.Find<VehicleDefinition>(name));
+		DefineVehicle(name, *definitions.Find<VehicleDefinition>(name), &definitions.Files());
 	for (const std::string &name : definitions.Names<PlatformLayout>())
 		DefineLayout(name, *definitions.Find<PlatformLayout>(name));
 }

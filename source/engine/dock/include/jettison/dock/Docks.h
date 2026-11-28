@@ -34,6 +34,11 @@ class DefinitionRegistry;
 class SimWorld;
 } // namespace Jettison::Sim
 
+namespace Jettison::Vfs
+{
+class FileSystem;
+}
+
 namespace Jettison::Dock
 {
 // Platforms' berths and the vehicles on them, in the simulation (docs/docks.md). Who
@@ -322,8 +327,11 @@ class Docks
 
 	// A vehicle and a layout, checked (CheckVehicle, CheckLayout) against the berth classes defined,
 	// and their shapes defined in physics. Throws Serialise::FormatError for one that does not fit, and
-	// std::invalid_argument for a name already defined.
-	void DefineVehicle(std::string name, VehicleDefinition vehicle);
+	// std::invalid_argument for a name already defined. A vehicle naming a collision file has it read
+	// through the files given, and throws as Physics::ReadCollisionFile does, Serialise::FormatError
+	// for one holding a mesh, and std::invalid_argument when it is given none.
+	void DefineVehicle(
+	    std::string name, VehicleDefinition vehicle, const Vfs::FileSystem *pFiles = nullptr);
 
 	void DefineLayout(std::string name, PlatformLayout layout);
 

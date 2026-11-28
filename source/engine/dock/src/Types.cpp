@@ -53,7 +53,8 @@ void RegisterTypes()
 		    .Field<&VehicleDefinition::beam>("beam", kDefined)
 		    .Field<&VehicleDefinition::height>("height", kDefined)
 		    .Field<&VehicleDefinition::berthClass>("berth", kDefined)
-		    .Field<&VehicleDefinition::model>("model", kDefined);
+		    .Field<&VehicleDefinition::model>("model", kDefined)
+		    .Field<&VehicleDefinition::collision>("collision", kDefined);
 		RegisterType<Box>("Dock.Box")
 		    .Field<&Box::centre>("centre", kDefined)
 		    .Field<&Box::size>("size", kDefined);

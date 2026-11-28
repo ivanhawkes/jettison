@@ -1,13 +1,19 @@
 #include "Fixture.h"
 
 #include <jettison/dock/Definitions.h>
+#include <jettison/physics/CollisionFile.h>
 #include <jettison/serialise/Archive.h>
 
 #include <doctest/doctest.h>
 
 #include <glm/geometric.hpp>
 
+#include <filesystem>
+#include <fstream>
+#include <stdexcept>
 #include <string>
+#include <unistd.h>
+#include <vector>
 
 using namespace Jettison;
 
@@ -261,4 +267,96 @@ TEST_CASE("Dock definitions: a hull's fit is asked of the pad classes alone, wit
 	Dock::VehicleDefinition stray = skiff;
 	stray.berthClass = "berth";
 	CHECK_FALSE(Dock::Fits(classes, stray, "cruiser"));
+}
+
+
+TEST_CASE(
+    "Dock definitions: a vehicle naming a collision file collides as it, one naming none as its box")
+{
+	// Two pods 1 m on a side, 4 m apart across the vehicle, as a model's collision file has them.
+	Physics::ShapeDefinition pods;
+	pods.kind = Physics::ShapeKind::Compound;
+	for (const float x : {-2.0f, 2.0f})
+	{
+		Physics::ShapeDefinition pod;
+		pod.kind = Physics::ShapeKind::ConvexHull;
+		for (const float dx : {-0.5f, 0.5f})
+			for (const float dy : {-0.5f, 0.5f})
+				for (const float dz : {-0.5f, 0.5f})
+					pod.points.emplace_back(x + dx, dy, dz);
+		pods.parts.push_back(pod);
+	}
+	Physics::ShapeDefinition keeled = pods;
+	Physics::ShapeDefinition keel;
+	keel.kind = Physics::ShapeKind::Mesh;
+	keel.vertices = {{-2.5f, -0.5f, -0.5f}, {2.5f, -0.5f, -0.5f}, {2.5f, -0.5f, 0.5f}};
+	keel.indices = {0, 2, 1};
+	keeled.parts.push_back(keel);
+
+	const std::filesystem::path directory = std::filesystem::temp_directory_path() /
+	                                        ("jettison-dock-collision-" + std::to_string(getpid()));
+	std::filesystem::remove_all(directory);
+	std::filesystem::create_directories(directory / "defs/berths");
+	std::filesystem::create_directories(directory / "defs/vehicles");
+	std::filesystem::create_directories(directory / "collision");
+	const auto put = [&](const std::string &path, const std::vector<std::byte> &bytes)
+	{
+		std::ofstream{directory / path, std::ios::binary}.write(
+		    reinterpret_cast<const char *>(bytes.data()), static_cast<std::streamsize>(bytes.size()));
+	};
+	put("collision/pods.collision", Physics::WriteCollisionFile(pods, "pods"));
+	put("collision/keeled.collision", Physics::WriteCollisionFile(keeled, "keeled"));
+	std::ofstream{directory / "defs/berths/skiff.yaml"}
+	    << DockTests::ReadAsset("defs/berths/skiff.yaml");
+	std::ofstream{directory / "defs/vehicles/pods.yaml"} << "version: 3\n"
+	                                                        "displayName: Pods\n"
+	                                                        "length: 1\n"
+	                                                        "beam: 5\n"
+	                                                        "height: 1\n"
+	                                                        "berth: skiff\n"
+	                                                        "collision: collision/pods.collision\n";
+	std::ofstream{directory / "defs/vehicles/plain.yaml"} << "version: 3\n"
+	                                                         "length: 1\n"
+	                                                         "beam: 5\n"
+	                                                         "height: 1\n"
+	                                                         "berth: skiff\n";
+
+	DockTests::Fixture fixture{false};
+	Vfs::FileSystem files;
+	files.AddMount({"base", directory, false});
+	Sim::DefinitionRegistry definitions{files};
+	definitions.Load<Dock::BerthClassDefinition>(
+	    Dock::kBerthClassDirectory, Dock::BerthClassMigrations());
+	definitions.Load<Dock::VehicleDefinition>(Dock::kVehicleDirectory, Dock::VehicleMigrations());
+	fixture.docks.Define(definitions);
+
+	const Physics::ShapeDefinition *pShape =
+	    fixture.physics.FindShapeDefinition(Dock::Docks::VehicleShape("pods"));
+	REQUIRE(pShape);
+	CHECK(pShape->kind == Physics::ShapeKind::Compound);
+	REQUIRE(pShape->parts.size() == 2);
+	CHECK(pShape->parts[1].points == pods.parts[1].points);
+	CHECK(fixture.docks.FindVehicle("pods")->collision == "collision/pods.collision");
+	const Physics::ShapeDefinition *pBox =
+	    fixture.physics.FindShapeDefinition(Dock::Docks::VehicleShape("plain"));
+	REQUIRE(pBox);
+	CHECK(pBox->kind == Physics::ShapeKind::Box);
+	CHECK(pBox->halfExtents == glm::vec3{2.5f, 0.5f, 0.5f});
+	CHECK(fixture.docks.FindVehicle("plain")->collision.empty());
+
+	// A vehicle flies as a dynamic body, so a file holding a mesh is refused; and one named with no
+	// files to read it from.
+	Dock::VehicleDefinition keeledVehicle{
+	    "Keeled", 1.0f, 5.0f, 1.0f, "skiff", {}, "collision/keeled.collision"};
+	CHECK_THROWS_WITH_AS(
+	    fixture.docks.DefineVehicle("keeled", keeledVehicle, &files),
+	    doctest::Contains("'collision/keeled.collision', which holds a mesh"), Serialise::FormatError);
+	CHECK_THROWS_WITH_AS(
+	    fixture.docks.DefineVehicle("keeled", keeledVehicle),
+	    doctest::Contains("no files are given to read it"), std::invalid_argument);
+	keeledVehicle.collision = "collision/missing.collision";
+	CHECK_THROWS_WITH_AS(
+	    fixture.docks.DefineVehicle("keeled", keeledVehicle, &files),
+	    doctest::Contains("no collision file at 'collision/missing.collision'"), std::runtime_error);
+	std::filesystem::remove_all(directory);
 }
