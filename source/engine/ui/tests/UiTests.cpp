@@ -1,7 +1,9 @@
 #include <jettison/ui/UiSystem.h>
 
+#include <jettison/jobs/IoWorker.h>
 #include <jettison/reflect/Reflect.h>
 #include <jettison/render/Overlay.h>
+#include <jettison/resource/ResourceManager.h>
 #include <jettison/vfs/FileSystem.h>
 
 #include <doctest/doctest.h>
@@ -13,6 +15,7 @@
 #include <filesystem>
 #include <fstream>
 #include <limits>
+#include <optional>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -157,12 +160,17 @@ constexpr const char *kMarketDocument = R"rml(<rml>
 )rml";
 
 
-// The extent the overlay's vertices cover across, in pixels.
-float DrawnWidth(const Render::Overlay &overlay)
+// The extent the overlay's vertices cover across, in pixels: of every draw, or of the draws of a
+// texture that many texels wide; 0 for none.
+float DrawnWidth(const Render::Overlay &overlay, std::optional<std::uint32_t> texels = std::nullopt)
 {
 	float left = std::numeric_limits<float>::max();
 	float right = std::numeric_limits<float>::lowest();
 	for (const Render::OverlayDraw &draw : overlay.Draws())
+	{
+		const Render::OverlayTexture *pTexture = overlay.FindTexture(draw.texture);
+		if (texels && (pTexture == nullptr || pTexture->width != *texels))
+			continue;
 		for (std::uint32_t index = 0; index < draw.indexCount; ++index)
 		{
 			const auto &vertex = overlay.Vertices()
@@ -171,8 +179,23 @@ float DrawnWidth(const Render::Overlay &overlay)
 			left = std::min(left, vertex.position.x + draw.translation.x);
 			right = std::max(right, vertex.position.x + draw.translation.x);
 		}
-	return right - left;
+	}
+	return right < left ? 0.0f : right - left;
 }
+
+
+// A binary PPM of one grey, which stb_image reads: an image file the suite writes itself.
+std::string Ppm(int width, int height)
+{
+	return "P6\n" + std::to_string(width) + " " + std::to_string(height) + "\n255\n" +
+	       std::string(static_cast<std::size_t>(width * height * 3), '\x80');
+}
+
+constexpr const char *kGalleryDocument =
+    "<rml><head><style>img { display: block; } #wide { width: 64px; height: 32px; }"
+    " #framed { display: block; width: 40px; height: 20px; decorator: image(frame.ppm); }"
+    "</style></head><body><img id=\"wide\" src=\"wide.ppm\"/><img id=\"tall\" src=\"tall.ppm\"/>"
+    "<div id=\"framed\"/></body></rml>";
 
 
 // Big-endian words, as TrueType's tables are written.
@@ -611,6 +634,111 @@ TEST_CASE("Ui: RmlUi's debugger draws into the overlay while it is shown, and no
 	ui.Update(0.3);
 	CHECK_FALSE(ui.Overlay().Draws().empty());
 	CHECK(ui.Problems() == 0);
+}
+
+
+TEST_CASE("Ui: a document's image is decoded on the I/O worker, and drawn once it is there")
+{
+	Scratch scratch;
+	scratch.Put("base/ui/wide.ppm", Ppm(4, 2));
+	scratch.Put("base/ui/tall.ppm", Ppm(3, 6));
+	scratch.Put("base/ui/frame.ppm", Ppm(5, 5));
+	scratch.Put("base/ui/gallery.rml", kGalleryDocument);
+	Jobs::IoWorker worker;
+	Resource::ResourceManager resources{scratch.Files(), worker, {.hotReload = false}};
+	Ui::UiSystem ui{scratch.Files(), 640, 480, &resources};
+	const Ui::DocumentHandle document = ui.LoadDocument("ui/gallery.rml");
+	ui.Show(document);
+	ui.Update(0.0);
+
+	// Until the manager has them the images draw nothing. A decorator's is decoded as its element is
+	// first drawn, since RmlUi keeps the size it reads then.
+	CHECK(resources.Loading() == 2);
+	CHECK(DrawnWidth(ui.Overlay(), 4) == 0.0f);
+	CHECK(DrawnWidth(ui.Overlay(), 3) == 0.0f);
+	CHECK(DrawnWidth(ui.Overlay(), 5) == doctest::Approx(40.0f));
+	ui.Update(0.1);
+	CHECK(DrawnWidth(ui.Overlay(), 4) == 0.0f);
+
+	worker.WaitIdle();
+	resources.Update();
+	CHECK(resources.Loading() == 0);
+	ui.Update(0.2);
+	CHECK(DrawnWidth(ui.Overlay(), 4) == doctest::Approx(64.0f));
+
+	// Laid out again: with no size of its own, it has the image's.
+	CHECK(DrawnWidth(ui.Overlay(), 3) == doctest::Approx(3.0f));
+	CHECK(DrawnWidth(ui.Overlay(), 5) == doctest::Approx(40.0f));
+
+	// The document read again draws them at once: RmlUi keeps the textures by path.
+	scratch.Put("base/ui/gallery.rml", std::string{kGalleryDocument} + "\n");
+	CHECK(ui.ReloadChanged() == 1);
+	ui.Update(0.3);
+	CHECK(resources.Loading() == 0);
+	CHECK(DrawnWidth(ui.Overlay(), 4) == doctest::Approx(64.0f));
+	CHECK(DrawnWidth(ui.Overlay(), 3) == doctest::Approx(3.0f));
+	CHECK(ui.Problems() == 0);
+}
+
+
+TEST_CASE("Ui: an image still decoding when its document is read again is drawn in the one read again")
+{
+	Scratch scratch;
+	scratch.Put("base/ui/wide.ppm", Ppm(4, 2));
+	scratch.Put("base/ui/tall.ppm", Ppm(3, 6));
+	scratch.Put("base/ui/frame.ppm", Ppm(5, 5));
+	scratch.Put("base/ui/gallery.rml", kGalleryDocument);
+	Jobs::IoWorker worker;
+	Resource::ResourceManager resources{scratch.Files(), worker, {.hotReload = false}};
+	Ui::UiSystem ui{scratch.Files(), 640, 480, &resources};
+	const Ui::DocumentHandle document = ui.LoadDocument("ui/gallery.rml");
+	ui.Show(document);
+	ui.Update(0.0);
+	CHECK(resources.Loading() == 2);
+
+	scratch.Put("base/ui/gallery.rml", std::string{kGalleryDocument} + "\n");
+	CHECK(ui.ReloadChanged() == 1);
+	ui.Update(0.1);
+	worker.WaitIdle();
+	resources.Update();
+	ui.Update(0.2);
+	CHECK(ui.IsShown(document));
+	CHECK(DrawnWidth(ui.Overlay(), 4) == doctest::Approx(64.0f));
+	CHECK(DrawnWidth(ui.Overlay(), 3) == doctest::Approx(3.0f));
+	CHECK(ui.Problems() == 0);
+}
+
+
+TEST_CASE("Ui: an image missing or that does not decode is logged once, and stays blank")
+{
+	Scratch scratch;
+	scratch.Put("base/ui/broken.ppm", "not an image");
+	const std::string document =
+	    "<rml><head><style>img { display: block; width: 20px; height: 20px; }</style></head><body>"
+	    "<img src=\"missing.ppm\"/><img src=\"broken.ppm\"/></body></rml>";
+	scratch.Put("base/ui/broken.rml", document);
+	Jobs::IoWorker worker;
+	Resource::ResourceManager resources{scratch.Files(), worker, {.hotReload = false}};
+	Ui::UiSystem ui{scratch.Files(), 640, 480, &resources};
+	ui.Show(ui.LoadDocument("ui/broken.rml"));
+	ui.Update(0.0);
+	worker.WaitIdle();
+	resources.Update();
+	CHECK(resources.Loading() == 0);
+	ui.Update(0.1);
+	ui.Update(0.2);
+	CHECK(ui.Problems() == 2);
+	CHECK(ui.Overlay().Textures().empty());
+
+	// Nor again for the document read again.
+	scratch.Put("base/ui/broken.rml", document + "\n");
+	CHECK(ui.ReloadChanged() == 1);
+	ui.Update(0.3);
+	worker.WaitIdle();
+	resources.Update();
+	ui.Update(0.4);
+	CHECK(ui.Problems() == 2);
+	CHECK(ui.Overlay().Textures().empty());
 }
 
 

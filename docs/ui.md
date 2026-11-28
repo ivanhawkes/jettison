@@ -177,6 +177,27 @@ encoded values, which leaves the half-covered edge of light text on dark a littl
 Clip masks, layers, filters and shaders are left to RmlUi's defaults, which draw nothing for them
 ([J23](roadmap.md#j23)).
 
+**Images.** A document's image (`<img src>`) is read and decoded on the I/O worker by the
+[resource manager](files-and-mods.md#resources) the shell gives the UI, which registers the loader
+(`UiSystem`'s last argument). RmlUi asks for an image as it lays out its element and keeps the size
+it is given; until the image is there it is given a texture that draws nothing and has no size. An
+element whose style sets its width and height is therefore laid out the same before and after, and
+does not move when the image arrives; one that takes its size from the image is laid out again then.
+`UiSystem::Update` looks before the layout: RmlUi forgets the empty texture and every `img` asks for
+its source again, so the image is drawn on the frame it arrives, and an image no element asks for
+then is let go, to be read again if one does. One that is missing, or that stb_image cannot read, is
+logged once and counted as a problem (the resource manager logs it too), and its element stays
+blank, the document read again included. A decorator's image (`decorator: image(...)`, a sprite
+sheet) is decoded on the main thread as its element is first drawn, because RmlUi reads its size once,
+then, and keeps it. A UI made with no resource manager, as a suite's is, decodes every image so, as
+the document lays out.
+
+The loads are the resource manager's, so `ResourceManager::Loading` counts them, and a captured
+frame waits for a screen's images as it waits for a scene's models: a run with `--frame-step` (the
+reference views) holds its clocks while anything loads and settles a load in the next frame's
+`resource.update`, so the frame an image appears on is set by the frame count, and the screenshot
+is taken after a run of frames with nothing loading.
+
 ### Data models: the screen and the simulation
 
 A document never reads the world. It reads a data model (`ui/DataModel.h`), whose variables are
@@ -581,7 +602,6 @@ The theme's `dev.` variables ([the dev tools' theme](#the-dev-tools-theme)) are 
 
 ## Limits and open work
 
-- Images decoded on the I/O worker: [J14](roadmap.md#j14).
 - Right-to-left and shaped scripts, and a first-start language from the platform:
   [J15](roadmap.md#j15).
 - RmlUi's clip masks, layers, filters and shaders draw nothing: [J23](roadmap.md#j23).

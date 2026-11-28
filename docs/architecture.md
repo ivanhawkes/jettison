@@ -237,7 +237,7 @@ why each exists:
 | `ai` → `physics` | Steering flies a vehicle through its flight controls and keeps it clear of bodies |
 | `transit` → `ai`, `physics` | A passage takes an entity's body out of physics and gives it back, and gives up a steered entity's destination |
 | `dock` → `ai`, `physics` | Steering flies a vehicle onto its berth, and physics holds it there |
-| `ui` → `render` | The UI draws into `Render::Overlay`, a plain draw list, and decodes images with render's CPU decoder; it includes no Vulkan header |
+| `ui` → `render` | The UI draws into `Render::Overlay`, a plain draw list, and decodes images with render's CPU decoder, on the I/O worker through `resource`; it includes no Vulkan header |
 | `app` → the rest | The shell composes every module it runs; it is the top of the graph |
 
 Two edges cross the simulation and presentation line, and both point from presentation to

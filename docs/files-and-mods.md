@@ -314,7 +314,7 @@ meta context is not guarded against the main thread registering at the same time
 parsed in `finish`, as clip files and sequences are (`animation/src/ClipFile.cpp`).
 
 Today render registers models, materials and colour grades, animation registers rigs and clips,
-and scene registers sequences.
+scene registers sequences, and ui a document's images.
 
 `Load<T>(path)` returns a `ResourceHandle<T>` at once, and the value appears after a later
 `Update()`. Each `Load` is paired with one `Release`; loading a path already loaded returns the

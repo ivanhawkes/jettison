@@ -118,6 +118,19 @@ bool ReadAgain(Rml::Context &context, Detail::DocumentSlot &slot)
 		pDocument->Show();
 	return true;
 }
+
+
+// Each image element's source set again as it is, so RmlUi asks for its texture again and lays the
+// document out: an image that arrived from the I/O worker takes its size, and its texture
+// coordinates (a rect's) are made again from it.
+void AskForImagesAgain(Rml::ElementDocument &document)
+{
+	Rml::ElementList images;
+	document.GetElementsByTagName(images, "img");
+	for (Rml::Element *pImage : images)
+		if (pImage->HasAttribute("src"))
+			pImage->SetAttribute("src", pImage->GetAttribute<Rml::String>("src", ""));
+}
 } // namespace
 
 
@@ -130,11 +143,14 @@ Rml::ElementDocument *Detail::UiState::Find(DocumentHandle document) const
 }
 
 
-UiSystem::UiSystem(const Vfs::FileSystem &files, int width, int height)
+UiSystem::UiSystem(
+    const Vfs::FileSystem &files, int width, int height, Resource::ResourceManager *pResources)
 {
 	if (g_live)
 		throw std::logic_error("UiSystem: there is one UI at a time, and one is already made");
-	m_pState = std::make_unique<Detail::UiState>(files);
+	if (pResources)
+		Detail::RegisterImageLoader(*pResources);
+	m_pState = std::make_unique<Detail::UiState>(files, pResources);
 	Rml::SetSystemInterface(&m_pState->system);
 	Rml::SetFileInterface(&m_pState->fileInterface);
 	Rml::SetRenderInterface(&m_pState->render);
@@ -421,9 +437,21 @@ bool UiSystem::WantsKeyboard() const
 void UiSystem::Update(double presentationSeconds)
 {
 	m_pState->system.SetTime(presentationSeconds);
+
+	// RmlUi keeps the texture and size it was given for a path until it is released.
+	const std::vector<std::string> arrived = m_pState->render.TakeArrived();
+	for (const std::string &source : arrived)
+		Rml::ReleaseTexture(source, &m_pState->render);
+	if (!arrived.empty())
+		for (const Detail::DocumentSlot &slot : m_pState->documents)
+			if (slot.pDocument != nullptr)
+				AskForImagesAgain(*slot.pDocument);
 	m_pState->pContext->Update();
+	m_pState->render.DropUnclaimed();
 	m_pState->overlay.Clear();
+	m_pState->render.SetDrawing(true);
 	m_pState->pContext->Render();
+	m_pState->render.SetDrawing(false);
 }
 
 

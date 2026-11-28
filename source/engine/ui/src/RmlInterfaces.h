@@ -16,8 +16,14 @@
 #include <vector>
 
 #include <jettison/render/Overlay.h>
+#include <jettison/resource/ResourceHandle.h>
 #include <jettison/ui/StringTable.h>
 #include <jettison/vfs/FileSystem.h>
+
+namespace Jettison::Resource
+{
+class ResourceManager;
+}
 
 // What RmlUi is given to reach the engine: files through the VFS, time and messages through the
 // engine's clock and log, and drawing into a Render::Overlay.
@@ -146,6 +152,16 @@ class AttributeTranslator final : public Rml::Plugin
 	SystemInterface &m_system;
 };
 
+// A document's image as the I/O worker decodes it, ready for the overlay.
+struct DecodedImage
+{
+	Render::OverlayTexture texture;
+};
+
+// The loader of DecodedImage, which reads and decodes an image on the I/O worker. Throws
+// std::logic_error if the manager has it already.
+void RegisterImageLoader(Resource::ResourceManager &resources);
+
 // RmlUi's drawing, recorded into the overlay: geometry compiled once and kept here, appended to the
 // overlay each time it is drawn; textures held by the overlay, which the renderer uploads. Clip masks,
 // layers, filters and shaders are left at RmlUi's defaults, which draw nothing for them
@@ -153,10 +169,18 @@ class AttributeTranslator final : public Rml::Plugin
 class RenderInterface final : public Rml::RenderInterface
 {
   public:
-	RenderInterface(Render::Overlay &overlay, const Vfs::FileSystem &files)
-	    : m_overlay{overlay}, m_files{files}
+	// With no resource manager a document's images are decoded on the main thread as it lays out.
+	RenderInterface(
+	    Render::Overlay &overlay, const Vfs::FileSystem &files, Resource::ResourceManager *pResources)
+	    : m_overlay{overlay}, m_files{files}, m_pResources{pResources}
 	{
 	}
+
+	~RenderInterface() override;
+
+	RenderInterface(const RenderInterface &) = delete;
+
+	RenderInterface &operator=(const RenderInterface &) = delete;
 
 	Rml::CompiledGeometryHandle CompileGeometry(
 	    Rml::Span<const Rml::Vertex> vertices, Rml::Span<const int> indices) override;
@@ -167,7 +191,9 @@ class RenderInterface final : public Rml::RenderInterface
 
 	void ReleaseGeometry(Rml::CompiledGeometryHandle geometry) override;
 
-	// An image file by its path, PNG, JPEG or anything else stb_image reads, decoded as it loads.
+	// An image file by its path, PNG, JPEG or anything else stb_image reads. With a resource manager it
+	// is read and decoded on the I/O worker, and until it is there RmlUi is given a texture that
+	// draws nothing, of no size; one that fails is logged once and stays so.
 	Rml::TextureHandle LoadTexture(Rml::Vector2i &dimensions, const Rml::String &source) override;
 
 	Rml::TextureHandle GenerateTexture(
@@ -186,6 +212,22 @@ class RenderInterface final : public Rml::RenderInterface
 		return m_geometry.size();
 	}
 
+	// The images the worker has decoded since RmlUi asked for them, by path, which RmlUi is to ask
+	// for again. One that failed is logged here, once, and stays blank.
+	std::vector<std::string> TakeArrived();
+
+	// After the documents are laid out: lets go of the images that arrived and that no element asked
+	// for again (its source changed while it decoded, say), so none is held for the run. One asked
+	// for later is read again.
+	void DropUnclaimed();
+
+	// Whether RmlUi is drawing: an image first asked for then is decoded on the spot, since a
+	// decorator reads its image's size once, as its element is first drawn, and keeps it.
+	void SetDrawing(bool drawing)
+	{
+		m_drawing = drawing;
+	}
+
   private:
 	struct Geometry
 	{
@@ -193,10 +235,21 @@ class RenderInterface final : public Rml::RenderInterface
 		std::vector<std::uint32_t> indices;
 	};
 
+	struct ImageLoad
+	{
+		Resource::ResourceHandle<DecodedImage> handle;
+		bool failed{false};
+	};
+
 	void ApplyScissor();
+
+	Rml::TextureHandle Add(Rml::Vector2i &dimensions, Render::OverlayTexture texture);
 
 	Render::Overlay &m_overlay;
 	const Vfs::FileSystem &m_files;
+	Resource::ResourceManager *m_pResources;
+	std::map<std::string, ImageLoad, std::less<>> m_images;
+	bool m_drawing{false};
 	std::unordered_map<Rml::CompiledGeometryHandle, Geometry> m_geometry;
 	Rml::CompiledGeometryHandle m_nextGeometry{1};
 	bool m_scissorEnabled{false};

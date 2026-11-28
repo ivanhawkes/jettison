@@ -16,6 +16,10 @@ namespace Jettison::Render
 {
 class Overlay;
 }
+namespace Jettison::Resource
+{
+class ResourceManager;
+}
 namespace Jettison::Vfs
 {
 class FileSystem;
@@ -58,8 +62,15 @@ class UiState;
 class UiSystem
 {
   public:
-	// A UI over a frame of that size in pixels. The file system outlives it.
-	UiSystem(const Vfs::FileSystem &files, int width, int height);
+	// A UI over a frame of that size in pixels. The file system outlives it, and so does the resource
+	// manager, which reads and decodes a document's images on its I/O worker: until one is there its
+	// element draws without it and is laid out as if the image had no size, so an element whose style
+	// sets its size does not move when it arrives. The manager is given the loader of them, so it
+	// serves one UI; with none, a test's, they are decoded on the main thread as the document lays
+	// out. Throws std::logic_error for a manager that has served a UI already.
+	UiSystem(
+	    const Vfs::FileSystem &files, int width, int height,
+	    Resource::ResourceManager *pResources = nullptr);
 
 	~UiSystem();
 

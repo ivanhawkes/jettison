@@ -87,8 +87,8 @@ struct DocumentSlot
 class UiState
 {
   public:
-	explicit UiState(const Vfs::FileSystem &files)
-	    : files{files}, fileInterface{files}, render{overlay, files}
+	UiState(const Vfs::FileSystem &files, Resource::ResourceManager *pResources)
+	    : files{files}, fileInterface{files}, render{overlay, files, pResources}
 	{
 	}
 

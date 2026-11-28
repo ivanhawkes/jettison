@@ -11,13 +11,17 @@
 #include <cstdio>
 #include <cstring>
 #include <exception>
+#include <limits>
+#include <memory>
 #include <optional>
+#include <span>
 #include <string>
 #include <string_view>
 #include <vector>
 
 #include <jettison/core/Log.h>
 #include <jettison/render/Texture.h>
+#include <jettison/resource/ResourceManager.h>
 #include <jettison/vfs/FileSystem.h>
 
 namespace Jettison::Ui::Detail
@@ -39,6 +43,10 @@ constexpr std::string_view kDataAttributePrefix = "data-";
 // RmlUi draws no character below the space, so none of them needs a face.
 constexpr char32_t kFirstDrawnCharacter = U' ';
 
+// What RmlUi is given for an image still decoding, or one that failed: not 0, which RmlUi takes as a
+// failure for good and logs a second time, and never an overlay's identifier, which counts up from 1.
+constexpr Rml::TextureHandle kPendingTexture = std::numeric_limits<Rml::TextureHandle>::max();
+
 
 // The stylesheet as the mounts layer it (Vfs::FileSystem::ReadPatched): the topmost whole file,
 // then each patch over it in mount order.
@@ -56,6 +64,26 @@ std::optional<std::vector<std::byte>> ReadStylesheet(
 		text.insert(text.end(), layer.bytes.begin(), layer.bytes.end());
 	}
 	return text;
+}
+
+// The image's top level, alpha premultiplied, as RmlUi draws it; a file holds it straight. Throws
+// std::runtime_error naming the file for one stb_image cannot read.
+Render::OverlayTexture DecodeForOverlay(std::span<const std::byte> bytes, std::string_view source)
+{
+	const Render::TextureData decoded = Render::DecodeImage(bytes, true, source);
+	const Render::TextureLevel &top = decoded.levels.front();
+	Render::OverlayTexture texture{top.width, top.height, {}};
+	texture.texels.assign(
+	    decoded.bytes.begin() + static_cast<std::ptrdiff_t>(top.offset),
+	    decoded.bytes.begin() + static_cast<std::ptrdiff_t>(top.offset + top.size));
+	for (std::size_t texel = 0; texel + 3 < texture.texels.size(); texel += 4)
+	{
+		const auto alpha = static_cast<unsigned>(texture.texels[texel + 3]);
+		for (std::size_t channel = 0; channel < 3; ++channel)
+			texture.texels[texel + channel] = static_cast<std::byte>(
+			    (static_cast<unsigned>(texture.texels[texel + channel]) * alpha + 127) / 255);
+	}
+	return texture;
 }
 
 static_assert(sizeof(Rml::Vertex) == sizeof(Render::OverlayVertex));
@@ -261,7 +289,7 @@ void RenderInterface::RenderGeometry(
     Rml::CompiledGeometryHandle geometry, Rml::Vector2f translation, Rml::TextureHandle texture)
 {
 	const auto found = m_geometry.find(geometry);
-	if (found == m_geometry.end())
+	if (found == m_geometry.end() || texture == kPendingTexture)
 		return;
 	m_overlay.Draw(
 	    found->second.vertices, found->second.indices, {translation.x, translation.y},
@@ -275,42 +303,105 @@ void RenderInterface::ReleaseGeometry(Rml::CompiledGeometryHandle geometry)
 }
 
 
+void RegisterImageLoader(Resource::ResourceManager &resources)
+{
+	resources.RegisterLoader(
+	    Resource::Loader<DecodedImage>{
+	        [](std::span<const std::byte> bytes, std::string_view path)
+	        { return std::make_unique<DecodedImage>(DecodeForOverlay(bytes, path)); },
+	        {},
+	        {}});
+}
+
+
+RenderInterface::~RenderInterface()
+{
+	for (const auto &[source, image] : m_images)
+		if (!image.failed)
+			m_pResources->Release(image.handle);
+}
+
+
 Rml::TextureHandle RenderInterface::LoadTexture(Rml::Vector2i &dimensions, const Rml::String &source)
 {
 	try
 	{
 		if (!Vfs::FileSystem::IsValidPath(source))
 			throw std::runtime_error("it is not a path in the asset tree");
+
+		// RmlUi asks again once TakeArrived has named it: the texture is the overlay's from here on.
+		if (const auto found = m_images.find(source); found != m_images.end())
+		{
+			const ImageLoad image = found->second;
+			if (image.failed || m_pResources->StatusOf(image.handle) != Resource::Status::Ready)
+				return kPendingTexture;
+			const Rml::TextureHandle texture =
+			    Add(dimensions, m_pResources->TryGet(image.handle)->texture);
+			m_pResources->Release(image.handle);
+			m_images.erase(found);
+			return texture;
+		}
+		if (m_pResources && !m_drawing)
+		{
+			m_images.emplace(source, ImageLoad{m_pResources->Load<DecodedImage>(source)});
+			return kPendingTexture;
+		}
 		const auto bytes = m_files.Read(source);
 		if (!bytes)
 			throw std::runtime_error("there is no such file");
-
-		// Decoded here, on the main thread, as RmlUi lays out the element that shows it: a screen's
-		// images are small, and the layout needs their size before the frame goes on.
-		const Render::TextureData decoded = Render::DecodeImage(*bytes, true, source);
-		const Render::TextureLevel &top = decoded.levels.front();
-		Render::OverlayTexture texture{top.width, top.height, {}};
-		texture.texels.assign(
-		    decoded.bytes.begin() + static_cast<std::ptrdiff_t>(top.offset),
-		    decoded.bytes.begin() + static_cast<std::ptrdiff_t>(top.offset + top.size));
-
-		// RmlUi draws with alpha premultiplied, and a file holds it straight.
-		for (std::size_t texel = 0; texel + 3 < texture.texels.size(); texel += 4)
-		{
-			const auto alpha = static_cast<unsigned>(texture.texels[texel + 3]);
-			for (std::size_t channel = 0; channel < 3; ++channel)
-				texture.texels[texel + channel] = static_cast<std::byte>(
-				    (static_cast<unsigned>(texture.texels[texel + channel]) * alpha + 127) / 255);
-		}
-		dimensions = {static_cast<int>(top.width), static_cast<int>(top.height)};
-		return static_cast<Rml::TextureHandle>(m_overlay.AddTexture(std::move(texture)));
+		return Add(dimensions, DecodeForOverlay(*bytes, source));
 	}
 	catch (const std::exception &error)
 	{
 		Rml::Log::Message(
 		    Rml::Log::LT_WARNING, "Image '%s' not loaded: %s", source.c_str(), error.what());
-		return 0;
+		return kPendingTexture;
 	}
+}
+
+
+Rml::TextureHandle RenderInterface::Add(Rml::Vector2i &dimensions, Render::OverlayTexture texture)
+{
+	dimensions = {static_cast<int>(texture.width), static_cast<int>(texture.height)};
+	return static_cast<Rml::TextureHandle>(m_overlay.AddTexture(std::move(texture)));
+}
+
+
+std::vector<std::string> RenderInterface::TakeArrived()
+{
+	std::vector<std::string> arrived;
+	for (auto &[source, image] : m_images)
+	{
+		if (image.failed)
+			continue;
+		const Resource::Status status = m_pResources->StatusOf(image.handle);
+		if (status == Resource::Status::Ready)
+			arrived.push_back(source);
+		else if (status == Resource::Status::Failed)
+		{
+			Rml::Log::Message(
+			    Rml::Log::LT_WARNING, "Image '%s' not loaded: %s", source.c_str(),
+			    std::string{m_pResources->ErrorOf(image.handle)}.c_str());
+			m_pResources->Release(image.handle);
+			image.failed = true;
+		}
+	}
+	return arrived;
+}
+
+
+void RenderInterface::DropUnclaimed()
+{
+	std::erase_if(
+	    m_images,
+	    [this](const auto &entry)
+	    {
+		    const ImageLoad &image = entry.second;
+		    if (image.failed || m_pResources->StatusOf(image.handle) != Resource::Status::Ready)
+			    return false;
+		    m_pResources->Release(image.handle);
+		    return true;
+	    });
 }
 
 

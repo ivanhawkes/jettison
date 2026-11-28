@@ -1130,7 +1130,7 @@ void Application::InitUi()
 {
 	m_pUi = std::make_unique<Ui::UiSystem>(
 	    m_assets, static_cast<int>(m_pRenderer->FrameWidth()),
-	    static_cast<int>(m_pRenderer->FrameHeight()));
+	    static_cast<int>(m_pRenderer->FrameHeight()), m_pResources.get());
 	for (const auto &[font, fallback] : kUiFonts)
 		m_pUi->LoadFont(font, fallback);
 	m_pUi->LoadFallbackFonts(kGameFontDirectory, kFirstGameMount);

@@ -8,6 +8,7 @@ jettison_add_module(ui
 		input
 		reflect
 		render
+		resource
 		vfs
 	HEADERS
 		include/jettison/ui/DataModel.h
