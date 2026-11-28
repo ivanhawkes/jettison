@@ -76,6 +76,8 @@ jettison_add_module(render
 		src/vulkan/PassBarriers.h
 		src/vulkan/PipelineCache.cpp
 		src/vulkan/PipelineCache.h
+		src/vulkan/ProgramFiles.cpp
+		src/vulkan/ProgramFiles.h
 		src/vulkan/Renderer.cpp
 		src/vulkan/Renderer.h
 		src/vulkan/SceneDraws.cpp
@@ -112,6 +114,7 @@ jettison_add_module(render
 		tests/PassListTests.cpp
 		tests/PostProcessTests.cpp
 		tests/ProceduralTests.cpp
+		tests/ProgramFilesTests.cpp
 		tests/ScreenshotTests.cpp
 		tests/ShadowTests.cpp
 		tests/TextureTests.cpp

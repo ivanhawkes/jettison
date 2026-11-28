@@ -453,12 +453,13 @@ class Application final : private Shell
 	// asset tree in InitAudio.
 	std::optional<Sim::DefinitionRegistry> m_soundDefinitions;
 
-	// Whether and how often the scripts' modules and the game UI's files are looked at for a change:
-	// the resources' rule.
+	// Whether and how often the scripts' modules, the game UI's files and the renderer's programs are
+	// looked at for a change: the resources' rule.
 	bool m_hotReload{false};
 	std::chrono::milliseconds m_hotReloadPoll{0};
 	std::chrono::steady_clock::time_point m_lastScriptPoll;
 	std::chrono::steady_clock::time_point m_lastUiPoll;
+	std::chrono::steady_clock::time_point m_lastProgramPoll;
 
 	// The simulation time presentation showed last frame, which the camera a pick is drawn from
 	// showed, and which the pick is cast at.

@@ -260,6 +260,12 @@ class FadeRenderer final : public Render::IRenderer
 	}
 
 
+	std::size_t ReloadChangedPrograms() override
+	{
+		return 0;
+	}
+
+
 	void SetLetterbox(float /*share*/) override
 	{
 	}

@@ -7,6 +7,7 @@
 #include <vector>
 
 #include "vulkan/DeviceContext.h"
+#include "vulkan/PipelineCache.h"
 #include <jettison/render/FrameData.h>
 
 namespace Jettison::Scene
@@ -16,8 +17,6 @@ struct SkyComponent;
 
 namespace Jettison::Render
 {
-class PipelineCache;
-
 // The sky as sky.glsl takes it. The stars sit on a shell of an integer lattice half a cell thick,
 // which holds 2 pi r^2 of them at radius r, so r is sqrt(count / 2 pi); a star is drawn no wider
 // than 0.06 / r radians, which keeps every star a direction can see in the eight cells around it.
@@ -166,10 +165,10 @@ class Environment
 	VkPipelineLayout m_captureLayout{VK_NULL_HANDLE};
 	VkPipelineLayout m_prefilterLayout{VK_NULL_HANDLE};
 	VkPipelineLayout m_brdfLutLayout{VK_NULL_HANDLE};
-	VkPipeline m_capturePipeline{VK_NULL_HANDLE};
-	VkPipeline m_specularPipeline{VK_NULL_HANDLE};
-	VkPipeline m_irradiancePipeline{VK_NULL_HANDLE};
-	VkPipeline m_brdfLutPipeline{VK_NULL_HANDLE};
+	PipelineRef m_capturePipeline;
+	PipelineRef m_specularPipeline;
+	PipelineRef m_irradiancePipeline;
+	PipelineRef m_brdfLutPipeline;
 
 	Image m_brdfLut{};
 	VkImageView m_brdfLutView{VK_NULL_HANDLE};

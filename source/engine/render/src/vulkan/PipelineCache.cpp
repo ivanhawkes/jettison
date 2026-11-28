@@ -2,42 +2,96 @@
 
 #include <array>
 #include <cstddef>
+#include <exception>
 #include <stdexcept>
 #include <vector>
 
 #include "vulkan/DeviceContext.h"
 #include "vulkan/Model.h"
+#include <jettison/core/Log.h>
 #include <jettison/render/DebugDraw.h>
 #include <jettison/render/Overlay.h>
-#include <jettison/vfs/FileSystem.h>
 
 namespace Jettison::Render
 {
+namespace
+{
+constexpr Core::Category kRender{"render"};
+}
+
+
 PipelineCache::PipelineCache(
     std::shared_ptr<DeviceContext> pDeviceContext, const Vfs::FileSystem &assets)
-    : m_pDeviceContext{std::move(pDeviceContext)}, m_assets{assets}
+    : m_pDeviceContext{std::move(pDeviceContext)}, m_files{assets}
 {
 }
 
 
-VkPipeline PipelineCache::Get(const PipelineKey &key)
+PipelineRef PipelineCache::Get(const PipelineKey &key)
 {
 	if (const auto found = m_pipelines.find(key); found != m_pipelines.end())
-		return found->second;
-	const VkPipeline pipeline = Create(key);
-	m_pipelines.emplace(key, pipeline);
-	return pipeline;
+		return PipelineRef{found->second};
+	return PipelineRef{m_pipelines.emplace(key, Create(key)).first->second};
 }
 
 
-VkPipeline PipelineCache::GetCompute(const std::string &program, VkPipelineLayout layout)
+PipelineRef PipelineCache::GetCompute(const std::string &program, VkPipelineLayout layout)
 {
 	const auto key = std::make_pair(program, layout);
 	if (const auto found = m_computePipelines.find(key); found != m_computePipelines.end())
-		return found->second;
-	const VkPipeline pipeline = CreateCompute(program, layout);
-	m_computePipelines.emplace(key, pipeline);
-	return pipeline;
+		return PipelineRef{found->second};
+	return PipelineRef{m_computePipelines.emplace(key, CreateCompute(program, layout)).first->second};
+}
+
+
+std::size_t PipelineCache::ReloadChanged()
+{
+	const VkDevice device = m_pDeviceContext->GetLogicalDevice();
+	std::vector<VkPipeline> replaced;
+	std::size_t reloaded = 0;
+	for (const auto &[program, path] : m_files.TakeChanged())
+	{
+		// Every pipeline of the program built before any is replaced, so one that fails leaves the
+		// program as it was rather than half new.
+		std::vector<std::pair<VkPipeline *, VkPipeline>> built;
+		try
+		{
+			for (auto &[key, pipeline] : m_pipelines)
+				if (key.program == program)
+					built.emplace_back(&pipeline, Create(key));
+			for (auto &[key, pipeline] : m_computePipelines)
+				if (key.first == program)
+					built.emplace_back(&pipeline, CreateCompute(key.first, key.second));
+		}
+		catch (const std::exception &error)
+		{
+			for (const auto &[pSlot, pipeline] : built)
+				vkDestroyPipeline(device, pipeline, nullptr);
+			Core::Log(
+			    Core::Severity::Warning, kRender,
+			    "'{}' changed, and program '{}' did not build again ({}); it keeps its pipelines", path,
+			    program, error.what());
+			continue;
+		}
+		for (const auto &[pSlot, pipeline] : built)
+		{
+			replaced.push_back(*pSlot);
+			*pSlot = pipeline;
+		}
+		++reloaded;
+		Core::Log(
+		    Core::Severity::Info, kRender,
+		    "'{}' changed, and program '{}' was built again: {} pipelines", path, program,
+		    built.size());
+	}
+
+	// The frames in flight may still be drawing with what was replaced. A reload is a developer's
+	// edit, rare enough for a wait on the device rather than a queue of retired pipelines.
+	if (!replaced.empty())
+		check_vk_result(m_pDeviceContext->WaitIdle());
+	for (const VkPipeline pipeline : replaced)
+		vkDestroyPipeline(device, pipeline, nullptr);
+	return reloaded;
 }
 
 
@@ -52,15 +106,12 @@ void PipelineCache::Destroy()
 }
 
 
-VkShaderModule PipelineCache::LoadModule(const std::string &virtualPath)
+VkShaderModule PipelineCache::LoadModule(const std::string &program, ShaderStage stage)
 {
-	// The words "failed to open file" are what the render test's start-up check reads for: a run
-	// with no shaders has to stop here, before a frame, and say which file it wanted.
-	const auto code = m_assets.Read(virtualPath);
-	if (!code)
-		throw std::runtime_error("failed to open file: " + virtualPath + " (no asset mount has it)");
-	const VkShaderModule module = m_pDeviceContext->CreateShaderModule(*code, virtualPath);
-	m_pDeviceContext->SetDebugName(module, virtualPath);
+	const auto code = m_files.Read(program, stage);
+	const std::string path = ProgramFilePath(program, stage);
+	const VkShaderModule module = m_pDeviceContext->CreateShaderModule(code, path);
+	m_pDeviceContext->SetDebugName(module, path);
 	return module;
 }
 
@@ -72,12 +123,12 @@ VkPipeline PipelineCache::Create(const PipelineKey &key)
 
 	// A depth-only pass writes no colour, and a program for it has no fragment stage to load.
 	const bool depthOnly = state.colorFormat == VK_FORMAT_UNDEFINED;
-	const VkShaderModule vertexModule = LoadModule("shaders/" + key.program + ".vert.spv");
+	const VkShaderModule vertexModule = LoadModule(key.program, ShaderStage::Vertex);
 	VkShaderModule fragmentModule = VK_NULL_HANDLE;
 	try
 	{
 		if (!depthOnly)
-			fragmentModule = LoadModule("shaders/" + key.program + ".frag.spv");
+			fragmentModule = LoadModule(key.program, ShaderStage::Fragment);
 	}
 	catch (...)
 	{
@@ -283,7 +334,7 @@ VkPipeline PipelineCache::Create(const PipelineKey &key)
 VkPipeline PipelineCache::CreateCompute(const std::string &program, VkPipelineLayout layout)
 {
 	const VkDevice device = m_pDeviceContext->GetLogicalDevice();
-	const VkShaderModule module = LoadModule("shaders/" + program + ".comp.spv");
+	const VkShaderModule module = LoadModule(program, ShaderStage::Compute);
 
 	VkComputePipelineCreateInfo pipelineInfo{};
 	pipelineInfo.sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO;

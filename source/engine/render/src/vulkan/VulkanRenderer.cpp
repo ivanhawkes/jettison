@@ -133,6 +133,12 @@ class VulkanRenderer final : public IRenderer
 		return m_pRenderer->PrefetchScene(scene);
 	}
 
+
+	std::size_t ReloadChangedPrograms() override
+	{
+		return m_pRenderer->ReloadChangedPrograms();
+	}
+
 	void SetFade(const glm::vec3 &color, float amount) override
 	{
 		m_pRenderer->SetFade(color, std::clamp(amount, 0.0f, 1.0f));

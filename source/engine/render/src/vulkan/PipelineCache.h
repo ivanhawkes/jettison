@@ -3,16 +3,14 @@
 #include <vulkan/vulkan.h>
 
 #include <compare>
+#include <cstddef>
 #include <cstdint>
 #include <map>
 #include <memory>
 #include <string>
 #include <utility>
 
-namespace Jettison::Vfs
-{
-class FileSystem;
-}
+#include "vulkan/ProgramFiles.h"
 
 namespace Jettison::Render
 {
@@ -100,6 +98,32 @@ struct PipelineKey
 	friend auto operator<=>(const PipelineKey &, const PipelineKey &) = default;
 };
 
+// A pipeline of the cache's, read through the cache's slot each time it is bound, so the one a
+// program's reload builds (PipelineCache::ReloadChanged) is what every holder binds from then on.
+// Valid until the cache's Destroy.
+class PipelineRef
+{
+  public:
+	PipelineRef() = default;
+
+	// Empty, as a holder's VK_NULL_HANDLE is.
+	PipelineRef(std::nullptr_t)
+	{
+	}
+
+	explicit PipelineRef(const VkPipeline &slot) : m_pSlot{&slot}
+	{
+	}
+
+	operator VkPipeline() const
+	{
+		return m_pSlot != nullptr ? *m_pSlot : VK_NULL_HANDLE;
+	}
+
+  private:
+	const VkPipeline *m_pSlot{nullptr};
+};
+
 // Pipelines by program and render state, made the first time each is asked for and kept until
 // Destroy. The renderer asks for its passes' pipelines at start-up, so a missing or broken program
 // is a start-up error naming its file, not a frame that throws.
@@ -112,10 +136,17 @@ class PipelineCache
 
 	PipelineCache &operator=(const PipelineCache &) = delete;
 
-	VkPipeline Get(const PipelineKey &key);
+	PipelineRef Get(const PipelineKey &key);
 
 	// A compute program is one stage, shaders/<program>.comp.spv, with nothing else to vary.
-	VkPipeline GetCompute(const std::string &program, VkPipelineLayout layout);
+	PipelineRef GetCompute(const std::string &program, VkPipelineLayout layout);
+
+	// Builds again every pipeline of each program whose SPIR-V changed on the disk, and returns how
+	// many programs were. A program's pipelines are replaced together once all of them build, and
+	// the old ones destroyed after the device is idle; one that does not build keeps those it had,
+	// logged once, naming the file, and is tried again when a file of it changes again. Between
+	// frames only: no command buffer may be being recorded.
+	std::size_t ReloadChanged();
 
 	std::size_t Size() const
 	{
@@ -125,14 +156,16 @@ class PipelineCache
 	void Destroy();
 
   private:
-	VkShaderModule LoadModule(const std::string &virtualPath);
+	VkShaderModule LoadModule(const std::string &program, ShaderStage stage);
 
 	VkPipeline Create(const PipelineKey &key);
 
 	VkPipeline CreateCompute(const std::string &program, VkPipelineLayout layout);
 
 	std::shared_ptr<DeviceContext> m_pDeviceContext;
-	const Vfs::FileSystem &m_assets;
+	ProgramFiles m_files;
+
+	// A map's elements stay where they are as others are added, so a PipelineRef can hold one.
 	std::map<PipelineKey, VkPipeline> m_pipelines;
 	std::map<std::pair<std::string, VkPipelineLayout>, VkPipeline> m_computePipelines;
 };

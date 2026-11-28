@@ -2,6 +2,7 @@
 
 #include <glm/vec3.hpp>
 
+#include <cstddef>
 #include <cstdint>
 #include <filesystem>
 #include <memory>
@@ -134,6 +135,12 @@ class IRenderer
 	// once each has loaded or failed. The shell calls it each frame after a scene loads, and holds the
 	// scene behind a full fade until it is true (App::Shell::SceneReady).
 	virtual bool PrefetchScene(const Scene::Scene &scene) = 0;
+
+	// Builds again the pipelines of each program whose SPIR-V changed on the disk, and returns how
+	// many programs were; one that does not build keeps its pipelines, logged once, naming the file
+	// (docs/rendering.md, "Programs reloaded"). Between frames: the shell calls it where the
+	// resources hot-reload, before the frame is drawn.
+	virtual std::size_t ReloadChangedPrograms() = 0;
 
 	// The linear scale applied to the HDR target on its way to the display, before tonemapping. The
 	// scene's colour grade (Scene::ColourGradeComponent) is applied after it, to the display's colours.

@@ -11,11 +11,10 @@
 #include <jettison/render/Overlay.h>
 
 #include "vulkan/DeviceContext.h"
+#include "vulkan/PipelineCache.h"
 
 namespace Jettison::Render
 {
-class PipelineCache;
-
 // Draws a Render::Overlay into the output pass, after the scene is tonemapped and before the dev
 // tools: the overlay program, its vertices and indices copied into the frame slot's buffers, and a
 // device copy of each texture it names, made the first time a draw names it. A texture the overlay
@@ -95,7 +94,7 @@ class OverlayRenderer
 	VkPipelineLayout m_layout{VK_NULL_HANDLE};
 	VkDescriptorPool m_pool{VK_NULL_HANDLE};
 	VkSampler m_sampler{VK_NULL_HANDLE};
-	VkPipeline m_pipeline{VK_NULL_HANDLE};
+	PipelineRef m_pipeline;
 	DeviceTexture m_white;
 	std::map<OverlayTextureId, DeviceTexture> m_textures;
 	std::vector<Retired> m_retired;

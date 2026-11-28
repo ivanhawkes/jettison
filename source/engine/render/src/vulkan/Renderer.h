@@ -14,6 +14,7 @@
 #include "vulkan/DeviceContext.h"
 #include "vulkan/Environment.h"
 #include "vulkan/GpuProfiler.h"
+#include "vulkan/PipelineCache.h"
 #include "vulkan/SceneDraws.h"
 #include "vulkan/Swapchain.h"
 #include "vulkan/Window.h"
@@ -53,7 +54,6 @@ class ImGuiRenderer;
 class MaterialCache;
 struct MaterialBinding;
 class ModelCache;
-class PipelineCache;
 class Overlay;
 class OverlayRenderer;
 
@@ -173,6 +173,12 @@ class Renderer
 	// Asks for every model file the scene's meshes name; true once each has loaded or failed
 	// (IRenderer::PrefetchScene).
 	bool PrefetchScene(const Scene::Scene &scene);
+
+	// IRenderer::ReloadChangedPrograms.
+	std::size_t ReloadChangedPrograms()
+	{
+		return m_pPipelines->ReloadChanged();
+	}
 
 	// What the UI is drawn into: the swapchain's format, single-sampled.
 	VkFormat GetOutputFormat() const
@@ -613,26 +619,26 @@ class Renderer
 	// Texel for texel, and filtered (the bloom chain).
 	VkSampler m_outputSampler{VK_NULL_HANDLE};
 	VkSampler m_linearSampler{VK_NULL_HANDLE};
-	VkPipeline m_outputPipeline{VK_NULL_HANDLE};
-	VkPipeline m_ssaoPipeline{VK_NULL_HANDLE};
-	VkPipeline m_ssaoBlurPipeline{VK_NULL_HANDLE};
-	VkPipeline m_bloomDownPipeline{VK_NULL_HANDLE};
-	VkPipeline m_bloomUpPipeline{VK_NULL_HANDLE};
-	VkPipeline m_outlineSeedPipeline{VK_NULL_HANDLE};
-	VkPipeline m_outlineFloodPipeline{VK_NULL_HANDLE};
-	VkPipeline m_outlinesPipeline{VK_NULL_HANDLE};
-	VkPipeline m_skyPipeline{VK_NULL_HANDLE};
+	PipelineRef m_outputPipeline;
+	PipelineRef m_ssaoPipeline;
+	PipelineRef m_ssaoBlurPipeline;
+	PipelineRef m_bloomDownPipeline;
+	PipelineRef m_bloomUpPipeline;
+	PipelineRef m_outlineSeedPipeline;
+	PipelineRef m_outlineFloodPipeline;
+	PipelineRef m_outlinesPipeline;
+	PipelineRef m_skyPipeline;
 
 	// The bodies' air and rings over the sky, after it (atmosphere.frag).
-	VkPipeline m_atmospherePipeline{VK_NULL_HANDLE};
-	VkPipeline m_linePipeline{VK_NULL_HANDLE};
-	VkPipeline m_lineOverlayPipeline{VK_NULL_HANDLE};
-	VkPipeline m_clusterBoundsPipeline{VK_NULL_HANDLE};
-	VkPipeline m_clusterLightsPipeline{VK_NULL_HANDLE};
-	VkPipeline m_shadowPipeline{VK_NULL_HANDLE};
-	VkPipeline m_prepassPipeline{VK_NULL_HANDLE};
-	VkPipeline m_particleStepPipeline{VK_NULL_HANDLE};
-	VkPipeline m_particlePipeline{VK_NULL_HANDLE};
+	PipelineRef m_atmospherePipeline;
+	PipelineRef m_linePipeline;
+	PipelineRef m_lineOverlayPipeline;
+	PipelineRef m_clusterBoundsPipeline;
+	PipelineRef m_clusterLightsPipeline;
+	PipelineRef m_shadowPipeline;
+	PipelineRef m_prepassPipeline;
+	PipelineRef m_particleStepPipeline;
+	PipelineRef m_particlePipeline;
 
 	// The sun's shadow map: one layer per cascade, a view of the whole array for the lighting
 	// include, one of each layer to render into, and the comparison sampler. Shared by the frames in

@@ -806,6 +806,24 @@ void Application::RegisterFrameSystems()
 		     m_lastScriptPoll = now;
 		     m_pSession->Scripts().ReloadChanged();
 	     }});
+
+	// A program's SPIR-V rebuilt while the game runs is built again likewise, before the frame that
+	// draws with it is recorded.
+	m_frame.Register(
+	    {"render.reload",
+	     TickPhase::Presentation,
+	     {},
+	     {"resource.update"},
+	     [this](entt::registry &, double)
+	     {
+		     if (!m_hotReload)
+			     return;
+		     const auto now = std::chrono::steady_clock::now();
+		     if (now - m_lastProgramPoll < m_hotReloadPoll)
+			     return;
+		     m_lastProgramPoll = now;
+		     m_pRenderer->ReloadChangedPrograms();
+	     }});
 	m_frame.Register(
 	    {"shell.ui",
 	     TickPhase::Presentation,

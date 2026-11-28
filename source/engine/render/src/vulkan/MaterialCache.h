@@ -50,7 +50,7 @@ struct TextureResource
 // What a draw binds for its material.
 struct MaterialBinding
 {
-	VkPipeline pipeline{VK_NULL_HANDLE};
+	PipelineRef pipeline;
 
 	// Where its block starts in the frame's material buffer: its slots' indices into the texture
 	// table, then its parameters (assets/shaders/include/material.glsl).
@@ -165,7 +165,7 @@ class MaterialCache
 		std::uint32_t definitionRevision{0};
 		std::array<Resource::ResourceHandle<TextureResource>, kMaterialTextureSlots> textures{};
 		ResolvedMaterial resolved;
-		VkPipeline pipeline{VK_NULL_HANDLE};
+		PipelineRef pipeline;
 		bool transparent{false};
 
 		// Each slot's element of the texture table, as its texture is now: a reload's new one, or the
@@ -194,7 +194,7 @@ class MaterialCache
 	{
 		ProgramDefinition definition;
 		ResolvedMaterial defaults;
-		VkPipeline pipeline{VK_NULL_HANDLE};
+		PipelineRef pipeline;
 	};
 
 	void RegisterLoaders();
