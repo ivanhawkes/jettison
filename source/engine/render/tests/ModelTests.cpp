@@ -1,10 +1,13 @@
 #include "vulkan/Model.h"
 
+#include <glm/gtc/matrix_transform.hpp>
+
 #include <jettison/animation/ModelFile.h>
 #include <jettison/animation/RigLoader.h>
 #include <jettison/geometry/Cook.h>
 #include <jettison/geometry/GltfFile.h>
 #include <jettison/jobs/IoWorker.h>
+#include <jettison/render/Culling.h>
 #include <jettison/resource/ResourceManager.h>
 #include <jettison/vfs/FileSystem.h>
 
@@ -29,15 +32,21 @@ using namespace Jettison::Render;
 
 namespace
 {
-std::vector<std::byte> ReadContent(const std::filesystem::path &relative)
+std::vector<std::byte> ReadFile(const std::filesystem::path &path)
 {
-	std::ifstream stream{std::filesystem::path{JETTISON_TEST_CONTENT_DIR} / relative, std::ios::binary};
+	std::ifstream stream{path, std::ios::binary};
 	REQUIRE(stream);
 	const std::vector<char> chars{
 	    std::istreambuf_iterator<char>{stream}, std::istreambuf_iterator<char>{}};
 	std::vector<std::byte> bytes(chars.size());
 	std::memcpy(bytes.data(), chars.data(), chars.size());
 	return bytes;
+}
+
+
+std::vector<std::byte> ReadContent(const std::filesystem::path &relative)
+{
+	return ReadFile(std::filesystem::path{JETTISON_TEST_CONTENT_DIR} / relative);
 }
 
 
@@ -229,4 +238,78 @@ TEST_CASE("Model: a base colour through KHR_texture_basisu decodes as KTX 2, a P
 	CHECK(
 	    arm->m_primitives[0].DecodeBaseColor(TranscodeTarget::Rgba8, "arm.glb-p0").format ==
 	    TextureFormat::Rgba8Srgb);
+}
+
+
+TEST_CASE("Model: the generated asteroid at the reference views' distances, each at its level")
+{
+	const auto file = Geometry::GltfFile::Parse(
+	    ReadFile(
+	        std::filesystem::path{JETTISON_COOKED_CONTENT_DIR} / "models/asteroids/asteroid-large.glb"),
+	    "asteroid-large.glb");
+	const auto model = Model::FromGltf(*file);
+	REQUIRE(model->m_lods.size() == 5);
+
+	// The views' camera (scene/asteroid.yaml) in capture.sh's 960 x 540 frame, at the default
+	// threshold; each distance is the orbit's, from the asteroid's centre.
+	CameraView camera;
+	camera.verticalFov = glm::radians(45.0f);
+	camera.nearPlane = 0.1f;
+	const LodSelection selection = MakeLodSelection(camera, 540.0, double{kDefaultLodThreshold});
+	const auto at = [&](double distance)
+	{
+		return TransformBounds(model->m_bounds, glm::translate(glm::dmat4{1.0}, {0.0, 0.0, -distance}));
+	};
+	const auto choose = [&](double distance, std::optional<std::uint32_t> previous)
+	{ return SelectLod(model->m_lods, 1.0, at(distance), selection, previous); };
+
+	// source/test/frames/views.txt: asteroid-near, asteroid-mid and asteroid-far.
+	CHECK(choose(88.0, std::nullopt) == 1u);
+	CHECK(choose(165.0, std::nullopt) == 3u);
+	CHECK(choose(400.0, std::nullopt) == 4u);
+
+	// Flown in from the far view to past the near one and out again a percent a frame, the level
+	// changes a step at a time, once each way at each switch, and further off going out than in.
+	std::vector<std::uint32_t> levels;
+	std::vector<double> inward;
+	std::vector<double> outward;
+	std::uint32_t level = choose(400.0, std::nullopt);
+	double distance = 400.0;
+	for (; distance > 80.0; distance *= 0.99)
+	{
+		const std::uint32_t next = choose(distance, level);
+		if (next != level)
+		{
+			CHECK(next + 1 == level);
+			inward.push_back(distance);
+		}
+		level = next;
+	}
+	CHECK(level == 1u);
+	for (; distance < 400.0; distance /= 0.99)
+	{
+		const std::uint32_t next = choose(distance, level);
+		if (next != level)
+		{
+			CHECK(next == level + 1);
+			outward.push_back(distance);
+		}
+		level = next;
+	}
+	CHECK(level == 4u);
+	REQUIRE(inward.size() == 3);
+	REQUIRE(outward.size() == 3);
+	for (std::size_t step = 0; step < 3; ++step)
+		CHECK(outward[2 - step] > inward[step]);
+
+	// Held at a switch's distance, swaying two percent either way, the level stays where it is.
+	for (const double held : inward)
+	{
+		CAPTURE(held);
+		const std::uint32_t start = choose(held, std::nullopt);
+		std::uint32_t swaying = start;
+		for (int frame = 0; frame < 20; ++frame)
+			swaying = choose(held * (frame % 2 == 0 ? 1.02 : 0.98), swaying);
+		CHECK(swaying == start);
+	}
 }

@@ -4,11 +4,14 @@
 
 #include <algorithm>
 #include <array>
+#include <cmath>
 #include <cstdint>
 #include <filesystem>
 #include <memory>
 #include <optional>
+#include <stdexcept>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "vulkan/DeviceContext.h"
@@ -122,9 +125,6 @@ class Renderer
 	// Each cascade's map, texels on a side.
 	static constexpr std::uint32_t kShadowMapSize = 2048;
 
-	// The pixels a level of detail's error may cover before a finer one is drawn.
-	static constexpr float kDefaultLodThreshold = 1.0f;
-
 	// The pixels a draw has to be across to be drawn (TooSmallToSee). Measured in 9d against a
 	// platform's dressing from 1.5 km: on lavapipe at 640 x 480 it leaves out 529 of 925 meshes, the
 	// berths' paint, poles and lamps, and takes the opaque pass from 31 ms to 22 ms, every tiny
@@ -215,10 +215,18 @@ class Renderer
 		return m_debugView;
 	}
 
-	// The pixels a level of detail's error may cover where it is drawn (render/Culling.h).
+	// The pixels a level of detail's error may cover where it is drawn (render/Culling.h). Throws
+	// std::invalid_argument for a value that is not positive and finite.
 	void SetLodThreshold(float pixels)
 	{
+		if (!(pixels > 0.0f) || !std::isfinite(pixels))
+			throw std::invalid_argument{"The level-of-detail threshold is a positive number of pixels"};
 		m_lodThreshold = pixels;
+	}
+
+	float GetLodThreshold() const
+	{
+		return m_lodThreshold;
 	}
 
 	// Whether the opaque surfaces' depth is laid down before they are shaded, so each pixel is shaded
@@ -660,6 +668,11 @@ class Renderer
 	Frustum m_frameFrustum{};
 	LodSelection m_frameLods{};
 	std::vector<std::uint32_t> m_drawLods;
+
+	// Each mesh entity's level this frame and last, sorted by entity, so a draw keeps its level inside
+	// the hysteresis band (SelectLod). Cleared with a replaced scene, whose entities are others.
+	std::vector<std::pair<entt::entity, std::uint32_t>> m_entityLods;
+	std::vector<std::pair<entt::entity, std::uint32_t>> m_lastEntityLods;
 	std::vector<HorizonOccluder> m_occluders;
 	std::vector<DrawBatch> m_viewBatches;
 	std::array<std::vector<DrawBatch>, kShadowCascades> m_shadowBatches;

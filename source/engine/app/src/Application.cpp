@@ -539,6 +539,24 @@ Application::Application(
 		    m_pRenderer->SetDebugView(found->second);
 	    });
 	m_console.RegisterCommand(
+	    "lod_threshold",
+	    "Sets the pixels a level of detail's error may cover where it is drawn, or says what it is: "
+	    "lod_threshold [pixels]",
+	    [this](DevTools::Console &console, std::span<const std::string> arguments)
+	    {
+		    if (!arguments.empty())
+		    {
+			    float pixels = 0.0f;
+			    const std::string &text = arguments[0];
+			    const auto [end, error] =
+			        std::from_chars(text.data(), text.data() + text.size(), pixels);
+			    if (error != std::errc{} || end != text.data() + text.size())
+				    throw std::invalid_argument{std::format("'{}' is not a number of pixels", text)};
+			    m_pRenderer->SetLodThreshold(pixels);
+		    }
+		    console.Print(std::format("{:.2f}", m_pRenderer->GetLodThreshold()));
+	    });
+	m_console.RegisterCommand(
 	    "bodies",
 	    "Draws the physics bodies of the frame the game picks in as Jolt has their shapes, as the "
 	    "Scene panel's Physics bodies does, or stops: bodies [on|off]",

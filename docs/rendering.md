@@ -169,8 +169,14 @@ A skinned draw's pose can leave its model's bounds, so it is never culled. A mod
 not drawn until its rig has placed it within its file.
 
 Each kept draw takes the coarsest level of detail whose geometric error, scaled and projected,
-covers no more than one pixel (`SelectLod`). A procedural shape has five levels, but the box has
-one; a glTF file has one. Draws sharing a model, a level, a material and stencil bits become one
+covers no more than the threshold (`SelectLod`): a pixel (`kDefaultLodThreshold`) unless
+`IRenderer::SetLodThreshold`, or the console's `lod_threshold`, sets another. A mesh keeps the
+level it drew last frame, remembered by its entity, while that level's error covers no more than
+`kLodHysteresis` (1.25) times the threshold and the next coarser level's more than the threshold
+over it, so a draw near a switch's distance changes level once as it passes rather than back and
+forth; a level so kept depends on the frames before, such as a first frame drawn at another size.
+A procedural shape has five levels, but the box has one; a model file has its file's
+([the cooked model](#the-cooked-model)). Draws sharing a model, a level, a material and stencil bits become one
 instanced draw. The batches are ordered front to back by their nearest instance, so the depth test
 rejects hidden surfaces before they are shaded; ties break by draw index, so the order is the same
 every frame.
@@ -758,8 +764,6 @@ committed images.
   [programs reloaded](#programs-reloaded)); cube maps and texture arrays from files; normal mapping on meshes (the BRDF
   has it, the vertex has no tangents); a glTF model's own metallic-roughness factors (it reads its
   base-colour image only); air over a mesh; the capture's planets and a gas giant's bands.
-- Levels of detail for model files, with hysteresis between them (a draw at a threshold can switch
-  level frame to frame), are [J37](roadmap.md#j37).
 - No spot or point light shadows; ray-traced ones are [J45](roadmap.md#j45), on devices with ray
   queries.
 - Meshlets, occlusion culling, streaming and ray tracing are planned in [dense geometry and ray

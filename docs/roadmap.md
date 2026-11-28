@@ -46,11 +46,9 @@ the dense-geometry track, are done ([history](history.md)). J63 serves Manifest'
 on a server ([its graphical client](../../manifest/docs/roadmap.md#the-graphical-client)).
 
 Placed by the user on 2026-11-28: the geometry module, the cook and levels of detail for model
-files, [J37](#j37), the dense-geometry track's next stage, which the rest of that track, the
-characters track and the art standards' support stand on. Its first sub-phase, J37a, the
-`geometry` module and the cooked GLB, J37b, the loaders on its reader, J37c, `jettison_cook` in
-one-shot mode, and J37d, the engine's content cooked at build time, are done
-([history](history.md#j37a)); levels of detail for model files (J37e) are next.
+files, [J37](history.md#j37), the dense-geometry track's stage that the rest of that track, the
+characters track and the art standards' support stand on, is done; the cook's watch mode,
+[J38](#j38), placed the same day, is in progress.
 
 ## Waiting on you
 
@@ -369,14 +367,13 @@ Nothing stands on it.
 Meshlets drawn by mesh shaders, an asset cook, streaming, and ray-traced shadows, ambient occlusion
 and reflections, with RTX Mega Geometry on NVIDIA: the plan agreed on 2026-11-25, for Manifest's
 station kits, instance fields and asteroids. It is scheduled apart from the backlog's tiers until
-the user places it; J36 and J68, placed on 2026-11-27, are built, and J37 was placed on 2026-11-28 ([current
+the user places it; J36 and J68, placed on 2026-11-27, and J37, placed on 2026-11-28, are built, and J38 was placed on 2026-11-28 ([current
 deliveries](#current-deliveries)). Its design, decisions, budgets, risks and each
 stage's exit criterion are in [dense geometry and ray tracing](dense-geometry-and-ray-tracing.md#stages);
 the rows below say what each stage is, what it waits on, and which backlog items it touches.
 
 | Stage | What it is | Needs | Touches |
 | --- | --- | --- | --- |
-| <a id="j37"></a>J37. The geometry module, the cook, and levels of detail for model files | Done: meshoptimizer, the CPU module `geometry` and its cooked GLB with levels of detail (J37a, [history](history.md#j37a)); the model and rig loaders on its reader, levels of detail from its primitives and KTX 2 base colours through it (J37b, [history](history.md#j37b)); `jettison_cook` cooking models and textures once, with layered settings files and a cook record over each source's references (J37c, [history](history.md#j37c)); the engine's content cooked at build time, dense test meshes generated (J37d, [history](history.md#j37d)). Remaining: levels of detail and hysteresis for model files; `SetLodThreshold` on `IRenderer`. | J36 | Takes [J27](#j27)'s level-of-detail row; takes over [J12](history.md#j12)'s baker, `Bake::CollisionShape`, for every model it cooks |
 | <a id="j38"></a>J38. The cook's watch mode | `jettison_cook --watch`: the artists' daemon, cooking a source tree outside the game's repository into its asset folder as files change. | J37 | — |
 | <a id="j39"></a>J39. The meshlet hierarchy, cooked, and its page file | Each static mesh cooked into a meshlet hierarchy (`clusterlod.h`) and a page file beside its GLB; the meshlet size chosen by measurement. | J37 | — |
 | <a id="j40"></a>J40. GPU culling and mesh-shader drawing | Instances and meshlets culled on the GPU, drawn by task and mesh shaders in the prepass, opaque pass and cascades, in a deterministic order; the indexed path the fallback. | J39 | The reference frames, the ground sample's included ([J28](history.md#j28)), recorded again |
@@ -398,7 +395,7 @@ Tracks A (J37 to J43, geometry) and B (J42, J44 to J47, ray tracing) can alterna
 
 Faces that talk and emote, people who walk, and the skin, eyes and hair to shade them: the plan
 agreed on 2026-11-25, for Manifest's portraits, interiors and pilots. It is scheduled apart from the
-backlog's tiers until the user places it, after [J37](#j37) and before or beside [J42](#j42), and
+backlog's tiers until the user places it, after [J37](history.md#j37) and before or beside [J42](#j42), and
 none of it is started. Its design, decisions, risks and each stage's exit criterion are in
 [characters](characters.md#stages).
 
@@ -421,7 +418,7 @@ none of it is started. Its design, decisions, risks and each stage's exit criter
 
 What Jettison builds so Manifest's assets can follow its [art
 standards](../../manifest/docs/art-standards.md), which Manifest defines and the engine's test
-content follows too (decided 2026-11-27). Each stands on the cook, [J37](#j37), and is scheduled
+content follows too (decided 2026-11-27). Each stands on the cook, [J37](history.md#j37), and is scheduled
 with the dense-geometry track until the user places it; none is started.
 
 <a id="j64"></a>

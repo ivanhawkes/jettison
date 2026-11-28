@@ -27,6 +27,9 @@ struct SceneDrawCommand
 {
 	const Model *model{};
 
+	// The mesh's entity, which tells one draw from another across frames.
+	entt::entity entity{entt::null};
+
 	// In render space: metres from the camera, as a float.
 	glm::mat4 renderTransform{1.0f};
 	const Animation::SkeletonComponent *skeleton{};

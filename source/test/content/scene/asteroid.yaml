@@ -1,0 +1,36 @@
+# The level-of-detail bench: the large dense asteroid the build generates and cooks
+# (models/asteroids/asteroid-large.glb, five levels), under the sun, which the reference views orbit
+# at three distances, each drawn at its own level (docs/rendering.md, "Levels of detail").
+version: 3
+entities:
+  - id: sun
+    transform:
+      translation: [-6.0e10, 9.0e10, 8.0e10]
+    sun:
+      color: [1, 0.95, 0.88]
+      intensity: 3.4
+  - id: sky
+    sky:
+      seed: 5
+      stars: 6000
+      starFlux: 3.0e-5
+      band:
+        normal: [0.3, 0.9, -0.3]
+        width: 0.25
+        color: [0.08, 0.07, 0.06]
+  - id: asteroid
+    transform:
+      translation: [0, 0, 0]
+    mesh:
+      model: models/asteroids/asteroid-large.glb
+  - id: camera
+    camera:
+      fov: 45
+      near: 0.1
+      active: true
+      orbit:
+        target: asteroid
+        distance: 165
+        yaw: 0.6
+        pitch: 0.2
+        minDistance: 10

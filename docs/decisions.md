@@ -424,7 +424,7 @@ What moves a frame's bodies and what pulls in it are under [Physics](#physics).
   it would hold every model file in memory beside its rig and its GPU copy. Rejected: the bytes read
   once and handed to two parses, which parses twice; one resource holding the rig and the CPU
   geometry, which would move the geometry's reader out of render and keep it resident; and a
-  `geometry` module now, which is [J37](roadmap.md#j37)'s.
+  `geometry` module now, which is [J37](history.md#j37)'s.
   [Rendering](rendering.md#models-and-textures)
 - **Programs are read again from their SPIR-V, whole, between frames** (2026-11-28). The engine
   takes no shader compiler for development alone (shaderc or glslang would be a dependency), so a

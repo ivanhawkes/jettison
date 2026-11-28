@@ -53,7 +53,7 @@ The user's answers in the planning interview, 2026-11-25:
 | Shape-key names | ARKit's 52 names for faces |
 | Character controller | The engine's, in physics, in this track |
 | ozz-animation | Not adopted; the engine's sampler is extended |
-| When | After the cook ([J37](roadmap.md#j37)), before or beside J42 |
+| When | After the cook ([J37](history.md#j37)), before or beside J42 |
 
 ## What exists today
 
@@ -379,7 +379,7 @@ flowchart LR
 | Item | How |
 | --- | --- |
 | [J20](roadmap.md#j20) | Its glTF-clip-events row moves to J54 and its cross-fade row to J53; its clamps and vehicle rigs stay |
-| [J37](roadmap.md#j37) | Relies on it: the cooked reader, the cook's settings and its records. J52 and J54 add processors to it |
+| [J37](history.md#j37) | Relies on it: the cooked reader, the cook's settings and its records. J52 and J54 add processors to it |
 | [J40](roadmap.md#j40) | Skinned, morphed and hair draws stay on the indexed path |
 | [J42](roadmap.md#j42) | Now needs J51: it refits from the deform pass, and builds no compute skinning of its own |
 | [J44](roadmap.md#j44) | Hair's non-opaque geometry is the shadow rays' first candidate test |

@@ -39,6 +39,12 @@ slots --scene $CONTENT/scene/slots.yaml
 # The models scene as it opens (the smoke test's default): the cooked crates and the skinned arm on
 # the deck, each model's base colour a KTX 2 image the cook encoded from the source's PNG.
 models --scene $CONTENT/scene/main.yaml
+# The generated asteroid (scene/asteroid.yaml) from 88 m, 165 m and 400 m off its centre: drawn at
+# its second, fourth and fifth levels of detail (ModelTests.cpp's asteroid case checks each, and that
+# a flight in and out across the switches changes the level once each way).
+asteroid-near --scene $CONTENT/scene/asteroid.yaml --run orbit|0.6|0.2|88|asteroid
+asteroid-mid --scene $CONTENT/scene/asteroid.yaml --run orbit|0.6|0.2|165|asteroid
+asteroid-far --scene $CONTENT/scene/asteroid.yaml --run orbit|0.6|0.2|400|asteroid
 # The ground sample as it opens (--ground: its own program, over its own content): the rover on its
 # slab, from the chase camera behind it.
 ground --ground

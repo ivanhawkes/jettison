@@ -199,6 +199,18 @@ class VulkanRenderer final : public IRenderer
 	}
 
 
+	void SetLodThreshold(float pixels) override
+	{
+		m_pRenderer->SetLodThreshold(pixels);
+	}
+
+
+	float GetLodThreshold() const override
+	{
+		return m_pRenderer->GetLodThreshold();
+	}
+
+
 	const FrameStats &GetFrameStats() const override
 	{
 		return m_pRenderer->GetFrameStats();

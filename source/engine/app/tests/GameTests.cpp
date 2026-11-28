@@ -315,6 +315,17 @@ class FadeRenderer final : public Render::IRenderer
 	}
 
 
+	void SetLodThreshold(float /*pixels*/) override
+	{
+	}
+
+
+	float GetLodThreshold() const override
+	{
+		return 1.0f;
+	}
+
+
 	const Render::FrameStats &GetFrameStats() const override
 	{
 		return stats;

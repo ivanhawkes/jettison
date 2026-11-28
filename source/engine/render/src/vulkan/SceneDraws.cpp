@@ -68,6 +68,7 @@ std::vector<SceneDrawCommand> CollectDraws(
 		// The draw's own transform is ToRenderSpace's, which the large-world test measures.
 		SceneDrawCommand draw{
 		    model,
+		    entity,
 		    ToRenderSpace(world, camera),
 		    skeleton,
 		    &mesh.material,

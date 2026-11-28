@@ -103,8 +103,9 @@ the game logs and the smoke test reads.
 
 `source/test/content` is the engine's test data: static scenes of a planet and a station at real
 scale (`orbit.yaml`), a ringed giant (`vesper.yaml`), benches for the transparent draws and the
-post chain (`effects.yaml`, `post.yaml`), with their materials, textures and models, a clip, a camera
-sequence, a colour grade and a few sounds. It is what the retired space sample built, baked into
+post chain (`effects.yaml`, `post.yaml`) and for a generated asteroid's levels of detail
+(`asteroid.yaml`), with their materials, textures and models, a clip, a camera sequence, a colour
+grade and a few sounds. It is what the retired space sample built, baked into
 files.
 
 The build cooks it into `build/<preset>/source/test/content`, with dense test meshes (asteroids and

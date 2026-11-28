@@ -4,6 +4,7 @@
 
 #include <array>
 #include <cstdint>
+#include <optional>
 #include <span>
 
 #include <jettison/render/Camera.h>
@@ -94,9 +95,22 @@ double ProjectedError(double error, const BoundingSphere &sphere, const LodSelec
 bool TooSmallToSee(
     double breadth, const BoundingSphere &sphere, const LodSelection &selection, double pixels);
 
+// The pixels a level of detail's error may cover where it is drawn, unless the renderer is told
+// otherwise (IRenderer::SetLodThreshold).
+inline constexpr float kDefaultLodThreshold = 1.0f;
+
+// How far past the threshold a draw's level is kept, as a factor either way: a quarter, so a camera
+// that drifts a few percent nearer and back near a switch's distance does not swap the level each
+// frame, and the error drawn never covers more than a pixel and a quarter at the default threshold.
+inline constexpr double kLodHysteresis = 1.25;
+
 // The coarsest level whose error, scaled by `scale` and projected, covers no more than the
-// threshold; the finest when none does.
+// threshold; the finest when none does. The level the draw took last frame, when it has one, is kept
+// while its own error covers no more than kLodHysteresis times the threshold and the next coarser
+// level's covers more than the threshold over kLodHysteresis, so a draw near a switch's distance
+// changes level once as it passes, not back and forth. A previous level the model does not have is
+// none.
 std::uint32_t SelectLod(
     std::span<const ModelLod> lods, double scale, const BoundingSphere &sphere,
-    const LodSelection &selection);
+    const LodSelection &selection, std::optional<std::uint32_t> previous = std::nullopt);
 } // namespace Jettison::Render

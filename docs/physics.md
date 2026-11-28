@@ -129,7 +129,7 @@ shape (`DefineShape`). A mesh among its parts makes it a mesh, for static and ki
 
 `jettison_bake_collision <model> <collision file>` (`source/tools/collision`) bakes one from a glTF
 or GLB model, through the library function `Bake::CollisionShape`, which the cook
-([J37](roadmap.md#j37)) calls for every model it cooks:
+([J37](history.md#j37)) calls for every model it cooks:
 
 | The model's mesh nodes | Their parts |
 | --- | --- |

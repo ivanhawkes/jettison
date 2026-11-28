@@ -1571,13 +1571,27 @@ void Renderer::SelectLods(const std::vector<SceneDrawCommand> &draws)
 {
 	m_drawLods.assign(draws.size(), 0);
 	m_occluders.clear();
+	m_lastEntityLods.swap(m_entityLods);
+	m_entityLods.clear();
+	const auto byEntity = [](const std::pair<entt::entity, std::uint32_t> &entry)
+	{ return entt::to_integral(entry.first); };
 	for (std::size_t drawIndex = 0; drawIndex < draws.size(); ++drawIndex)
 	{
 		const SceneDrawCommand &draw = draws[drawIndex];
 		if (draw.model == nullptr || draw.model->m_lods.empty())
 			continue;
-		const std::uint32_t lod = SelectLod(draw.model->m_lods, draw.scale, draw.bounds, m_frameLods);
+
+		// Last frame's level, which may be another model's when the mesh changed model: SelectLod
+		// keeps it only where it is within the band for this one.
+		std::optional<std::uint32_t> previous;
+		const auto found =
+		    std::ranges::lower_bound(m_lastEntityLods, entt::to_integral(draw.entity), {}, byEntity);
+		if (found != m_lastEntityLods.end() && found->first == draw.entity)
+			previous = found->second;
+		const std::uint32_t lod =
+		    SelectLod(draw.model->m_lods, draw.scale, draw.bounds, m_frameLods, previous);
 		m_drawLods[drawIndex] = lod;
+		m_entityLods.emplace_back(draw.entity, lod);
 		if (draw.occluderRadius <= 0.0)
 			continue;
 
@@ -1588,6 +1602,7 @@ void Renderer::SelectLods(const std::vector<SceneDrawCommand> &draws)
 		const auto error = double{draw.model->m_lods[lod].error};
 		m_occluders.push_back({{draw.bounds.center, draw.occluderRadius * (1.0 - error - 1e-6)}});
 	}
+	std::ranges::sort(m_entityLods, {}, byEntity);
 }
 
 
@@ -1995,7 +2010,10 @@ bool Renderer::Render(
 
 	// A replaced scene's emitters are other emitters, whatever their entities are numbered.
 	if (sceneReplaced)
+	{
 		m_particlePool.Clear();
+		m_entityLods.clear();
+	}
 	const double seconds =
 	    m_lastPresentationTime ? std::max(presentationTime - *m_lastPresentationTime, 0.0) : 0.0;
 	m_lastPresentationTime = presentationTime;

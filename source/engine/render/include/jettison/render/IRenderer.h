@@ -176,6 +176,13 @@ class IRenderer
 
 	virtual float GetBloom() const = 0;
 
+	// The pixels a level of detail's error may cover where it is drawn, Render::kDefaultLodThreshold
+	// unless set (render/Culling.h, SelectLod): smaller draws finer levels further off. Throws
+	// std::invalid_argument for a value that is not positive and finite.
+	virtual void SetLodThreshold(float pixels) = 0;
+
+	virtual float GetLodThreshold() const = 0;
+
 	// The last frame's counts, and the GPU's time in each declared pass.
 	virtual const FrameStats &GetFrameStats() const = 0;
 

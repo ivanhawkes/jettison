@@ -146,11 +146,21 @@ bool TooSmallToSee(
 
 std::uint32_t SelectLod(
     std::span<const ModelLod> lods, double scale, const BoundingSphere &sphere,
-    const LodSelection &selection)
+    const LodSelection &selection, std::optional<std::uint32_t> previous)
 {
+	const auto projected = [&](std::size_t level)
+	{ return ProjectedError(double{lods[level].error} * scale, sphere, selection); };
+	if (previous && *previous < lods.size())
+	{
+		const std::size_t level = *previous;
+		const bool fineEnough = projected(level) <= selection.thresholdPixels * kLodHysteresis;
+		const bool coarserTooCoarse = level + 1 == lods.size() ||
+		                              projected(level + 1) > selection.thresholdPixels / kLodHysteresis;
+		if (fineEnough && coarserTooCoarse)
+			return *previous;
+	}
 	for (std::size_t level = lods.size(); level-- > 1;)
-		if (ProjectedError(double{lods[level].error} * scale, sphere, selection) <=
-		    selection.thresholdPixels)
+		if (projected(level) <= selection.thresholdPixels)
 			return static_cast<std::uint32_t>(level);
 	return 0;
 }

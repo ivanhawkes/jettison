@@ -291,6 +291,41 @@ TEST_CASE("Culling: a level of detail is the coarsest whose projected error is u
 }
 
 
+TEST_CASE("Culling: a level of detail is kept inside the hysteresis band and changed outside it")
+{
+	CameraView camera;
+	camera.verticalFov = glm::radians(60.0f);
+	camera.nearPlane = 0.5f;
+	const LodSelection selection = MakeLodSelection(camera, 1080.0, 1.0);
+	const std::vector<ModelLod> lods{{0, 1, 0.0f}, {1, 1, 0.001f}, {2, 1, 0.004f}, {3, 1, 0.016f}};
+	const double scale = 10.0;
+	const auto at = [](double distance)
+	{ return BoundingSphere{{0.0, 0.0, -(distance + 10.0)}, 10.0}; };
+
+	// Where level 2's error covers the threshold: further off it is chosen afresh, nearer level 1.
+	const double switchDistance = double{lods[2].error} * scale * selection.pixelsPerRadian;
+	CHECK(SelectLod(lods, scale, at(switchDistance * 1.05), selection) == 2u);
+	CHECK(SelectLod(lods, scale, at(switchDistance * 0.95), selection) == 1u);
+
+	// Nearer, level 2 is kept until its error covers kLodHysteresis pixels; further, level 1 is kept
+	// until level 2's covers no more than 1 / kLodHysteresis.
+	CHECK(SelectLod(lods, scale, at(switchDistance * 0.95), selection, 2u) == 2u);
+	CHECK(SelectLod(lods, scale, at(switchDistance / kLodHysteresis * 1.05), selection, 2u) == 2u);
+	CHECK(SelectLod(lods, scale, at(switchDistance / kLodHysteresis * 0.95), selection, 2u) == 1u);
+	CHECK(SelectLod(lods, scale, at(switchDistance * 1.05), selection, 1u) == 1u);
+	CHECK(SelectLod(lods, scale, at(switchDistance * kLodHysteresis * 0.95), selection, 1u) == 1u);
+	CHECK(SelectLod(lods, scale, at(switchDistance * kLodHysteresis * 1.05), selection, 1u) == 2u);
+
+	// Outside the band the choice is made afresh, however far it moves: from the finest to the
+	// coarsest at once, and back.
+	CHECK(SelectLod(lods, scale, at(1.0e6), selection, 0u) == 3u);
+	CHECK(SelectLod(lods, scale, at(1.0), selection, 3u) == 0u);
+
+	// A level the model does not have is no previous level.
+	CHECK(SelectLod(lods, scale, at(switchDistance * 0.95), selection, 7u) == 1u);
+}
+
+
 TEST_CASE("Culling: bounds through a transform keep every vertex inside")
 {
 	const ModelBounds bounds{{0.5f, -0.25f, 0.0f}, 2.0f};

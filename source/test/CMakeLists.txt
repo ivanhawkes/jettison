@@ -1,7 +1,8 @@
 # The engine's test content (content/), which render_test mounts over the engine's assets as "base":
-# static scenes (a planet and a station at real scale, a ringed giant, the transparent pass's and the
-# post chain's benches, the texture table's, models and a skinned clip), a fixture program of sixteen
-# texture slots, their materials, textures and models, a clip, a sequence, a grade and a few sounds.
+# static scenes (a planet and a station at real scale, a ringed giant, the transparent pass's, the
+# post chain's and the levels of detail's benches, the texture table's, models and a skinned clip), a
+# fixture program of sixteen texture slots, their materials, textures and models, a clip, a sequence,
+# a grade and a few sounds.
 # The engine's suites read the sources; everything else reads the tree jettison_cook makes of them
 # (docs/dense-geometry-and-ray-tracing.md, "The cook"). The sources are staged as the cook's source
 # tree, content-source/, where the dense test meshes are generated beside them, and cooked into

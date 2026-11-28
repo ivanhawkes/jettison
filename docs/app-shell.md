@@ -285,6 +285,7 @@ messages are in it. A game adds its own commands in `Game::AddCommands`. The she
 | `language [tag]` | Reads the screens in another language and keeps it in the settings, or lists the languages |
 | `screenshot <file.png>` | Writes the next frame, UI and all, without ending the run |
 | `view shaded, clusters, cascades or occlusion` | Shows the shaded scene or a debug view, as F3, F4 and F6 do |
+| `lod_threshold [pixels]` | Sets the pixels a level of detail's error may cover where it is drawn, or says it ([rendering](rendering.md#collecting-and-culling)) |
 | `orbit <yaw> <pitch> <distance> [target]` | Places the orbit camera at once, in radians and metres, about a target or a scene entity's id |
 | `sequence <name> [seconds]`, `sequence stop` | Plays a cinematic from `cinematics/` on the active camera, or stops it |
 | `grade <name> [strength]`, `grade off` | Grades the frame by a `.cube` table in `grades/` |

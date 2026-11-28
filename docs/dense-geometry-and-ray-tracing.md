@@ -67,8 +67,8 @@ devices before it was used ([what was checked](#facts-checked)).
 
 | Area | Today | What this plan changes |
 | --- | --- | --- |
-| Level-of-detail metric | `SelectLod` (`render/Culling.h`): a level is chosen when its error, projected, is within `m_lodThreshold` pixels (`kDefaultLodThreshold = 1.0`); the same rule Nanite applies per cluster | The same rule and threshold, per meshlet, on the GPU |
-| Levels of detail | Procedural shapes have five; a glTF model has its file's: a cooked file's levels, or one of error 0, with a warning naming the cook, for a file that was not cooked (`ModelGltf.cpp`) | The cook makes levels for every model ([J37](roadmap.md#j37)) and a meshlet hierarchy ([J39](roadmap.md#j39)) |
+| Level-of-detail metric | `SelectLod` (`render/Culling.h`): a level is chosen when its error, projected, is within the threshold's pixels (`kDefaultLodThreshold = 1.0`, `IRenderer::SetLodThreshold`), kept across frames inside a hysteresis band ([rendering](rendering.md#collecting-and-culling)); the same rule Nanite applies per cluster | The same rule and threshold, per meshlet, on the GPU |
+| Levels of detail | Procedural shapes have five; a glTF model has its file's: a cooked file's levels, or one of error 0, with a warning naming the cook, for a file that was not cooked (`ModelGltf.cpp`) | The cook makes levels for every model ([J37](history.md#j37)) and a meshlet hierarchy ([J39](roadmap.md#j39)) |
 | Model loading | glTF, cooked or not, read and parsed once at run time on the I/O worker by `geometry`'s `GltfFile` (`animation`'s `ModelFile`), and `render`'s geometry and `animation`'s rig made from that parse | The meshlet page file read beside the cooked GLB |
 | Vertex | One 108-byte `Vertex` for every mesh, with two joint and weight sets | Meshlet vertices in a compact static layout; skinned meshes keep the current vertex |
 | Culling | CPU, per draw, in double precision: frustum, horizon, `TooSmallToSee`, `CastsInto` per cascade | GPU culling per instance and per meshlet, camera-relative in float, which render space already is |
@@ -82,9 +82,6 @@ devices before it was used ([what was checked](#facts-checked)).
 | Assets | `jettison_pack` packs files as they are; textures made by import scripts (`scripts/import-planet-textures.sh`, `ktx create`) | `jettison_cook` cooks models and textures before packing |
 | Device | Vulkan 1.3, dynamic rendering and synchronization2 required; no optional features | Vulkan 1.4; one table of optional capabilities, each logged and overridable ([J36](history.md#j36)) |
 | Shaders | `glslc --target-env=vulkan1.3`, with variants built by `jettison_compile_shader_variant` | Variants for mesh shaders and ray queries, from the same sources |
-
-The level-of-detail setter: no caller sets `Renderer::SetLodThreshold`, and `IRenderer` does not
-expose it. It is the knob the meshlet cut uses, so it moves to `IRenderer` in [J37](roadmap.md#j37).
 
 ## Facts checked
 
@@ -266,7 +263,7 @@ flowchart LR
 - **The engine's own content** (`source/test/content`) is cooked by CMake into the build tree, as
   shaders are compiled, and the packs are made from that. The dense test meshes are generated at
   build time before the cook: displaced icospheres for asteroids and kit pieces for a station
-  ([J37](roadmap.md#j37)).
+  ([J37](history.md#j37)).
 - **The engine and the game.** The tool, its formats and defaults are the engine's. The source
   tree's location, the game's `cook.yaml`, its content and how its source tree is versioned are the
   game's.
@@ -421,7 +418,7 @@ flowchart TD
 - **Acceleration structures.** A bottom-level structure per model, built once and compacted, from
   one of its cooked levels of detail: the coarsest within the cook's ray-tracing error. That level's
   vertices and indices stay loaded, for hit shading. It needs no meshlets, so ray tracing stands on
-  [J37](roadmap.md#j37) alone. The
+  [J37](history.md#j37) alone. The
   TLAS is rebuilt every frame in render space, camera-relative, from instances within the
   ray-tracing range (off-screen casters included), as instance transforms already are. Bodies
   (planets) stay out of it: they are tested analytically, as spheres.
