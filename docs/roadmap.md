@@ -72,7 +72,6 @@ each is cheaper before a game builds a workaround.
 
 | Feature | Why |
 | --- | --- |
-| Jolt's debug renderer drawn through debug draw | Seeing the shapes Jolt actually has. |
 | Jolt's job system on more than one thread | Once a profile asks for it. The result is deterministic either way. |
 | Capacities tuned against real traffic | The defaults are guesses. |
 
