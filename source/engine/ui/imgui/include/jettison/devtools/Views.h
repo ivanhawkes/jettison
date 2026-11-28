@@ -30,6 +30,9 @@ struct DevToolsState
 	bool showConsole{false};
 	bool showDemo{false};
 	bool showMetrics{false};
+
+	// RmlUi's debugger over the game UI, which the shell shows while the dev tools are open.
+	bool showUiDebugger{false};
 	ConsoleViewState console;
 };
 

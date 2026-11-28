@@ -1,6 +1,7 @@
 #include <jettison/ui/UiSystem.h>
 
 #include <RmlUi/Core.h>
+#include <RmlUi/Debugger.h>
 
 #include <freetype/freetype.h>
 #include <ft2build.h>
@@ -101,6 +102,22 @@ Rml::Input::KeyIdentifier ToRmlKey(std::int32_t code)
 		default: return KI_UNKNOWN;
 	}
 }
+
+
+// The slot's document read again in place, shown if it was. False, and the document as it was, for
+// one that does not load.
+bool ReadAgain(Rml::Context &context, Detail::DocumentSlot &slot)
+{
+	const bool shown = slot.pDocument->IsVisible();
+	Rml::ElementDocument *pDocument = context.LoadDocument(slot.pDocument->GetSourceURL());
+	if (!pDocument)
+		return false;
+	slot.pDocument->Close();
+	slot.pDocument = pDocument;
+	if (shown)
+		pDocument->Show();
+	return true;
+}
 } // namespace
 
 
@@ -196,20 +213,10 @@ void UiSystem::SetLanguage(std::string_view language)
 	strings.Load(m_pState->files, language);
 	m_pState->system.Strings() = std::move(strings);
 	for (Detail::DocumentSlot &slot : m_pState->documents)
-	{
-		if (slot.pDocument == nullptr)
-			continue;
-		const Rml::String source = slot.pDocument->GetSourceURL();
-		const bool shown = slot.pDocument->IsVisible();
-		Rml::ElementDocument *pDocument = m_pState->pContext->LoadDocument(source);
-		if (!pDocument)
+		if (slot.pDocument != nullptr && !ReadAgain(*m_pState->pContext, slot))
 			throw std::runtime_error(
-			    std::format("UiSystem: the document '{}' did not load again", source));
-		slot.pDocument->Close();
-		slot.pDocument = pDocument;
-		if (shown)
-			pDocument->Show();
-	}
+			    std::format(
+			        "UiSystem: the document '{}' did not load again", slot.pDocument->GetSourceURL()));
 }
 
 
@@ -266,6 +273,53 @@ void UiSystem::Close(DocumentHandle document)
 	Detail::DocumentSlot &slot = m_pState->documents[document.index];
 	slot.pDocument = nullptr;
 	++slot.generation;
+}
+
+
+std::size_t UiSystem::ReloadChanged()
+{
+	// A pack rebuilt on the disk is opened again first, as the resource manager does before it looks.
+	m_pState->files.Refresh();
+	const std::vector<std::string> changed = m_pState->fileInterface.TakeChanged();
+	if (changed.empty())
+		return 0;
+
+	// RmlUi keeps each stylesheet and template it has read for the run, by path, and would give a
+	// document read again the old one.
+	Rml::Factory::ClearStyleSheetCache();
+	Rml::Factory::ClearTemplateCache();
+	std::size_t reloaded = 0;
+	for (Detail::DocumentSlot &slot : m_pState->documents)
+	{
+		if (slot.pDocument == nullptr)
+			continue;
+		if (ReadAgain(*m_pState->pContext, slot))
+			++reloaded;
+		else
+			Core::Log(
+			    Core::Severity::Warning, kUi, "'{}' did not load again; the document read before stays",
+			    slot.pDocument->GetSourceURL());
+	}
+	Core::Log(
+	    Core::Severity::Info, kUi, "'{}' changed, and {} documents were read again", changed.front(),
+	    reloaded);
+	return reloaded;
+}
+
+
+void UiSystem::ShowDebugger(bool shown)
+{
+	if (shown == m_pState->debuggerShown)
+		return;
+	m_pState->debuggerShown = shown;
+	if (shown && !m_pState->debuggerMade)
+	{
+		// Once: one that fails is logged by RmlUi, which counts as a problem, and the UI goes on
+		// without it, SetVisible doing nothing.
+		m_pState->debuggerMade = true;
+		Rml::Debugger::Initialise(m_pState->pContext);
+	}
+	Rml::Debugger::SetVisible(shown);
 }
 
 

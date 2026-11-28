@@ -258,6 +258,7 @@ void DrawDevTools(Console &console, DevToolsState &state, ThemeSettings &setting
 			state.console.focusInput = true;
 		ImGui::Checkbox("ImGui demo", &state.showDemo);
 		ImGui::Checkbox("ImGui metrics", &state.showMetrics);
+		ImGui::Checkbox("Game UI debugger", &state.showUiDebugger);
 
 		ImGui::SeparatorText("Theme");
 		int index = PaletteIndex(settings.palette);

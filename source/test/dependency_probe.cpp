@@ -26,6 +26,7 @@
 #include <Jolt/Physics/Collision/Shape/SphereShape.h>
 #include <Jolt/RegisterTypes.h>
 #include <RmlUi/Core/Core.h>
+#include <RmlUi/Debugger/Debugger.h>
 #include <ft2build.h>
 #include FT_FREETYPE_H
 #include <ktx.h>
@@ -263,6 +264,9 @@ TEST_CASE("FreeType, the build RmlUi was configured against")
 TEST_CASE("RmlUi")
 {
 	CHECK(!Rml::GetVersion().empty());
+
+	// The debugger the dev tools show, a library of its own: hidden until it is made.
+	CHECK_FALSE(Rml::Debugger::IsVisible());
 }
 
 

@@ -22,7 +22,7 @@ files through the virtual file system, and the rule that a screen never reads th
 | Base language | English, `en`. It must have every key; every other language falls back to it. |
 | Problem | A warning or error RmlUi logged, a key no table has, a translation refused, or a character in a document's text that no font loaded has. The [smoke test](glossary.md#smoke-test) holds the count at none. |
 | Console | The developer's command line: the log, commands, and variables bound through reflection. |
-| Dev tools | The ImGui windows F1 opens: the Dev tools window (checkboxes for the console and ImGui's demo and metrics, and the theme's palette, console mono face and scale), the Renderer and Scene panels, and a game's own panels (`Game::DrawPanels`). |
+| Dev tools | The ImGui windows F1 opens: the Dev tools window (checkboxes for the console, ImGui's demo and metrics and the game UI's debugger, and the theme's palette, console mono face and scale), the Renderer and Scene panels, and a game's own panels (`Game::DrawPanels`). |
 
 Two UI libraries are in use, each for one audience. The game UI, which a player sees, is
 [RmlUi](https://github.com/mikke89/RmlUi): HTML-like documents and CSS-like stylesheets, which a
@@ -134,9 +134,10 @@ Documents, stylesheets, templates, fonts and images are all read through the
 [virtual file system](files-and-mods.md). A mod's mount over the base therefore restyles a screen
 by shadowing its stylesheet, with no code, or changes it with a `<name>.patch.rcss` beside it, which
 is appended after the stylesheet below it so its rules win
-([layering](files-and-mods.md#layering-definitions)). RmlUi keeps a stylesheet for the rest of the run once it
-has read it, so mods are mounted before the UI is made, as the shell does. Fonts are FreeType's, one
-build that RmlUi's font engine and ImGui's rasteriser (`imgui_freetype`) both link. The shell loads
+([layering](files-and-mods.md#layering-definitions)). Mods are mounted before the UI is made, as
+the shell mounts them; a file changed under a mount already there is read again in development
+([reloading](#reloading-and-the-debugger)). Fonts are FreeType's, one build that RmlUi's font engine
+and ImGui's rasteriser (`imgui_freetype`) both link. The shell loads
 Roboto Medium and Hack, with Droid Sans as the fallback face for any glyph the others lack
 (`UiSystem::LoadFont`).
 
@@ -218,6 +219,34 @@ arguments as `Ui::EventArgument` values (a bool, a whole number, a double or tex
 lays the documents out, and draws them into the overlay, which it clears first.
 `UiSystem::ElementText` and `UiSystem::Click` read and press an element by id, which is how the
 tests and the smoke sequence drive a screen.
+
+### Reloading and the debugger
+
+A UI author changes a document or a stylesheet and sees it on the next look, with no restart.
+`UiSystem::ReloadChanged` notices a change as the resource manager does
+([resources](files-and-mods.md#resources)): it calls `FileSystem::Refresh`, then compares the
+`FileInfo` of every file RmlUi has opened through the UI's file interface (documents, stylesheets,
+a stylesheet's `.patch.rcss` beside it, templates) with what it was when RmlUi read it. A changed
+file, one added or gone, or another mount's file now shadowing it, clears RmlUi's stylesheet and
+template caches, which otherwise keep a file for the run, and reads every open document again, each
+keeping its handle and whether it is shown, as `SetLanguage` does. Every document is read again,
+not only those that read the file, because a stylesheet or template is shared by path. The data
+models are the context's, not a document's, so a document read again reads the same bound values
+and raises the same events. One that no longer loads keeps the document read before, logged, and is
+tried again once a file changes again. Only the topmost file of a path is compared, as the resource
+manager compares it, so a patch edited under another mount's patch of the same stylesheet is seen
+when something above it changes.
+
+The shell looks every 500 ms where the resources hot-reload (development builds) and never in a
+run with `--frame-step`, in `ui.update` before `Game::UpdateUi`, so a document read again is
+filled and drawn that frame. Images and fonts are not read again.
+
+RmlUi's debugger (its Debugger library, `Rml::Debugger`) is the dev tools' "Game UI debugger"
+checkbox: its menu, an element's styles and box, the event log and the data models, drawn into the
+overlay over the documents, while the dev tools are open and the box is ticked
+(`UiSystem::ShowDebugger`). It is made the first time it is shown, so a run that never shows it,
+the smoke test and the reference views included, loads none of its fonts or documents. It answers
+the mouse as a document does, so a click on it is not the scene's.
 
 ### String tables
 
@@ -552,8 +581,7 @@ The theme's `dev.` variables ([the dev tools' theme](#the-dev-tools-theme)) are 
 
 ## Limits and open work
 
-- No stylesheet or document reload, images decoded on the I/O worker or RmlUi's debugger:
-  [J14](roadmap.md#j14).
+- Images decoded on the I/O worker: [J14](roadmap.md#j14).
 - Right-to-left and shaped scripts, and a first-start language from the platform:
   [J15](roadmap.md#j15).
 - RmlUi's clip masks, layers, filters and shaders draw nothing: [J23](roadmap.md#j23).
@@ -576,7 +604,8 @@ to be is in [history](history.md).
 - Module `ui` (`source/engine/ui`), with RmlUi private to it: `ui/UiSystem.h`,
   `ui/DataModel.h`, `ui/StringTable.h`; `src/RmlInterfaces.cpp` (RmlUi's file, system and
   render interfaces over the VFS, the log and the overlay). Tests: `UiTests.cpp`,
-  `StringTableTests.cpp`, which run RmlUi with no device; `UiTests.cpp` writes a font of its own
+  `StringTableTests.cpp`, which run RmlUi with no device (a stylesheet and a document changed on
+  the disk and read again, and the debugger, among them); `UiTests.cpp` writes a font of its own
   for a game's fallback face, generated, so it carries no one's licence.
 - Module `devtools` (`source/engine/ui/imgui`): `devtools/Console.h`, `devtools/Views.h`,
   `devtools/Theme.h`. Tests: `ConsoleTests.cpp`, `ViewTests.cpp`, `ThemeTests.cpp`, which run

@@ -175,7 +175,7 @@ flowchart LR
 | `scene.debug` | Each mesh's axes and each light, when F2 shows them |
 | `resource.update` | Finishes loads and hot reloads, so a reloaded file draws this frame |
 | `scripts.reload` | Loads again a script whose module changed, where resources hot-reload ([scripts](scripts.md#loading-again)) |
-| `shell.ui`, `shell.marks`, `ui.update` | The dev tools and the pick's marker (where it hit, the surface's normal, and an overlay naming it and its distance); the outline on what is picked; the game UI (`Game::UpdateUi`) |
+| `shell.ui`, `shell.marks`, `ui.update` | The dev tools and the pick's marker (where it hit, the surface's normal, and an overlay naming it and its distance); the outline on what is picked; the game UI: a document whose files changed read again, where resources hot-reload, then `Game::UpdateUi` ([reloading](ui.md#reloading-and-the-debugger)) |
 | `render` | Draws the scene, the debug lines and the UI overlay |
 | `shell.smoke`, `shell.benchmark` | Advance the render test's sequence and the benchmark, when asked for |
 

@@ -72,6 +72,9 @@ Rml::FileHandle FileInterface::Open(const Rml::String &path)
 		// it does not have, not a reason to stop.
 		if (!Vfs::FileSystem::IsValidPath(path))
 			return 0;
+		Note(path);
+		if (path.ends_with(kStylesheetExtension))
+			Note(Vfs::FileSystem::PatchPath(path));
 		auto bytes =
 		    path.ends_with(kStylesheetExtension) ? ReadStylesheet(m_files, path) : m_files.Read(path);
 		if (!bytes)
@@ -85,6 +88,27 @@ Rml::FileHandle FileInterface::Open(const Rml::String &path)
 		Core::Log(Core::Severity::Error, kUi, "Could not read '{}': {}", path, error.what());
 		return 0;
 	}
+}
+
+
+std::vector<std::string> FileInterface::TakeChanged()
+{
+	std::vector<std::string> changed;
+	for (auto &[path, info] : m_opened)
+	{
+		std::optional<Vfs::FileInfo> now = m_files.Find(path);
+		if (now == info)
+			continue;
+		info = now;
+		changed.push_back(path);
+	}
+	return changed;
+}
+
+
+void FileInterface::Note(const std::string &path)
+{
+	m_opened.insert_or_assign(path, m_files.Find(path));
 }
 
 

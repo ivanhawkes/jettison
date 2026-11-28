@@ -774,10 +774,10 @@ void Application::RegisterFrameSystems()
 	     {"resource.update"},
 	     [this](entt::registry &, double)
 	     {
-		     if (!m_scriptReload)
+		     if (!m_hotReload)
 			     return;
 		     const auto now = std::chrono::steady_clock::now();
-		     if (now - m_lastScriptPoll < m_scriptPoll)
+		     if (now - m_lastScriptPoll < m_hotReloadPoll)
 			     return;
 		     m_lastScriptPoll = now;
 		     m_pSession->Scripts().ReloadChanged();
@@ -1051,8 +1051,8 @@ void Application::InitResources()
 	if (m_arguments.frameStep > 0.0)
 		resourceOptions = {.hotReload = false, .settleLoads = true};
 	m_pResources = std::make_unique<Resource::ResourceManager>(m_assets, *m_pIoWorker, resourceOptions);
-	m_scriptReload = resourceOptions.hotReload;
-	m_scriptPoll = resourceOptions.pollInterval;
+	m_hotReload = resourceOptions.hotReload;
+	m_hotReloadPoll = resourceOptions.pollInterval;
 	Animation::RegisterRigLoader(*m_pResources);
 	Animation::RegisterClipFileLoader(*m_pResources);
 
@@ -1346,6 +1346,16 @@ void Application::UpdateGameUi()
 		m_pUi->SetSize(size.x, size.y, scaleY);
 		m_uiSize = size;
 	}
+
+	// A document or stylesheet changed on the disk is read again where the scripts are, before the game
+	// fills its screens, so it draws this frame.
+	const auto now = std::chrono::steady_clock::now();
+	if (m_hotReload && now - m_lastUiPoll >= m_hotReloadPoll)
+	{
+		m_lastUiPoll = now;
+		m_pUi->ReloadChanged();
+	}
+	m_pUi->ShowDebugger(m_showUI && m_devTools.showUiDebugger);
 
 	m_pGame->UpdateUi(*this);
 	const double presentationTime = std::chrono::duration<double>(m_frameStart - m_loopStart).count();

@@ -101,6 +101,8 @@ class UiState
 	Rml::Context *pContext{nullptr};
 	std::vector<DocumentSlot> documents;
 	std::map<std::string, std::unique_ptr<DataModel>, std::less<>> models;
+	bool debuggerShown{false};
+	bool debuggerMade{false};
 
 	Rml::ElementDocument *Find(DocumentHandle document) const;
 };

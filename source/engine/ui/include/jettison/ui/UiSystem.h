@@ -103,6 +103,19 @@ class UiSystem
 
 	void Close(DocumentHandle document);
 
+	// Reads every open document again, each keeping its handle and whether it is shown, when a file
+	// RmlUi has read for one has changed since (its document, a stylesheet or its patch, a template),
+	// or another mount's file now shadows it: for a UI author iterating, in development, as the
+	// resource manager reloads a file. The data models stay as they are, so a document read again
+	// reads the values and raises the events it did before. A document that no longer loads stays as
+	// it was, logged, and is tried again once a file changes again. Returns how many were read again.
+	std::size_t ReloadChanged();
+
+	// RmlUi's debugger over the documents: its menu, an element's styles, the event log and the data
+	// models, drawn into the overlay with them. Made the first time it is shown, so a run that never
+	// shows it draws and reads nothing of it.
+	void ShowDebugger(bool shown);
+
 	bool IsShown(DocumentHandle document) const;
 
 	std::size_t OpenDocuments() const;

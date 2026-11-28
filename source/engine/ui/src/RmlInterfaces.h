@@ -9,17 +9,15 @@
 #include <cstdint>
 #include <map>
 #include <memory>
+#include <optional>
+#include <string>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
 
 #include <jettison/render/Overlay.h>
 #include <jettison/ui/StringTable.h>
-
-namespace Jettison::Vfs
-{
-class FileSystem;
-}
+#include <jettison/vfs/FileSystem.h>
 
 // What RmlUi is given to reach the engine: files through the VFS, time and messages through the
 // engine's clock and log, and drawing into a Render::Overlay.
@@ -46,6 +44,11 @@ class FileInterface final : public Rml::FileInterface
 
 	size_t Length(Rml::FileHandle file) override;
 
+	// The paths whose file has changed, been added or gone, or been shadowed by another mount's since
+	// RmlUi last opened them, each taken as seen, so it is reported once a change: what
+	// UiSystem::ReloadChanged reads documents again on, as the resource manager reloads a file.
+	std::vector<std::string> TakeChanged();
+
   private:
 	struct OpenFile
 	{
@@ -55,8 +58,16 @@ class FileInterface final : public Rml::FileInterface
 
 	OpenFile *Find(Rml::FileHandle file);
 
+	void Note(const std::string &path);
+
 	const Vfs::FileSystem &m_files;
 	std::map<Rml::FileHandle, std::unique_ptr<OpenFile>> m_open;
+
+	// What each path RmlUi has opened named when it was opened, nothing for a path no mount had, and
+	// a stylesheet's patch beside it. Only the topmost file of a path is compared, as the resource
+	// manager compares it, so a patch edited under another mount's patch of the same stylesheet is
+	// seen once something above it changes.
+	std::map<std::string, std::optional<Vfs::FileInfo>, std::less<>> m_opened;
 	Rml::FileHandle m_next{1};
 };
 

@@ -117,6 +117,12 @@ class Scratch
 	}
 
 
+	void Remove(const std::string &path) const
+	{
+		std::filesystem::remove(m_directory / path);
+	}
+
+
 	const Vfs::FileSystem &Files() const
 	{
 		return m_files;
@@ -496,6 +502,115 @@ TEST_CASE("Ui: a mod's patch.rcss is appended to the stylesheet below it, and it
 		return DrawnWidth(ui.Overlay());
 	};
 	CHECK(drawnWidth() == doctest::Approx(200.0f));
+}
+
+
+TEST_CASE("Ui: a stylesheet changed on the disk restyles the document that links it, read again")
+{
+	Scratch scratch;
+	scratch.Put(
+	    "base/ui/panel.rml", "<rml><head><link type=\"text/rcss\" href=\"panel.rcss\"/></head>"
+	                         "<body><div id=\"panel\"/></body></rml>");
+	scratch.Put(
+	    "base/ui/panel.rcss",
+	    "#panel { display: block; width: 100px; height: 50px; background-color: #336699; }");
+	Ui::UiSystem ui{scratch.Files(), 640, 480};
+	const Ui::DocumentHandle document = ui.LoadDocument("ui/panel.rml");
+	ui.Show(document);
+	ui.Update(0.0);
+	CHECK(DrawnWidth(ui.Overlay()) == doctest::Approx(100.0f));
+	CHECK(ui.ReloadChanged() == 0);
+
+	// A different length, so the change shows in the file's size whatever the clock's resolution.
+	scratch.Put(
+	    "base/ui/panel.rcss",
+	    "#panel { display: block; width: 50px; height: 50px; background-color: #336699; }");
+	CHECK(ui.ReloadChanged() == 1);
+	ui.Update(0.1);
+	CHECK(DrawnWidth(ui.Overlay()) == doctest::Approx(50.0f));
+	CHECK(ui.IsShown(document));
+	CHECK(ui.ReloadChanged() == 0);
+
+	// A patch a mod adds beside it is a change too.
+	scratch.Put("mod/ui/panel.patch.rcss", "#panel { width: 200px; }");
+	CHECK(ui.ReloadChanged() == 1);
+	ui.Update(0.2);
+	CHECK(DrawnWidth(ui.Overlay()) == doctest::Approx(200.0f));
+	CHECK(ui.Problems() == 0);
+}
+
+
+TEST_CASE("Ui: a document read again keeps its handle, its data model and the model's events")
+{
+	RegisterTypes();
+	Scratch scratch;
+	scratch.Put("base/ui/market.rml", kMarketDocument);
+	Ui::UiSystem ui{scratch.Files(), 640, 480};
+	ui.LoadFont("fonts/DroidSans.ttf");
+	Venue venue{"Ostra Highport", Standing::Grey, 1250000, {{"Copper", 12, 400}}};
+	Ui::DataModel &model = ui.CreateDataModel("market");
+	model.Bind("venue", &venue);
+	std::vector<std::string> bought;
+	model.BindEvent(
+	    "buy", [&bought](std::span<const Ui::EventArgument> arguments)
+	    { bought.push_back(Ui::AsText(arguments[0])); });
+	const Ui::DocumentHandle document = ui.LoadDocument("ui/market.rml");
+	ui.Show(document);
+	ui.Update(0.0);
+
+	std::string edited = kMarketDocument;
+	edited.replace(edited.find("goods</p>"), 9, "goods for sale</p>");
+	scratch.Put("base/ui/market.rml", edited);
+	CHECK(ui.ReloadChanged() == 1);
+	ui.Update(0.1);
+	CHECK(ui.IsShown(document));
+	CHECK(ui.ElementText(document, "count") == "1 goods for sale");
+	CHECK(ui.ElementText(document, "station") == "Ostra Highport");
+
+	venue.station = "Corva Refinery";
+	model.Changed("venue");
+	ui.Update(0.2);
+	CHECK(ui.ElementText(document, "station") == "Corva Refinery");
+	CHECK(ui.Click(document, "buy-0"));
+	ui.Update(0.3);
+	CHECK(bought == std::vector<std::string>{"Copper"});
+	CHECK(ui.Problems() == 0);
+
+	// A document that no longer loads leaves the one read before, and is not tried again until it
+	// changes again.
+	scratch.Remove("base/ui/market.rml");
+	CHECK(ui.ReloadChanged() == 0);
+	ui.Update(0.4);
+	CHECK(ui.IsShown(document));
+	CHECK(ui.ElementText(document, "count") == "1 goods for sale");
+	CHECK(ui.ReloadChanged() == 0);
+	scratch.Put("base/ui/market.rml", kMarketDocument);
+	CHECK(ui.ReloadChanged() == 1);
+	ui.Update(0.5);
+	CHECK(ui.ElementText(document, "count") == "1 goods");
+}
+
+
+TEST_CASE("Ui: RmlUi's debugger draws into the overlay while it is shown, and nothing once hidden")
+{
+	Scratch scratch;
+	Ui::UiSystem ui{scratch.Files(), 640, 480};
+	ui.LoadFont("fonts/DroidSans.ttf");
+	ui.Update(0.0);
+	CHECK(ui.Overlay().Draws().empty());
+
+	ui.ShowDebugger(true);
+	ui.Update(0.1);
+	CHECK_FALSE(ui.Overlay().Draws().empty());
+	CHECK(ui.OpenDocuments() == 0);
+
+	ui.ShowDebugger(false);
+	ui.Update(0.2);
+	CHECK(ui.Overlay().Draws().empty());
+	ui.ShowDebugger(true);
+	ui.Update(0.3);
+	CHECK_FALSE(ui.Overlay().Draws().empty());
+	CHECK(ui.Problems() == 0);
 }
 
 
