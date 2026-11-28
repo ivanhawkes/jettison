@@ -56,7 +56,8 @@ names. Along the way it moves in one of two ways:
 
 A `Transit::MotionProfile` is travel limited by acceleration, turning at the midpoint. It
 accelerates at `boostAcceleration` for up to `boostSeconds` of the whole way (half at each end),
-and at `sustainedAcceleration` between. It is at rest at both ends. A short way stays at the boost
+and at `sustainedAcceleration` between. It is at rest at both ends unless the way gives it
+[end speeds](#end-speeds). A short way stays at the boost
 throughout; a long one spends most of its time at the sustained rate.
 
 An optional `thrustShare` (above 0, at most 1) makes it thrust for only that share of the total
@@ -65,13 +66,43 @@ distance. No share, or 1, thrusts to the midpoint.
 
 | Function | Returns |
 | --- | --- |
-| `Seconds(profile, metres)` | How long the way takes; 0 for no distance |
-| `Covered(profile, metres, seconds)` | Metres covered so far, from 0 to all of them |
+| `Seconds(profile, metres, ends)` | How long the way takes; 0 for no distance |
+| `Covered(profile, metres, seconds, ends)` | Metres covered so far, from 0 to all of them |
 | `Thrust(profile, metres)` | Seconds thrusting at each end, at the boost and then sustained, so a game can price its burns |
+| `Thrust(profile, metres, ends)` | The same at the start and at the end (`EndThrust`), which differ when the end speeds do |
 | `CheckProfile(owner, profile)` | Throws `Serialise::FormatError` for a profile that could never end, or has a negative or non-finite field |
+| `CheckEnds(profile, metres, ends)` | None when the profile meets the end speeds over the way, or why not (`EndsUnmet`) |
 
-All are in metres and seconds. The profile is registered with Reflect as `Transit.MotionProfile`,
-every field saved and moddable, so a game can define profiles in data.
+All are in metres and seconds; `ends` is optional, at rest. The profile is registered with Reflect
+as `Transit.MotionProfile`, every field saved and moddable, so a game can define profiles in data.
+
+#### End speeds
+
+A way's `Transit::EndSpeeds` are the speeds along it a profile sets out at and arrives at, so a
+vehicle can leave moving with what it left and arrive moving with what it meets. The profile then
+moves as it would from rest to rest over a longer way, the metres each end's speed takes to reach
+from rest added, from where it reaches the start's speed to where it is down to the end's. Its
+time, what it has covered and its thrust stay in closed form, and ends at rest take the sums they
+took before end speeds, to the bit.
+
+- **The boost is spent at the slow ends.** An end already moving at more than the boost reaches
+  spends none of its boost; one moving slower spends what is left of it.
+- **A thrust share keeps its meaning**: the share of the way's own time that the drive thrusts. The
+  speed its thrust ends at, which it coasts at, is its cruise.
+- **What it refuses** (`CheckEnds`, before `Seconds`, `Covered` and `Thrust`, which assert it):
+  a speed negative or not finite (`Backward`); a speed above its cruise, the most its share can
+  reach and come back from in the time, or with no sustained acceleration the speed its boost
+  reaches (`AboveCruise`); and a way too short to speed up or slow down from one end's speed to the
+  other's (`Unreachable`).
+
+A velocity at an end has a part across the way, or backward along it, that a speed along it cannot
+carry. `SplitAlong(velocity, leg)` (`transit/Path.h`) splits it at an end into the speed along the
+leg there, for `EndSpeeds`, and the rest; `Drift(start, end, seconds, at)` is how far the vehicle
+is off its way at a time to carry the rest: the cubic that is none at either end and sets out and
+arrives changing at each end's rest (a Hermite curve's). The vehicle is at
+`Along(path, Covered(...) / length).first + Drift(...)`, with each end's velocity as it sets out
+and arrives. The drift's acceleration, at most six times the larger velocity over the seconds, is
+not in `Thrust`.
 
 ### Portals
 
@@ -358,7 +389,10 @@ portals whose clearance is a slot, with components derived from `Transit::Slot` 
 
 - An arrival keeps clear of bounding spheres, not shapes, so it may come out farther away than
   needed.
-- An arrival always comes out at rest; speed is not carried through a passage or a portal.
+- An arrival always comes out at rest; speed is not carried through a passage or a portal. End
+  speeds are for a game building its own passage on the parts: `Passage` and `Underway` take none.
+- A drift's acceleration is not priced by `Thrust`; a game whose ends move fast across a short way
+  prices it itself.
 - `Locate` must be a pure function of its arguments, the same every run: it is a definition, not
   state, and is not saved.
 - A passage with a carrier and no `Locate` throws when its step runs.
@@ -374,8 +408,10 @@ The settled choices are in [decisions](decisions.md#transit).
   ([coding standards](coding-standards.md#simulation-code)). It depends on `physics` (it takes
   bodies out and gives them back), `ai` (it gives up a steered entity's destination), `core`,
   `reflect`, `serialise` and `sim`.
-- `transit/Profile.h`: `MotionProfile`, `Seconds`, `Covered`, `Thrust`, `CheckProfile`.
-- `transit/Path.h`: `Steps`, `Eased`, `Facing`, `Length`, `Along`, `Underway`.
+- `transit/Profile.h`: `MotionProfile`, `EndSpeeds`, `EndsUnmet`, `CheckEnds`, `Seconds`,
+  `Covered`, `ThrustSeconds`, `EndThrust`, `Thrust`, `CheckProfile`.
+- `transit/Path.h`: `Steps`, `Eased`, `Facing`, `Length`, `Along`, `Split`, `SplitAlong`,
+  `Drift`, `Underway`.
 - `transit/Passage.h`: `Passage`, `PassageEnded`, `Passages`, `TakeOut`, `BringOut`,
   `GiveUpDestination`, `Occupant`, `Occupants`, `ClearPlace`.
 - `transit/Portal.h`: `Exit`, `InPortal`, `PortalLeft`, `Portals`, `Depart`, `Arriving`,
@@ -385,4 +421,5 @@ The settled choices are in [decisions](decisions.md#transit).
 - `transit/Types.h`: `RegisterTypes`, which registers every type above with Reflect, all fields
   saved. `Passages::Attach` and `Portals::Attach` call it.
 - Tests: `source/engine/transit/tests` (the `transit` suite).
-- History: the module came out of the space extraction, 2026-11-22 ([history](history.md)).
+- History: the module came out of the space extraction, 2026-11-22; end speeds and the drift,
+  2026-11-28, for Manifest's L37 ([history](history.md)).

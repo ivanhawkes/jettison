@@ -37,6 +37,24 @@ double Length(std::span<const glm::dvec3> path);
 // point, facing down z, for a way of no length.
 std::pair<glm::dvec3, glm::dvec3> Along(std::span<const glm::dvec3> path, double share);
 
+// A velocity at an end of a way, in m/s, split for a profile with end speeds: its speed along the leg
+// there, its profile's to meet (EndSpeeds), and the rest, across the way or backward along it, for
+// Drift to carry.
+struct Split
+{
+	double along{0.0};
+	glm::dvec3 across{0.0};
+};
+
+// Splits a velocity at an end of a way whose leg there runs along a direction of unit length.
+Split SplitAlong(const glm::dvec3 &velocity, const glm::dvec3 &leg);
+
+// How far a passage of that many seconds is off its way that many seconds after setting out, to
+// carry what its profile does not of a velocity at each end (Split): the cubic in the time that is
+// none at either end, sets out changing at the start's velocity and arrives changing at the end's.
+// Its acceleration, at most six times the larger velocity over the seconds, is not in Thrust.
+glm::dvec3 Drift(const glm::dvec3 &start, const glm::dvec3 &end, double seconds, double at);
+
 // Where a passage from the departure step to the arrival step has its entity as the step ending at
 // that count ends, before it arrives: along its way, about its carrier's place then (origin), facing
 // along the leg it is on. It eases along (Eased), or with a profile covers it as the profile does

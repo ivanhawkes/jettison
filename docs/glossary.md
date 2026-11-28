@@ -422,7 +422,8 @@ cannot be mounted is reported and left out. See [Files, packs and mods](files-an
 
 How a [passage](#passage) covers its way when it is not eased (`Transit::MotionProfile`): a boost
 acceleration for a limited time, a sustained acceleration between, turning at the midpoint, at rest
-at both ends. An optional thrust share makes it coast in the middle. A game uses it to time a lift
+at both ends or at a speed along the way at each (`Transit::EndSpeeds`). An optional thrust share
+makes it coast in the middle. A game uses it to time a lift
 or price a long journey's burns. See [Transit](transit.md).
 
 ### Mount

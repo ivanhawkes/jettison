@@ -148,6 +148,15 @@ What moves a frame's bodies and what pulls in it are under [Physics](#physics).
   entity that went in fast into whatever is ahead of the exit. At rest in the exit's local frame, it
   can meet what is there, a platform's berths among them, without changing frames.
   [Transit](transit.md)
+- **A profile's end speeds are along its way; the rest of a velocity drifts across it** (2026-11-28,
+  for Manifest's L37). A cruise leaving with its body's velocity and arriving with its target's needs
+  a velocity at each end, mostly across the way. A profile with a speed along the way at each end is
+  the rest-to-rest profile over a longer way, entered and left part-way, so its time, way and thrust
+  stay in closed form and ends at rest keep their bits; what is left of each velocity is a cubic
+  drift off the way, none at either end. The other choice, a profile in three dimensions bounded by
+  the acceleration, has no closed form for its time, and a game times and prices a journey before it
+  sets out. A thrust share stays the share of the way's own time, as a game prices it.
+  [Transit](transit.md#end-speeds)
 - **A gated portal sends only its slot's holder** (2026-11-13, restated 2026-11-25). A gated portal
   is a `Transit::Slot` with a sensor: its holder touching the sensor goes through, and any other
   body passes unsent. The slot is a shared facility given first come first, as a berth is, so an

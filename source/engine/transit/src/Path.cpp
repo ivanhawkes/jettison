@@ -67,6 +67,25 @@ std::pair<glm::dvec3, glm::dvec3> Along(std::span<const glm::dvec3> path, double
 }
 
 
+Split SplitAlong(const glm::dvec3 &velocity, const glm::dvec3 &leg)
+{
+	const double along = std::max(0.0, glm::dot(velocity, leg));
+	return {along, velocity - (along * leg)};
+}
+
+
+glm::dvec3 Drift(const glm::dvec3 &start, const glm::dvec3 &end, double seconds, double at)
+{
+	if (!(seconds > 0.0))
+		return glm::dvec3{0.0};
+
+	// Hermite's velocity bases, t (1 − t)² and −t² (1 − t), in the share of the time.
+	const double share = std::clamp(at / seconds, 0.0, 1.0);
+	const double rest = 1.0 - share;
+	return seconds * share * ((rest * rest * start) - (share * rest * end));
+}
+
+
 Sim::Transform Underway(
     std::span<const glm::dvec3> path, std::uint64_t departureStep, std::uint64_t arrivalStep,
     const std::optional<MotionProfile> &profile, const glm::dvec3 &origin, std::uint64_t ending)
