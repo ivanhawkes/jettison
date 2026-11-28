@@ -1,5 +1,6 @@
 #pragma once
 
+#include <jettison/physics/Layer.h>
 #include <jettison/physics/PhysicsWorld.h>
 #include <jettison/physics/Shape.h>
 
@@ -31,6 +32,10 @@ struct PickOptions
 
 	// Sensors are left out unless asked for, as a cast leaves them (CastOptions).
 	bool sensors{false};
+
+	// The layer the pick is cast as, as CastOptions::layer: it hits only what a moving body of that
+	// layer would meet. None hits every layer.
+	std::optional<std::string> layer{};
 };
 
 // A pick presentation makes for itself (docs/physics.md, "Picking"): a ray against the bodies as the
@@ -63,11 +68,18 @@ class SnapshotPicker
 
 	void DefineShapes(const Sim::DefinitionRegistry &definitions);
 
+	// The game's layers, all at once, as a client with no physics world of its own defines them; a
+	// picker made with a world reads the world's (PhysicsWorld::Layers). Throws as
+	// PhysicsWorld::DefineLayers does, and std::logic_error for a picker with a world or with layers.
+	void DefineLayers(const LayerDefinitions &layers);
+
+	void DefineLayers(const Sim::DefinitionRegistry &definitions);
+
 	// The first body a ray from the origin meets within the distance, in the frame, with each body
 	// placed alpha of the way from previous to current (Sim::Interpolate), as the frame draws it.
 	// Nothing for a ray of no direction or no length, and a body whose shape is not defined is passed
 	// over. A ray from inside a convex body hits it at once, as a cast's does. Ties go to the lower
-	// entity.
+	// entity. Throws std::invalid_argument for a pick as a layer not defined, as a cast does.
 	std::optional<CastHit> CastRay(
 	    const Sim::Snapshot &previous, const Sim::Snapshot &current, double alpha, std::uint64_t frame,
 	    const glm::dvec3 &origin, const glm::dvec3 &direction, double maxDistance,

@@ -1,4 +1,5 @@
 #include <jettison/physics/PhysicsWorld.h>
+#include <jettison/physics/SnapshotPicker.h>
 
 #include <jettison/serialise/Archive.h>
 #include <jettison/sim/DefinitionRegistry.h>
@@ -805,6 +806,69 @@ TEST_CASE("Physics: a cast or an overlap as a layer hits only what a body of tha
 	    doctest::Contains("a cast as layer 'phantom', which is not defined"), std::invalid_argument);
 	CHECK_THROWS_AS(
 	    (void)physics.OverlapSphere(kHalcyon, {}, 1.0, {.layer = "phantom"}), std::invalid_argument);
+}
+
+
+TEST_CASE("Physics: a pick as a layer hits what a cast as it does, by the world's layers or its own")
+{
+	const Physics::LayerDefinitions layers{{"drone", {{"ship"}}}, {"ghost", {}}, {"ship", {{"ship"}}}};
+	CHECK(Physics::LayersMeet(layers, "ship", "drone"));
+	CHECK(Physics::LayersMeet(layers, "drone", "ship"));
+	CHECK(Physics::LayersMeet(layers, "ship", "ship"));
+	CHECK_FALSE(Physics::LayersMeet(layers, "drone", "drone"));
+	CHECK_FALSE(Physics::LayersMeet(layers, "ghost", "ship"));
+	CHECK(Physics::LayersMeet(layers, std::nullopt, "ghost"));
+	CHECK(Physics::LayersMeet(layers, "ghost", std::nullopt));
+	CHECK_FALSE(Physics::LayersMeet(layers, "phantom", "ship"));
+	CHECK(Physics::LayersMeet({}, std::nullopt, std::nullopt));
+
+	Fixture fixture;
+	fixture.world.ShowInSnapshots<Body>();
+	DefineGhostsAndShips(fixture.physics);
+	CHECK(fixture.physics.Layers().size() == 2);
+	Body wall;
+	wall.kind = BodyKind::Static;
+	wall.shape = "wall";
+	const entt::entity barrier = fixture.Add(wall, {0.0, 0.0, 0.0});
+	const entt::entity ghost = fixture.Add(InLayer(Dynamic("ball"), "ghost"), {0.0, 0.0, 0.0});
+	const entt::entity ship = fixture.Add(InLayer(Dynamic("ball"), "ship"), {4.0, 0.0, 0.0});
+	fixture.world.Step();
+	const Sim::Snapshot previous = Sim::Capture(fixture.world);
+	fixture.world.Step();
+	const Sim::Snapshot current = Sim::Capture(fixture.world);
+
+	const glm::dvec3 from{-20.0, 0.0, 0.0};
+	const glm::dvec3 along{1.0, 0.0, 0.0};
+	const auto pick = [&](const Physics::SnapshotPicker &picker, const Physics::PickOptions &options)
+	{
+		const std::optional<Physics::CastHit> hit =
+		    picker.CastRay(previous, current, 1.0, kHalcyon, from, along, 50.0, options);
+		return hit ? hit->entity : entt::entity{entt::null};
+	};
+	Physics::SnapshotPicker picker{fixture.physics};
+	CHECK(pick(picker, {}) == ghost);
+	CHECK(pick(picker, {.layer = "ship"}) == ship);
+	CHECK(
+	    pick(picker, {.layer = "ship"}) ==
+	    fixture.physics.CastRay(kHalcyon, from, along, 50.0, {.layer = "ship"})->entity);
+	CHECK(pick(picker, {.layer = "ghost"}) == barrier);
+	CHECK_THROWS_WITH_AS(
+	    (void)pick(picker, {.layer = "phantom"}),
+	    doctest::Contains("a pick as layer 'phantom', which is not defined"), std::invalid_argument);
+	CHECK_THROWS_AS(picker.DefineLayers(layers), std::logic_error);
+
+	// A client with no world of its own gives its picker the layers, checked as the world's are.
+	Physics::SnapshotPicker own;
+	own.DefineShape("ball", Sphere(1.0f));
+	own.DefineShape("wall", Wall());
+	CHECK(pick(own, {}) == ghost);
+	CHECK_THROWS_WITH_AS(
+	    own.DefineLayers({{"ship", {{"drone"}}}}),
+	    doctest::Contains("layer 'ship' meets 'drone', which is not defined"), std::invalid_argument);
+	own.DefineLayers({{"ghost", {}}, {"ship", {{"ship"}}}});
+	CHECK(pick(own, {.layer = "ship"}) == ship);
+	CHECK(pick(own, {.layer = "ghost"}) == barrier);
+	CHECK_THROWS_AS(own.DefineLayers(layers), std::logic_error);
 }
 
 

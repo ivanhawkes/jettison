@@ -20,6 +20,7 @@
 #include <string_view>
 
 #include "Convert.h"
+#include "FrameWorld.h"
 #include "JoltRuntime.h"
 #include "Shapes.h"
 
@@ -28,6 +29,9 @@ namespace Jettison::Physics
 struct SnapshotPicker::Impl
 {
 	const PhysicsWorld *pWorld{nullptr};
+
+	// The picker's own, for one with no world.
+	LayerDefinitions layers;
 
 	// Built once a name, from a definition given here or the world's; mutable, as a cache.
 	mutable std::map<std::string, JPH::RefConst<JPH::Shape>, std::less<>> shapes;
@@ -42,6 +46,12 @@ struct SnapshotPicker::Impl
 			return nullptr;
 		return shapes.emplace(std::string{name}, Detail::BuildShape(name, *pDefinition))
 		    .first->second.GetPtr();
+	}
+
+
+	const LayerDefinitions &Layers() const
+	{
+		return pWorld ? pWorld->Layers() : layers;
 	}
 };
 
@@ -79,6 +89,26 @@ void SnapshotPicker::DefineShapes(const Sim::DefinitionRegistry &definitions)
 }
 
 
+void SnapshotPicker::DefineLayers(const LayerDefinitions &layers)
+{
+	if (m_pImpl->pWorld != nullptr)
+		throw std::logic_error{"Physics: a picker with a physics world has the world's layers"};
+	if (!m_pImpl->layers.empty())
+		throw std::logic_error{"Physics: the picker's layers are already defined"};
+	Detail::CheckLayers(layers);
+	m_pImpl->layers = layers;
+}
+
+
+void SnapshotPicker::DefineLayers(const Sim::DefinitionRegistry &definitions)
+{
+	LayerDefinitions layers;
+	for (const std::string &name : definitions.Names<LayerDefinition>())
+		layers.emplace(name, *definitions.Find<LayerDefinition>(name));
+	DefineLayers(layers);
+}
+
+
 std::optional<CastHit> SnapshotPicker::CastRay(
     const Sim::Snapshot &previous, const Sim::Snapshot &current, double alpha, std::uint64_t frame,
     const glm::dvec3 &origin, const glm::dvec3 &direction, double maxDistance,
@@ -88,12 +118,17 @@ std::optional<CastHit> SnapshotPicker::CastRay(
 	if (!std::isfinite(length) || length <= 0.0 || !std::isfinite(maxDistance) || maxDistance <= 0.0)
 		return std::nullopt;
 	const glm::dvec3 reach = direction / length * maxDistance;
+	const LayerDefinitions &layers = m_pImpl->Layers();
+	if (options.layer && !layers.contains(*options.layer))
+		throw std::invalid_argument{
+		    std::format("Physics: a pick as layer '{}', which is not defined", *options.layer)};
 
 	std::optional<CastHit> nearest;
 	for (const auto &[entity, body] : current.Components<Body>())
 	{
 		if (entity == options.ignore || (body.sensor && !options.sensors) ||
-		    (body.kind == BodyKind::Static && !options.statics))
+		    (body.kind == BodyKind::Static && !options.statics) ||
+		    !LayersMeet(layers, options.layer, body.layer))
 			continue;
 		const Sim::TransformSample *pSample = current.FindSample(entity);
 		if (pSample == nullptr || pSample->frame != frame)

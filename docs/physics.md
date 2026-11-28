@@ -75,7 +75,11 @@ meets: [ship]
 ```
 
 A cast or an overlap is cast as a layer with `CastOptions::layer`: it hits only what a moving body
-of that layer would meet, and with none, everything ([casts and picking](#casts-and-picking)).
+of that layer would meet, and with none, everything ([casts and picking](#casts-and-picking)). A
+snapshot pick is cast as one with `PickOptions::layer`, by the same rule, read from the definitions
+(`PhysicsWorld::Layers`, or the picker's own); `Physics::LayersMeet` is the rule over the
+definitions. Steering leaves out of a vehicle's clearance what it would pass through, a body its
+layer does not meet or one of its group ([AI](ai.md#steering)).
 
 ### Shapes
 
@@ -266,8 +270,11 @@ state: the bodies are the snapshots' (`Body`, which the world shows in them) and
 definitions, built as Jolt shapes from the physics world's (`PhysicsWorld::FindShapeDefinition`)
 or defined on the picker by a client with no world of its own, and each is cast against with
 Jolt's own ray test, so it hits what the step's `CastRay` would. `PickOptions` leaves out the body
-the camera is inside, sensors unless asked for, and static bodies when `statics` is false, for a
-pick of only what moves. It tests every body of the frame
+the camera is inside, sensors unless asked for, static bodies when `statics` is false, for a
+pick of only what moves, and, picked as a `layer`, what a body of that layer would not meet, as a
+cast does. The layers are the world's definitions (`PhysicsWorld::Layers`), or, for a client with
+no world, given to the picker (`SnapshotPicker::DefineLayers`, checked as the world's are); a pick
+as a layer not defined throws `std::invalid_argument`. It tests every body of the frame
 (`shortcut:` a broadphase over the snapshot, should a frame hold tens of thousands).
 
 ```mermaid
@@ -595,9 +602,6 @@ game whose `PickSpace` sets `statics` false picks and hovers only what moves.
 
 - Jolt's debug renderer, Jolt's job system on more threads, tuned capacities:
   [J07](roadmap.md#j07).
-- What a snapshot pick (`PickOptions`) and steering's own clearance test against neighbours leave
-  out by layer: neither reads layers yet, so a vehicle steers clear of what its layer would pass
-  through.
 - A model's collision shape, baked beside it as world content the server reads (`Mesh` and
   `ConvexHull` shapes exist; nothing bakes them from a model): [J12](roadmap.md#j12).
 
@@ -620,7 +624,7 @@ AVX2 flags stay inside it.
 | `source/engine/physics/include/jettison/physics/SnapshotPicker.h` | `SnapshotPicker`, `PickOptions`: picks against the snapshots |
 | `source/engine/physics/include/jettison/physics/Components.h` | `Body`, `BodyKind`, `Velocity`, `OnRails`, `LocalFrame`, `RegisterTypes` |
 | `source/engine/physics/include/jettison/physics/Shape.h` | `ShapeDefinition`, `ShapeKind` |
-| `source/engine/physics/include/jettison/physics/Layer.h` | `LayerDefinition`: a collision layer and what it meets |
+| `source/engine/physics/include/jettison/physics/Layer.h` | `LayerDefinition`: a collision layer and what it meets; `LayersMeet`, the rule over them |
 | `source/engine/physics/include/jettison/physics/Flight.h` | `Handling`, `FlightControls`, `SetFlightControls`, `Thrust`, `Reason`, `StepFlight` |
 
 Tests: `source/engine/physics/tests/PhysicsTests.cpp` (bodies, shapes, offsets and compounds,

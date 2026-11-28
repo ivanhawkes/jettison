@@ -6,7 +6,6 @@
 #include <cstddef>
 #include <cstdint>
 #include <functional>
-#include <map>
 #include <memory>
 #include <optional>
 #include <span>
@@ -273,10 +272,14 @@ class PhysicsWorld final : public Sim::WorldService
 	// have to be one of them. Throws std::invalid_argument for a layer of no name or one meeting a
 	// layer not among them, and std::logic_error once layers are defined or a body is made. Definitions
 	// are the game's start-up, the same every run: a save names layers, as it names shapes.
-	void DefineLayers(const std::map<std::string, LayerDefinition, std::less<>> &layers);
+	void DefineLayers(const LayerDefinitions &layers);
 
 	// Every LayerDefinition the registry has loaded, under its definition name.
 	void DefineLayers(const Sim::DefinitionRegistry &definitions);
+
+	// The layers as they were defined, none before: definitions and not the step's state, what a
+	// picker over the snapshots and steering decide what meets what by (LayersMeet).
+	const LayerDefinitions &Layers() const;
 
 	// The model of the frame of that identifier (Sim::InFrame). Throws std::invalid_argument for no
 	// model, or a frame already defined.

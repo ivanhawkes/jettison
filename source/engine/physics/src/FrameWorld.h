@@ -66,6 +66,10 @@ class Layers
 	std::optional<JPH::ObjectVsBroadPhaseLayerFilterTable> objectVsBroadPhase;
 };
 
+// Throws std::invalid_argument for a layer of no name or one meeting a layer not among them: what a
+// world's layers and a picker's are checked by (PhysicsWorld::DefineLayers, SnapshotPicker).
+void CheckLayers(const LayerDefinitions &layers);
+
 // One frame's bodies in one local frame: a Jolt world, the identifiers its bodies are given, and
 // where its frame is. Jolt's positions are metres from the frame's origin and its velocities are
 // relative to the frame's motion (PhysicsWorld.h, "frames").

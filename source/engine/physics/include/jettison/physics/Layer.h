@@ -1,5 +1,8 @@
 #pragma once
 
+#include <functional>
+#include <map>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -20,4 +23,14 @@ struct LayerDefinition
 	// The layers it meets, by name, each one defined.
 	std::vector<std::string> meets;
 };
+
+// A game's layers by name, as PhysicsWorld::DefineLayers takes them.
+using LayerDefinitions = std::map<std::string, LayerDefinition, std::less<>>;
+
+// Whether a body in one layer meets a body in the other, as the layers define them: what a snapshot
+// pick (SnapshotPicker) and steering's clearance decide by, as a cast as a layer does through Jolt's
+// tables. A body in none meets every body, and a layer not among them meets only a body in none.
+bool LayersMeet(
+    const LayerDefinitions &layers, const std::optional<std::string> &first,
+    const std::optional<std::string> &second);
 } // namespace Jettison::Physics

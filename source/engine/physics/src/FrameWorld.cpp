@@ -1,5 +1,7 @@
 #include "FrameWorld.h"
 
+#include <format>
+#include <stdexcept>
 #include <utility>
 
 #include <jettison/core/Assert.h>
@@ -35,6 +37,19 @@ Layers::Layers(std::uint32_t count, std::span<const std::pair<std::uint32_t, std
 	for (const auto &[first, second] : meetings)
 		meet(first, second);
 	objectVsBroadPhase.emplace(broadPhase, kBroadPhaseLayers, pairs, kPerLayer * count);
+}
+
+
+void CheckLayers(const LayerDefinitions &layers)
+{
+	for (const auto &[name, layer] : layers)
+		if (name.empty())
+			throw std::invalid_argument{"Physics: a layer needs a name"};
+	for (const auto &[name, layer] : layers)
+		for (const std::string &other : layer.meets)
+			if (!layers.contains(other))
+				throw std::invalid_argument{
+				    std::format("Physics: layer '{}' meets '{}', which is not defined", name, other)};
 }
 
 

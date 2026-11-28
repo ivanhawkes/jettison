@@ -24,6 +24,7 @@ jettison_add_module(physics
 		src/FrameWorld.h
 		src/JoltRuntime.cpp
 		src/JoltRuntime.h
+		src/Layer.cpp
 		src/PhysicsWorld.cpp
 		src/Shapes.cpp
 		src/Shapes.h

@@ -689,6 +689,10 @@ struct PhysicsWorld::Impl
 	std::unique_ptr<Detail::Layers> layers = std::make_unique<Detail::Layers>();
 	LayerNumbers layerNumbers;
 
+	// What the layers were defined by, for what decides by them without Jolt's tables
+	// (LayersMeet): definitions, not state.
+	LayerDefinitions layerDefinitions;
+
 	// What keeps a group's bodies apart (Body::group): Jolt's table, under which bodies of one group
 	// and one subgroup never meet, every grouped body being in subgroup 0.
 	JPH::Ref<JPH::GroupFilterTable> groups{new JPH::GroupFilterTable};
@@ -917,41 +921,31 @@ void PhysicsWorld::DefineShapes(const Sim::DefinitionRegistry &definitions)
 }
 
 
-void PhysicsWorld::DefineLayers(const std::map<std::string, LayerDefinition, std::less<>> &layers)
+void PhysicsWorld::DefineLayers(const LayerDefinitions &layers)
 {
 	Impl &impl = *m_pImpl;
 	if (!impl.layerNumbers.empty())
 		throw std::logic_error{"Physics: the layers are already defined"};
 	if (!impl.worlds.empty())
 		throw std::logic_error{"Physics: layers are defined before any body is made"};
+	Detail::CheckLayers(layers);
 	LayerNumbers numbers;
 	for (const auto &[name, layer] : layers)
-	{
-		if (name.empty())
-			throw std::invalid_argument{"Physics: a layer needs a name"};
 		numbers.emplace(name, static_cast<std::uint32_t>(numbers.size() + 1));
-	}
 	std::vector<std::pair<std::uint32_t, std::uint32_t>> meetings;
 	for (const auto &[name, layer] : layers)
-	{
 		for (const std::string &other : layer.meets)
-		{
-			const auto found = numbers.find(other);
-			if (found == numbers.end())
-				throw std::invalid_argument{
-				    std::format("Physics: layer '{}' meets '{}', which is not defined", name, other)};
-			meetings.emplace_back(numbers.at(name), found->second);
-		}
-	}
+			meetings.emplace_back(numbers.at(name), numbers.at(other));
 	impl.layers =
 	    std::make_unique<Detail::Layers>(static_cast<std::uint32_t>(numbers.size() + 1), meetings);
 	impl.layerNumbers = std::move(numbers);
+	impl.layerDefinitions = layers;
 }
 
 
 void PhysicsWorld::DefineLayers(const Sim::DefinitionRegistry &definitions)
 {
-	std::map<std::string, LayerDefinition, std::less<>> layers;
+	LayerDefinitions layers;
 	for (const std::string &name : definitions.Names<LayerDefinition>())
 		layers.emplace(name, *definitions.Find<LayerDefinition>(name));
 	DefineLayers(layers);
@@ -961,6 +955,12 @@ void PhysicsWorld::DefineLayers(const Sim::DefinitionRegistry &definitions)
 bool PhysicsWorld::HasShape(std::string_view name) const
 {
 	return m_pImpl->FindShape(name) != nullptr;
+}
+
+
+const LayerDefinitions &PhysicsWorld::Layers() const
+{
+	return m_pImpl->layerDefinitions;
 }
 
 
