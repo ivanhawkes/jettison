@@ -1,6 +1,12 @@
 /* The game UI's base: what a browser's own stylesheet gives every element, which RmlUi leaves to the
    documents, and the palette every screen shares. A mod restyles every screen by shipping its own
-   ui/base.rcss, or one screen by shipping that screen's stylesheet (docs/ui.md). */
+   ui/base.rcss, or one screen by shipping that screen's stylesheet (docs/ui.md).
+
+   The palette is the dev tools' (devtools/Theme.h), Catppuccin Mocha, so a game's screens and the
+   tools read as one design. Every colour of the engine's screens is in this file, by the dev tools'
+   role, and ThemeTests holds each to Mocha's table. RmlUi has no variables, so a mod changes the
+   palette by restating the rules that carry a colour in ui/base.patch.rcss, which comes after this
+   file and wins (docs/ui.md, "The game UI's palette"). */
 
 body, div, p, h1, h2, h3, table, form {
 	display: block;
@@ -22,15 +28,27 @@ body {
 	font-family: Roboto;
 	font-weight: normal;
 	font-size: 15dp;
-	color: #d8e2ec;
+	color: #cdd6f4; /* Foreground, text */
 }
 
-h1 {
-	font-size: 24dp;
-	color: #f2f6fa;
+h1 { font-size: 24dp; }
+
+/* A screen's panel: the tools' window ground, Background at 97 %, and the Border hairline. */
+.panel {
+	pointer-events: auto;
+	border-color: #313244;
+	background-color: #1e1e2ef7;
 }
 
-.panel { pointer-events: auto; }
+/* The text roles a screen's elements take by class, as the console's lines do. */
+.muted { color: #a6adc8; }   /* subtext0 */
+.faint { color: #6c7086; }   /* overlay0 */
+.warning { color: #f9e2af; } /* yellow */
+.danger { color: #f38ba8; }  /* red */
+
+/* A table's lines, the tools' strong and light borders: a screen sets their widths. */
+thead td { border-color: #313244; }
+tbody td { border-color: #31324499; }
 
 em { font-style: italic; }
 strong { font-weight: bold; }
@@ -39,24 +57,22 @@ button {
 	display: inline-block;
 	padding: 3dp 10dp;
 	margin-left: 4dp;
-	border: 1dp #4d7ea8;
+	border: 1dp #313244; /* Border */
 	border-radius: 3dp;
-	background-color: #1d3550;
-	color: #d8e2ec;
+	background-color: #45475a; /* Subtle, surface1 */
+	color: #cdd6f4;
 	cursor: pointer;
 	tab-index: auto;
 	nav: auto;
 }
-button:hover {
-	background-color: #2a4d73;
-	color: #ffffff;
-}
+button:hover { background-color: #585b70; } /* Hover, surface2 */
 button:active {
-	background-color: #3a6894;
+	background-color: #89b4fa; /* Primary, blue */
+	color: #11111b;            /* OnPrimary, crust */
 }
 button.disabled, button.disabled:hover {
-	border-color: #33414f;
-	background-color: #1a222b;
-	color: #5c6b7a;
+	border-color: #313244;
+	background-color: #181825; /* Surface, mantle */
+	color: #6c7086;            /* Faint */
 	cursor: arrow;
 }

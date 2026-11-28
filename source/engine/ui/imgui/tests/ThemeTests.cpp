@@ -10,12 +10,14 @@
 
 #include <algorithm>
 #include <array>
+#include <cctype>
 #include <cmath>
 #include <cstddef>
 #include <cstdio>
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
+#include <iterator>
 #include <string>
 #include <vector>
 
@@ -494,4 +496,41 @@ TEST_CASE(
 	// How a run with no fonts draws, and every other test: no mono face, so the current face.
 	HeadlessImGui none;
 	CHECK(MonoFont() == nullptr);
+}
+
+
+TEST_CASE("Theme: the game UI's stylesheets colour with the dev tools' palette, Mocha")
+{
+	// Every colour the engine's screens are drawn in is one of Mocha's roles, so the game UI and the
+	// tools cannot drift apart; an alpha, where one is written, is the stylesheet's own.
+	const auto &mocha = PaletteTokens(Palette::Mocha);
+	int colours = 0;
+	for (const char *name : {"base.rcss", "saves.rcss"})
+	{
+		std::ifstream stream{std::filesystem::path{JETTISON_ASSET_SOURCE_DIR "/ui/"} / name};
+		REQUIRE(stream);
+		const std::string text{std::istreambuf_iterator<char>{stream}, {}};
+		for (std::size_t at = text.find('#'); at != std::string::npos; at = text.find('#', at + 1))
+		{
+			std::size_t length = 0;
+			while (at + 1 + length < text.size() &&
+			       std::isxdigit(static_cast<unsigned char>(text[at + 1 + length])) != 0)
+				++length;
+			if (length != 6 && length != 8)
+				continue; // an id selector, as #window is
+			const auto byte = [&](std::size_t offset)
+			{
+				return static_cast<std::uint8_t>(
+				    std::stoi(text.substr(at + 1 + offset, 2), nullptr, 16));
+			};
+			const Rgb rgb{byte(0), byte(2), byte(4)};
+			INFO(name << ": " << text.substr(at, length + 1));
+			CHECK(
+			    std::ranges::any_of(
+			        mocha, [&](const Rgb &role)
+			        { return role.r == rgb.r && role.g == rgb.g && role.b == rgb.b; }));
+			++colours;
+		}
+	}
+	CHECK(colours > 0);
 }

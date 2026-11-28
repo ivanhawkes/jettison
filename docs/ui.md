@@ -444,6 +444,37 @@ unless `io.FontDefault` names another, so the UI face is named and the order car
 And a face read from memory, as every face read through the VFS is, has no name, so the loader
 writes the file's name onto it; the console finds its mono face by that name (`MonoFont()`).
 
+### The game UI's palette
+
+The game UI wears the dev tools' palette, so a game's screens and the tools read as one design.
+`assets/ui/base.rcss` holds every colour the engine's screens are drawn in, each one of Mocha's
+roles (`DevTools::Token`), and `ThemeTests.cpp` holds every hex in `base.rcss` and `saves.rcss`
+to Mocha's table:
+
+| Where | Role |
+| --- | --- |
+| Text (`body`), a heading | `Foreground` |
+| `.panel` | `Background` at 97 %, the tools' window ground, with a `Border` hairline |
+| `.muted`, `.faint`, `.warning`, `.danger` | Their roles, as the console's lines take them |
+| `thead td`, `tbody td` | `Border`, and `Border` at 60 %: the tools' strong and light table lines |
+| `button` | `Subtle` on a `Border` hairline; `Hover` under the mouse; `Primary` with `OnPrimary` text while pressed; `Surface` with `Faint` text when `.disabled` |
+
+RmlUi 6.3 has no variables and no `@import` (`StyleSheetParser.cpp`, read 2026-11-28), so the
+palette is the cascade's. The base gives the colours and a screen the metrics: `saves.rcss` sets a
+border's width and the base its colour, and a screen's text takes a role by class. A mod changes
+the palette for every screen by restating the rules that carry a colour in `ui/base.patch.rcss`,
+which comes after the base and wins ([the game UI](#the-game-ui)). A screen's own colour, written in
+a rule more specific than the base's (an id's `border` or `background-color`), keeps it.
+
+The colours land on the frame as written, through the overlay's decode (`overlay.frag`): captured
+on lavapipe (2026-11-28), a button's ground reads `#45475a` and a disabled one's `#181825`. A
+panel is 97 % opaque, as the tools' are, so its ground is exact only over a dark enough scene.
+
+The game UI is Mocha alone: it does not follow `dev.palette`. That needs code, not a stylesheet:
+RmlUi's `@media (theme: latte) { ... }` blocks in the base, switched by
+`Rml::Context::ActivateTheme` when the shell applies the theme, which `UiSystem` does not offer
+([J26](roadmap.md#j26)).
+
 ## Using it
 
 ### Defining actions and a game's context
@@ -608,8 +639,8 @@ The theme's `dev.` variables ([the dev tools' theme](#the-dev-tools-theme)) are 
 - Right-to-left and shaped scripts, and a first-start language from the platform:
   [J15](roadmap.md#j15).
 - RmlUi's clip masks, layers, filters and shaders draw nothing: [J23](roadmap.md#j23).
-- The game UI's stylesheet in the dev tools' palette, the palette as a player setting, and exact
-  darks: [J26](roadmap.md#j26).
+- The game UI following `dev.palette`, and the palette as a player setting:
+  [J26](roadmap.md#j26).
 - One `UiSystem` at a time in a process, because RmlUi is one library-wide instance.
 - A key tapped and released inside one frame can be missed, since the shell polls the actions.
 - Two joysticks of one model cannot be told apart, since GLFW gives no device path.
