@@ -721,7 +721,8 @@ std::int32_t LoadNative(
 	if (found == keys->second.end())
 		return -1;
 	const std::vector<std::byte> &value = found->second;
-	std::memcpy(pBuffer, value.data(), std::min<std::size_t>(value.size(), capacity));
+	if (const std::size_t count = std::min<std::size_t>(value.size(), capacity); count > 0)
+		std::memcpy(pBuffer, value.data(), count);
 	return static_cast<std::int32_t>(value.size());
 }
 
@@ -814,30 +815,86 @@ constexpr std::array<std::string_view, 3> kInstantiationCalls{
 // The id of a module's start section (WebAssembly core specification, 5.5.10).
 constexpr std::uint8_t kStartSection = 8;
 
-// The bytes of a module's magic number and version, before its sections.
-constexpr std::size_t kModuleHeader = 8;
+// The last id a section has, the data count's (5.5.2): the ones after it are no section of the format.
+constexpr std::uint8_t kLastSection = 12;
+
+// A module's magic number, "\0asm", and the version of the binary format, 1 (5.5.16).
+constexpr std::array<std::uint8_t, 8> kModuleHeader{0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00};
+
+// The longest a section's size is encoded, a u32 as unsigned LEB128 (5.2.2), and what each byte holds.
+constexpr std::size_t kMaxSizeBytes = 5;
+constexpr unsigned kSizeBits = 7;
+constexpr std::uint8_t kSizeMore = 0x80;
+constexpr std::uint8_t kSizeValue = 0x7f;
+
+// The sections that are a count of entries, then the entries (5.5.2): every one but the custom (0),
+// start (8) and data count (12) sections.
+constexpr std::array<std::uint8_t, 10> kEntrySections{1, 2, 3, 4, 5, 6, 7, 9, 10, 11};
+
+// The largest module a script may be. The suites' modules are 0.4 to 5 KiB, and Manifest's under
+// 1 KiB (2026-11-28): this is room for a script that carries tables of its own, and keeps a mod from
+// handing WAMR whatever it likes to load.
+constexpr std::size_t kMaxModuleBytes = std::size_t{4} * 1024 * 1024;
 
 
-// Whether a module WAMR has loaded, so whose sections are whole, has a start section.
-bool HasStart(std::span<const std::uint8_t> module)
+// The ids of a module's sections, in order. Throws ScriptError naming the script and the module for
+// one larger than kMaxModuleBytes, whose header is not the binary format's, with a section that is
+// none of the format's or runs past the end, or with a section of entries that claims more of them
+// than it has bytes, since every entry takes one at least: WAMR allocates for the count before it
+// reads the entries, and a 29-byte module found by the script fuzz target claimed 250 million types
+// (2026-11-28). All before WAMR follows anything the module declares.
+std::vector<std::uint8_t> ReadSections(
+    std::span<const std::uint8_t> module, std::string_view script, std::string_view path)
 {
-	std::size_t at = kModuleHeader;
+	const auto fail = [&](std::string_view problem) -> ScriptError
+	{ return ScriptError{std::format("Script '{}': its module '{}' {}", script, path, problem)}; };
+
+	// An unsigned LEB128 u32 at the cursor, which it moves past it, within the end.
+	const auto readNumber = [&](std::size_t &at, std::size_t end)
+	{
+		std::uint64_t value = 0;
+		for (std::size_t length = 0;; ++length)
+		{
+			if (length == kMaxSizeBytes || at == end)
+				throw fail("has a section whose size or count is not a 32-bit number");
+			const std::uint8_t byte = module[at++];
+			value |= std::uint64_t{static_cast<std::uint8_t>(byte & kSizeValue)}
+			         << (kSizeBits * length);
+			if ((byte & kSizeMore) == 0)
+				return value;
+		}
+	};
+
+	if (module.size() > kMaxModuleBytes)
+		throw fail(
+		    std::format(
+		        "is {} bytes, more than the {} a module may be", module.size(), kMaxModuleBytes));
+	if (module.size() < kModuleHeader.size() ||
+	    !std::ranges::equal(module.first(kModuleHeader.size()), kModuleHeader))
+		throw fail("is not a WebAssembly module of version 1");
+	std::vector<std::uint8_t> sections;
+	std::size_t at = kModuleHeader.size();
 	while (at < module.size())
 	{
 		const std::uint8_t id = module[at++];
-		std::uint64_t size = 0;
-		for (unsigned shift = 0; at < module.size(); shift += 7)
+		if (id > kLastSection)
+			throw fail(std::format("has a section of id {}, which the format has none of", id));
+		const std::uint64_t size = readNumber(at, module.size());
+		if (size > module.size() - at)
+			throw fail(std::format("has a section of {} bytes, past its end", size));
+		const std::size_t end = at + static_cast<std::size_t>(size);
+		if (std::ranges::find(kEntrySections, id) != kEntrySections.end())
 		{
-			const std::uint8_t byte = module[at++];
-			size |= std::uint64_t{byte & 0x7fu} << shift;
-			if ((byte & 0x80u) == 0)
-				break;
+			std::size_t entries = at;
+			const std::uint64_t count = readNumber(entries, end);
+			if (count > end - entries)
+				throw fail(
+				    std::format("has a section of {} entries in {} bytes", count, end - entries));
 		}
-		if (id == kStartSection)
-			return true;
-		at += size;
+		at = end;
+		sections.push_back(id);
 	}
-	return false;
+	return sections;
 }
 
 
@@ -1040,7 +1097,10 @@ void ScriptHost::Load(std::string_view name, const ScriptDefinition &definition)
 	if (!bytes)
 		throw fail(std::format("there is no module at '{}'", definition.module));
 	pScript->bytes.resize(bytes->size());
-	std::memcpy(pScript->bytes.data(), bytes->data(), bytes->size());
+	std::ranges::transform(
+	    *bytes, pScript->bytes.begin(),
+	    [](std::byte byte) { return std::to_integer<std::uint8_t>(byte); });
+	const std::vector<std::uint8_t> sections = ReadSections(pScript->bytes, name, definition.module);
 	std::array<char, 256> error{};
 	pScript->module = wasm_runtime_load(
 	    pScript->bytes.data(), static_cast<std::uint32_t>(pScript->bytes.size()), error.data(),
@@ -1050,7 +1110,7 @@ void ScriptHost::Load(std::string_view name, const ScriptDefinition &definition)
 
 	// WAMR runs a start function and these exports as it instantiates, before a call's fuel and time
 	// limit are set, so a module with any of them is refused rather than run unbounded.
-	if (HasStart(pScript->bytes))
+	if (std::ranges::find(sections, kStartSection) != sections.end())
 		throw fail(std::format("its module '{}' has a start function", definition.module));
 	pScript->memoryPages = definition.memoryPages;
 	const std::int32_t exports = wasm_runtime_get_export_count(pScript->module);

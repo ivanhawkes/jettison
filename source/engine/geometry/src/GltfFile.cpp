@@ -361,6 +361,17 @@ void DecodeCompressedViews(fastgltf::Asset &asset, const std::string &name)
 		if (!ValidCompression(compressed))
 			throw std::runtime_error(
 			    "A compressed glTF view's stride or count breaks EXT_meshopt_compression: " + name);
+
+		// meshoptimizer writes an index view's indices as numbers of its stride, so they are aligned
+		// to it, as glTF aligns any accessor's data to its components; a vertex view to the 4 bytes
+		// an attribute's stride is a multiple of. The gltf fuzz target found a view at an odd offset
+		// (a misaligned store in meshopt_decodeIndexBuffer, 2026-11-28).
+		const std::size_t alignment = compressed.mode == fastgltf::MeshoptCompressionMode::Attributes
+		                                  ? kAttributeStrideAlignment
+		                                  : compressed.byteStride;
+		if (view.byteOffset % alignment != 0)
+			throw std::runtime_error(
+			    "A compressed glTF view's offset is not a multiple of its numbers' alignment: " + name);
 		if (compressed.count > kMaxDecodedViewBytes / compressed.byteStride)
 			throw std::runtime_error(
 			    std::format(
@@ -561,6 +572,17 @@ void CheckIndices(const fastgltf::Asset &asset, const std::string &name)
 			check("animation", at, channel.samplerIndex, animation.samplers.size(), "sampler");
 			if (channel.nodeIndex)
 				check("animation", at, *channel.nodeIndex, nodes, "node");
+
+			// fastgltf keeps a path it does not know as a number of none of its own, which no
+			// accessor's use is checked for, and the rig reader read as a scale (the gltf fuzz
+			// target's "rota&ion", where fastgltf asserted on a rotation read as a vec3, 2026-11-28).
+			using enum fastgltf::AnimationPath;
+			if (channel.path != Translation && channel.path != Rotation && channel.path != Scale &&
+			    channel.path != Weights)
+				throw std::runtime_error(
+				    std::format(
+				        "glTF model's animation {} has a channel of a path glTF does not define: {}",
+				        at, name));
 		}
 	}
 }

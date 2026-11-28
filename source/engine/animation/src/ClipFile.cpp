@@ -144,8 +144,20 @@ Track ToTrack(
 ClipFile ReadClipFile(std::string_view text, std::string_view name)
 {
 	RegisterTypes();
-	const auto record =
-	    Serialise::YamlArchive::Read<ClipFileRecord>(text, Serialise::FormatVersion{kClipFileVersion});
+	ClipFileRecord record;
+	try
+	{
+		record = Serialise::YamlArchive::Read<ClipFileRecord>(
+		    text, Serialise::FormatVersion{kClipFileVersion});
+	}
+	catch (const Serialise::FormatVersionError &error)
+	{
+		Refuse(name, error.what());
+	}
+	catch (const Serialise::FormatError &error)
+	{
+		Refuse(name, error.what());
+	}
 	ClipFile file;
 	std::set<std::string_view> clipNames;
 	for (const ClipRecord &clipRecord : record.clips)

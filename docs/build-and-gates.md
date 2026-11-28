@@ -42,16 +42,16 @@ reviewed on 2026-11-10; ENet and libsodium were added on 2026-11-20, meshoptimiz
 | Tracy | v0.13.1 | `profile` | **Held back** from 0.15.0 to match devenv's profiler ([profiling](#profiling)) |
 | Vulkan Memory Allocator | v3.5.0 | `render`, privately | Header-only; `render` compiles the implementation |
 | FastNoiseLite | v1.1.1 | `math` | Header-only; output pinned by recorded values |
-| MikkTSpace | 2020 (only commit) | `math` | |
+| MikkTSpace | 2020 (only commit) | `math` | One patch, an undefined shift (`source/external/CMakeLists.txt`) |
 | meshoptimizer | v1.3 | `geometry`, privately | Its vertex and index codecs are `EXT_meshopt_compression`'s ([the cooked model](rendering.md#the-cooked-model)) |
 | Jolt Physics | v5.6.0 | `physics`, privately | Double precision, deterministic across build types; one patch, a state restore that refuses untrusted bytes (`source/external/CMakeLists.txt`) |
 | FreeType | 2.15.0 | `ui`, RmlUi, ImGui | Answers RmlUi's `find_package(Freetype)` |
-| RmlUi | 6.3 | `ui`, privately | |
+| RmlUi | 6.3 | `ui`, privately | One patch, two null pointers from FreeType it followed |
 | miniaudio | 0.11.26 | `audio`, privately | Vorbis and Opus off; backends loaded at run time |
-| KTX-Software | v4.4.2 | `render` (`ktx_read`), `jettison_cook` (`ktx`, the encoder), never both in one program | **Held back** from v5.0.0-rc2, a release candidate on 2026-11-11; fetched in every tree; both built against the engine's zstd; three patches, a deterministic encoding and two leaks (`source/external/CMakeLists.txt`) |
-| WAMR | 2.4.5 | `script`, privately | Fast interpreter with instruction metering; no libc or WASI ([scripts](scripts.md)) |
+| KTX-Software | v4.4.2 | `render` (`ktx_read`), `jettison_cook` (`ktx`, the encoder), never both in one program | **Held back** from v5.0.0-rc2, a release candidate on 2026-11-11; fetched in every tree; both built against the engine's zstd; five patches, a deterministic encoding, two leaks, its methods' types and an ETC1S file's bad data (`source/external/CMakeLists.txt`) |
+| WAMR | 2.4.5 | `script`, privately | Fast interpreter with instruction metering; no libc or WASI ([scripts](scripts.md)); two patches, and UBSan's alignment check left out (`source/external/wamr/CMakeLists.txt`) |
 | zstd | v1.5.7 | `vfs`, privately; `ktx_read` and `ktx` | The library alone, static |
-| ENet | v1.3.18 | `net`, privately | Reliable and unreliable channels over UDP ([networking](networking.md)) |
+| ENet | v1.3.18 | `net`, privately | Reliable and unreliable channels over UDP ([networking](networking.md)); one patch, a null pointer's member for `offsetof` |
 | libsodium | robinlinden/libsodium-cmake 9b2848d | `net`, privately | libsodium 1.0.20 (stable branch) through a CMake wrapper, static |
 
 Three tool sets come from the devenv shell, not from `FetchContent`:
@@ -101,7 +101,7 @@ makes at least one real call into each (it runs a WebAssembly function, creates 
 KTX texture, generates tangents) and asserts the GLM geometry ABI. The gate runs it with the Debug
 suites. A new dependency is added to it ([coding standards](coding-standards.md#dependencies)).
 
-The `clang-headless`, `clang-asan` and `clang-cpu` presets turn the option off, needing no probe.
+The `clang-headless`, `clang-asan`, `clang-cpu` and `clang-fuzz` presets turn the option off, needing no probe.
 Every library the engine links is built in every tree regardless.
 
 ### Integration rules the set follows
@@ -133,7 +133,8 @@ Wayland development libraries. `devenv.nix` supplies all of them.
 | `clang-debug` | Debug | Development, on Wayland | the base: tests, presentation and the planned set ON, GLFW X11 OFF |
 | `clang-release` | Release | Holding Release to Debug's results; benchmarks | as `clang-debug`, with `-gline-tables-only`: file and line for a crash report, the machine code unchanged |
 | `clang-headless` | Debug | The smoke test and reference frames under Xvfb | `JETTISON_GLFW_X11=ON`, planned set OFF |
-| `clang-asan` | Debug | `clang-headless` with AddressSanitizer and UndefinedBehaviorSanitizer | `-fsanitize=address,undefined -fno-omit-frame-pointer -fno-sanitize-recover=all` |
+| `clang-asan` | Debug | `clang-headless` with AddressSanitizer and UndefinedBehaviorSanitizer | `-fsanitize=address,undefined -fno-omit-frame-pointer -fno-sanitize-recover=all`, on C and C++ |
+| `clang-fuzz` | Debug, at `-O1` | The fuzz targets ([fuzzing](#fuzzing)) | `clang-headless` with `JETTISON_FUZZ=ON`, tests off, and `-fsanitize=fuzzer-no-link,address,undefined` on C and C++ |
 | `clang-cpu` | Debug | The CPU engine a game's server builds | `JETTISON_PRESENTATION=OFF`, `CMAKE_DISABLE_FIND_PACKAGE_Vulkan=ON`, planned set OFF |
 
 Each tree is `build/<preset>`, and every preset has a build preset of its name. Only `clang-debug`
@@ -146,6 +147,7 @@ has a test preset; for another tree, use `ctest --test-dir build/<preset>`.
 | `JETTISON_BUILD_TESTS` | ON when Jettison is the top-level project, OFF as a dependency | Builds each module's doctest suite and registers it with CTest. A game's build does not compile the engine's tests. |
 | `JETTISON_PRESENTATION` | ON | Builds the renderer, UI, audio and the shell (`render`, `audio`, `ui`, `devtools`, `app`), the assets and shaders, Flotsam, the ground sample and the render harness, and fetches what only they use (Vulkan and `glslc`, GLFW, FreeType, RmlUi, miniaudio, ImGui, VMA). OFF leaves the CPU modules, the host, their suites, the packer, the collision baker and the cook. |
 | `JETTISON_PLANNED_DEPENDENCIES` | ON | Fetches libraries planned for later work and builds `dependency_probe` ([above](#planned-dependencies-and-the-probe)). |
+| `JETTISON_FUZZ` | OFF | Builds the fuzz targets (`source/test/fuzz`) and registers their corpus replays with CTest ([fuzzing](#fuzzing)); the `clang-fuzz` preset sets it |
 | `JETTISON_WERROR` | OFF | Adds `-Werror` to the project's warnings ([warnings](#warnings)). `ci.sh --werror` sets it. |
 | `JETTISON_CCACHE` | ON | Compiles through ccache when it is on the `PATH` ([compiler cache](#compiler-cache)). A `CMAKE_CXX_COMPILER_LAUNCHER` you set wins. |
 | `JETTISON_GLFW_X11` | OFF | Builds GLFW with its X11 backend instead of Wayland, for Xvfb ([sanitisers](#sanitisers)). |
@@ -282,7 +284,8 @@ flowchart TD
     cpu --> smoke["Smoke test, clang-headless, packed (--skip-smoke)"]
     smoke --> frames["Reference frames, lavapipe (--skip-smoke)"]
     frames --> asan["clang-asan: smoke test and sanitised suites (--asan)"]
-    asan --> passed["gate passed: key recorded"]
+    asan --> fuzz["clang-fuzz: each fuzz target's corpus replayed (--asan)"]
+    fuzz --> passed["gate passed: key recorded"]
 ```
 
 - **Markdown links**: `lychee --offline --include-fragments` over every tracked `*.md`, checking
@@ -308,8 +311,11 @@ flowchart TD
 | `host` | A failed start-up and a teardown release what each phase built |
 | `net` | It reads a peer's packets |
 | `geometry` | Its reader decodes a model file a mod can ship, and its cook copies vertices by index |
-| `animation`, `ui`, `bake_collision`, `render` | They refuse a mod's malformed clips, translations, models and textures |
+| `animation`, `ui`, `bake_collision`, `render` | They refuse a mod's malformed clips, translations, fonts, documents, models and textures |
+| `audio` | Its decoders read a mod's sounds |
 | `cook` | It reads a source tree's models and images, on threads of its own |
+
+Then the fuzz targets are built in `clang-fuzz` and each one's corpus replayed ([fuzzing](#fuzzing)).
 
 ### Reading the result
 
@@ -516,7 +522,10 @@ and does nothing outside the devenv shell, which may lack a new enough clang-for
 ### Sanitisers
 
 `clang-asan` builds ASan and UBSan into the headless tree with `-fno-sanitize-recover=all`, so the
-first finding stops the run.
+first finding stops the run. C is compiled with them as C++ is, so the C libraries a mod's bytes
+reach (FreeType, miniaudio, WAMR, zstd, libktx's C, ENet) run instrumented too; they were not until
+2026-11-28, and the UBSan findings that came out with them are the patches the dependency table
+names.
 
 ```bash
 ./scripts/smoke-test.sh --preset clang-asan --llvmpipe    # the sanitised smoke test alone
@@ -527,6 +536,9 @@ first finding stops the run.
 - **Its GLFW is X11 only.** With both backends compiled in, an X11 run still loads libwayland, and
   LeakSanitizer reports 192 bytes in libwayland-client 1.26.0 at disconnect; a suppression would
   hide the findings the preset exists for.
+- **WAMR runs without UBSan's alignment check.** Its fast interpreter reads through pointers at any
+  byte by design, and its build for processors without unaligned loads fails the script suite on
+  x86-64 (`source/external/wamr/CMakeLists.txt` has the measurement).
 - **X11 is loaded at run time.** GLFW `dlopen`s the X11 libraries, so they must be on
   `LD_LIBRARY_PATH`, which `devenv.nix` builds in `enterShell`. An older shell fails with
   `X11: Failed to load Xlib`, and `smoke-test.sh` says which library and variable.
@@ -701,6 +713,59 @@ The captures, their logs and their difference images are kept in `build/<preset>
 
 Run one capture at a time on a display: the script stops the Xvfb it started when it ends, under any
 other capture still drawing.
+
+## Fuzzing
+
+Every format the engine loads from a file a mod can ship, or from a peer, has a libFuzzer target in
+`source/test/fuzz`, which hands its input to the engine's own loading path as a file of that format
+and fails on anything but a clean load or the refusal its loader's contract names: a sanitiser's
+report, an assertion, another exception, a leak, an input that runs past ten seconds or takes past
+2 GiB. What each loader checks is in [files and mods](files-and-mods.md#what-a-loader-checks).
+
+The `clang-fuzz` preset builds them (`JETTISON_FUZZ=ON`): the headless tree, tests off, every unit
+of the engine and its libraries compiled with libFuzzer's coverage (`-fsanitize=fuzzer-no-link`),
+ASan and UBSan, at `-O1` for speed with assertions kept; each target links libFuzzer's `main`
+(`-fsanitize=fuzzer`). `jettison_fuzz` builds them all.
+
+| Target | Loading path |
+| --- | --- |
+| `gltf` | `GltfFile::Parse`, then the rig's reader and render's geometry and base colours on what it accepts |
+| `pack` | A pack mounted, and every file it lists read |
+| `ktx2`, `image` | `Render::DecodeTexture`: KTX 2 for both transcode targets, and stb_image's formats |
+| `save` | `SaveGame::ReadInfo` and `Read`, and the world loaded into the shell's composition, physics included |
+| `net` | An offer packet, and an opened message's kind, hello and snapshot step (`Net::Wire`): the plaintext after the AEAD layer |
+| `collision` | `ReadCollisionFile`, and the shape defined in a physics world |
+| `clip`, `strings` | `ReadClipFile`; `StringTable::Load` and the calls that index its numbers' formats |
+| `script` | `ScriptHost::Load` |
+| `audio` | A sound played as an effect and as music, with no device, and mixed |
+| `font` | `UiSystem::LoadFont` and a text drawn in the face, and the dev tools' faces and a frame of theirs |
+| `rml`, `rcss` | `UiSystem::LoadDocument`, laid out and drawn twice; a stylesheet over a fixed screen |
+
+Each target's seed corpus is written into the tree as it builds (`build/clang-fuzz/source/test/fuzz/seeds/<target>`):
+the repository's files of the format, the small ones, and what `jettison_fuzz_seeds` makes of those it
+has none of or whose writer is the engine's (cooked models, packs, saves, collision files, messages,
+images of each kind, WAV and MP3), and for `script` the script suite's modules compiled. A dictionary
+of the format's words is in `dictionaries/<target>.dict` where mutating text or tags blindly is slow.
+
+**In the gate.** With `--asan` the gate builds `clang-fuzz` and runs its CTest: `fuzz_<target>` runs
+the target once over each seed, and over each input in `source/test/fuzz/regressions/<target>`, with
+no fuzzing (`-runs=0`), so the same every run, in about a second (0.94 s for the fourteen side by
+side, most of it the KTX 2 seeds' transcoding, measured 2026-11-28). A target with no seeds fails.
+
+**Fuzzing locally.** `scripts/fuzz.sh <target> [seconds]` (default 60) takes the heavy lock, configures
+and builds the tree as needed, and fuzzes the target over its working corpus,
+`build/clang-fuzz/fuzz/<target>/corpus`, which keeps each input that reached new code for the next run,
+and its seeds. An input that fails is written beside it as `crash-<sha1>`, `leak-`, `oom-` or
+`timeout-`; the target given that file alone runs it again. The devenv shell has no
+`llvm-symbolizer`, so the sanitisers' stacks are addresses: `addr2line -f -C -i -e <target> <offset>`
+names them. `--list` lists the targets.
+
+**A crash becomes a test.** The defect is fixed at its cause, in the loader's one check function or
+the library's patch, and the input becomes a case of the module's suite: built in the test when it
+is small or made of a few fields, as most are, or, when it is a file mutated from one of the
+project's own, committed under `regressions/<target>`, which the gate replays. A mutation of
+another's file (a font of the engine's assets is under its own licence) is not committed; the
+patch's comment names what the target found.
 
 ## Benchmark
 
@@ -905,6 +970,7 @@ gh run watch <id> --interval 30 --exit-status
 | `scripts/format-check.sh` | The format check ([formatting](#formatting)) |
 | `scripts/comment-only.sh [revision] [pathspec...]` | Fails, naming each line, if the diff against a revision (default `HEAD`) changes anything but comments and blank lines. A comment-only change runs this and the format check instead of the gate. Markdown is left out unless named. |
 | `scripts/space-declarations.py` | [Declaration spacing](#declaration-spacing) |
+| `scripts/fuzz.sh <target> [seconds]` | Fuzzes one target for a while ([fuzzing](#fuzzing)) |
 | `scripts/symbolise-crash.sh <report> [build dir]` | Names the frames of a crash report written with no symboliser (a player's machine), with `addr2line` against the build that wrote it ([runtime](runtime.md)) |
 | `scripts/lib/headless.sh` | Sourced by `smoke-test.sh` and `capture.sh`: finds and pins lavapipe (`VK_DRIVER_FILES`, `VK_ICD_FILENAMES`), and starts Xvfb on a free display from `:99`, stopping it on exit |
 | `scripts/import-planet-textures.sh <source-dir> <name>` | Encodes a planet's TGA maps as KTX 2 (UASTC, zstd, mipmapped) under `source/test/content/textures/planets/<name>/` |

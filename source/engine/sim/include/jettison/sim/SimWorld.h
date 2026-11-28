@@ -56,6 +56,11 @@ struct SnapshotInput
 {
 	Serialise::BinaryReader &reader;
 
+	// For a component's storage, the registry its entities were loaded into: EnTT's loader makes an
+	// entity it is given that the registry lacks, and asserts it made the one asked for, which the
+	// save fuzz target found a component's storage naming (snapshot.hpp, 2026-11-28).
+	const entt::registry *pRegistry{nullptr};
+
 	// Every counted item is at least an entity's four bytes, so a count the data cannot hold is
 	// refused before the loader reserves storage for it.
 	void operator()(std::uint32_t &count)
@@ -68,6 +73,8 @@ struct SnapshotInput
 	void operator()(entt::entity &entity)
 	{
 		reader.Read(entity);
+		if (pRegistry != nullptr && entity != entt::null && !pRegistry->valid(entity))
+			reader.Fail("a component is given to an entity the save does not hold");
 	}
 
 	template <typename T> void operator()(T &component)
@@ -194,16 +201,17 @@ class SimWorld
 			                         Detail::SnapshotOutput output{writer};
 			                         entt::snapshot{registry}.get<T>(output);
 		                         },
-		                         [](entt::snapshot_loader &loader, Serialise::BinaryReader &reader,
-		                            const ComponentMigrations &chain, std::uint32_t version)
+		                         [](entt::snapshot_loader &loader, const entt::registry &registry,
+		                            Serialise::BinaryReader &reader, const ComponentMigrations &chain,
+		                            std::uint32_t version)
 		                         {
 			                         if (version == chain.Current().version)
 			                         {
-				                         Detail::SnapshotInput input{reader};
+				                         Detail::SnapshotInput input{reader, &registry};
 				                         loader.get<T>(input);
 				                         return;
 			                         }
-			                         Detail::MigratingInput input{{reader}, chain, version};
+			                         Detail::MigratingInput input{{reader, &registry}, chain, version};
 			                         loader.get<T>(input);
 		                         },
 		                         {},
@@ -395,8 +403,8 @@ class SimWorld
 	{
 		std::function<void(const entt::registry &, Serialise::BinaryWriter &)> save;
 		std::function<void(
-		    entt::snapshot_loader &, Serialise::BinaryReader &, const ComponentMigrations &,
-		    std::uint32_t)>
+		    entt::snapshot_loader &, const entt::registry &, Serialise::BinaryReader &,
+		    const ComponentMigrations &, std::uint32_t)>
 		    load;
 		std::string name;
 		ComponentMigrations migrations;

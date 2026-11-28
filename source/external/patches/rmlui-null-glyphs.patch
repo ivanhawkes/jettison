@@ -1,0 +1,22 @@
+--- a/Source/Core/FontEngineDefault/FreeTypeInterface.cpp
++++ b/Source/Core/FontEngineDefault/FreeTypeInterface.cpp
+@@ -160,7 +160,7 @@
+ 	FT_Face face = (FT_Face)in_face;
+ 
+ 	if (font_family)
+-		*font_family = face->family_name;
++		*font_family = face->family_name ? face->family_name : "";
+ 	if (style)
+ 		*style = face->style_flags & FT_STYLE_FLAG_ITALIC ? Style::FontStyle::Italic : Style::FontStyle::Normal;
+ 
+@@ -334,8 +334,8 @@
+ 	glyph.bearing.x = ft_glyph->bitmap_left;
+ 	glyph.bearing.y = ft_glyph->bitmap_top;
+ 	glyph.advance = ft_glyph->metrics.horiAdvance >> 6;
+-	glyph.bitmap_dimensions.x = ft_glyph->bitmap.width;
+-	glyph.bitmap_dimensions.y = ft_glyph->bitmap.rows;
++	glyph.bitmap_dimensions.x = ft_glyph->bitmap.buffer ? int(ft_glyph->bitmap.width) : 0;
++	glyph.bitmap_dimensions.y = ft_glyph->bitmap.buffer ? int(ft_glyph->bitmap.rows) : 0;
+ 
+ 	// Determine new metrics if we need to scale the bitmap received from FreeType. Only allow bitmap downscaling.
+ 	const bool scale_bitmap = (bitmap_scaling_factor < 1.f);

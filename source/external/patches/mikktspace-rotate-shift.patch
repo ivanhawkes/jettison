@@ -1,0 +1,20 @@
+--- a/mikktspace.c
++++ b/mikktspace.c
+@@ -1457,7 +1457,7 @@
+ 
+ 	// Random
+ 	unsigned int t=uSeed&31;
+-	t=(uSeed<<t)|(uSeed>>(32-t));
++	t=(uSeed<<t)|(uSeed>>((32-t)&31));
+ 	uSeed=uSeed+t+3;
+ 	// Random end
+ 
+@@ -1664,7 +1664,7 @@
+ 
+ 	// Random
+ 	t=uSeed&31;
+-	t=(uSeed<<t)|(uSeed>>(32-t));
++	t=(uSeed<<t)|(uSeed>>((32-t)&31));
+ 	uSeed=uSeed+t+3;
+ 	// Random end
+ 

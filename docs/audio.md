@@ -184,7 +184,9 @@ streaming read, so a file is read whole as it is opened. Music is then decoded a
 that copy in memory. A path that is not a valid virtual path (`../outside.wav`) is refused.
 
 miniaudio decodes WAV, FLAC and MP3 itself. Its Vorbis and Opus decoders are off, because each is a
-system library found on one machine and not another ([build and gates](build-and-gates.md)).
+system library found on one machine and not another ([build and gates](build-and-gates.md)). A file
+is checked before miniaudio reads it ([what a loader checks](files-and-mods.md#what-a-loader-checks)),
+and one refused is logged, naming it, and counted as a sound that could not be played.
 
 ### Problems and counters
 

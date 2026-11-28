@@ -88,6 +88,8 @@ The `input` import is allowed when the definition lists inputs. A module that im
 not granted, from any module, is refused as it loads, naming the import. So is one that would run
 code as it is instantiated, before any call's fuel and time limit: one with a start function, or
 exporting `_initialize`, `__post_instantiate` or `__wasm_call_ctors`, which WAMR calls then.
+Before WAMR reads a module at all, its size, header and sections are checked
+([what a loader checks](files-and-mods.md#what-a-loader-checks)).
 
 ### Reading the world
 

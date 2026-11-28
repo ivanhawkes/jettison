@@ -16,6 +16,7 @@
 #include <vector>
 
 #include <jettison/core/Log.h>
+#include <jettison/render/FontFile.h>
 #include <jettison/render/Overlay.h>
 #include <jettison/vfs/FileSystem.h>
 
@@ -181,10 +182,13 @@ UiSystem::~UiSystem()
 
 void UiSystem::LoadFont(std::string_view virtualPath, bool fallback)
 {
+	const std::optional<std::vector<std::byte>> bytes = m_pState->files.Read(virtualPath);
+	if (!bytes)
+		throw std::runtime_error(std::format("UiSystem: the font '{}' is missing", virtualPath));
+	Render::CheckFontFile(*bytes, virtualPath);
 	if (!Rml::LoadFontFace(std::string{virtualPath}, fallback))
 		throw std::runtime_error(std::format("UiSystem: the font '{}' did not load", virtualPath));
-	if (const std::optional<std::vector<std::byte>> bytes = m_pState->files.Read(virtualPath))
-		m_pState->system.Cover(Characters(*bytes));
+	m_pState->system.Cover(Characters(*bytes));
 }
 
 

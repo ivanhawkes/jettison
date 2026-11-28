@@ -106,7 +106,9 @@ Shapes are [definitions](glossary.md#definition), not state. The game defines ea
 start-up, in code (`PhysicsWorld::DefineShape`) or from the
 [definition registry](glossary.md#definition-registry) (`DefineShapes`). The registry type is
 `Physics.Shape`, marked moddable, so a [mod](glossary.md#mod) can replace a shape. Each is built
-into a Jolt shape as it is defined, so a shape Jolt refuses throws there, naming it. Bodies and
+into a Jolt shape as it is defined, so a shape Jolt refuses throws there, naming it, as does one
+with a size, point or offset that is not finite or reaches past 10^7 m, before Jolt builds it: a
+float shape is held to a metre out there, and Jolt's convex builder overflows past it. Bodies and
 saves name shapes, so a world a save is loaded into has to define the same ones.
 
 ### A model's collision shape

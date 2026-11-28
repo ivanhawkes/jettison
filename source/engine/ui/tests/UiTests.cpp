@@ -15,10 +15,12 @@
 #include <cstdint>
 #include <filesystem>
 #include <fstream>
+#include <iterator>
 #include <limits>
 #include <optional>
 #include <stdexcept>
 #include <string>
+#include <string_view>
 #include <vector>
 
 using namespace Jettison;
@@ -233,8 +235,8 @@ class Words
 
 // A TrueType font of the suite's own, written here so it is generated and carries no one's licence:
 // the family "Fixture", whose one glyph, a square 800 units wide of a 1000-unit em, is mapped from 日
-// (U+65E5), which none of the engine's fonts has.
-std::string FixtureFont()
+// (U+65E5), which none of the engine's fonts has. Unnamed, it has no name table, so no family.
+std::string FixtureFont(bool named = true)
 {
 	constexpr std::uint32_t kDay = 0x65e5;
 	std::vector<std::pair<std::string, std::string>> tables;
@@ -296,20 +298,21 @@ std::string FixtureFont()
 		    for (int field = 0; field < 8; ++field)
 			    w.U16(0);
 	    });
-	table(
-	    "name",
-	    [&](Words &w)
-	    {
-		    const std::string family = "Fixture";
-		    const std::string style = "Regular";
-		    const auto length = [](const std::string &text)
-		    { return static_cast<std::uint32_t>(text.size() * 2); };
-		    w.U16(0), w.U16(2), w.U16(30);
-		    w.U16(3), w.U16(1), w.U16(0x409), w.U16(1), w.U16(length(family)), w.U16(0);
-		    w.U16(3), w.U16(1), w.U16(0x409), w.U16(2), w.U16(length(style)), w.U16(length(family));
-		    for (const char letter : family + style)
-			    w.U16(static_cast<unsigned char>(letter));
-	    });
+	if (named)
+		table(
+		    "name",
+		    [&](Words &w)
+		    {
+			    const std::string family = "Fixture";
+			    const std::string style = "Regular";
+			    const auto length = [](const std::string &text)
+			    { return static_cast<std::uint32_t>(text.size() * 2); };
+			    w.U16(0), w.U16(2), w.U16(30);
+			    w.U16(3), w.U16(1), w.U16(0x409), w.U16(1), w.U16(length(family)), w.U16(0);
+			    w.U16(3), w.U16(1), w.U16(0x409), w.U16(2), w.U16(length(style)), w.U16(length(family));
+			    for (const char letter : family + style)
+				    w.U16(static_cast<unsigned char>(letter));
+		    });
 
 	Words font;
 	const auto count = static_cast<std::uint32_t>(tables.size());
@@ -888,4 +891,173 @@ TEST_CASE("Ui: an event's arguments read as numbers and as text")
 	CHECK(Ui::AsText(Ui::EventArgument{std::string{"ItemCopper"}}) == "ItemCopper");
 	CHECK(Ui::AsText(Ui::EventArgument{std::int64_t{7}}) == "7");
 	CHECK(Ui::AsText(Ui::EventArgument{true}) == "true");
+}
+
+
+TEST_CASE("Ui: a font whose header or tables do not fit it is refused before FreeType reads it")
+{
+	using namespace std::string_literals;
+	const auto be = [](std::uint32_t value, int bytes)
+	{
+		std::string text;
+		for (int index = bytes - 1; index >= 0; --index)
+			text.push_back(static_cast<char>((value >> (8 * index)) & 0xffu));
+		return text;
+	};
+	const std::string header = be(0x00010000, 4) + be(1, 2) + std::string(6, '\0');
+	Scratch scratch;
+	scratch.Put("base/fonts/text.ttf", "not a font, if long enough to be read as one");
+	scratch.Put("base/fonts/table-past.ttf", header + "glyf" + be(0, 4) + be(1000, 4) + be(16, 4));
+	scratch.Put("base/fonts/too-many.ttf", be(0x00010000, 4) + be(100, 2) + std::string(22, '\0'));
+	scratch.Put("base/fonts/no-fonts.ttc", "ttcf"s + be(0x00010000, 4) + be(0, 4));
+	scratch.Put("base/fonts/font-past.ttc", "ttcf"s + be(0x00010000, 4) + be(1, 4) + be(4096, 4));
+	scratch.Put("base/fonts/large.ttf", header + std::string(std::size_t{32} * 1024 * 1024, '\0'));
+	Ui::UiSystem ui{scratch.Files(), 640, 480};
+	const auto refusal = [&ui](const char *path)
+	{
+		try
+		{
+			ui.LoadFont(path);
+		}
+		catch (const std::runtime_error &error)
+		{
+			return std::string{error.what()};
+		}
+		return std::string{};
+	};
+	CHECK(refusal("fonts/text.ttf") == "The font 'fonts/text.ttf' is not a TrueType or OpenType font");
+	CHECK(
+	    refusal("fonts/table-past.ttf") ==
+	    "The font 'fonts/table-past.ttf' has a table of 16 bytes at 1000, past its end");
+	CHECK(
+	    refusal("fonts/too-many.ttf") ==
+	    "The font 'fonts/too-many.ttf' lists 100 tables, which its directory does not hold");
+	CHECK(
+	    refusal("fonts/no-fonts.ttc") ==
+	    "The font 'fonts/no-fonts.ttc' is a collection of 0 fonts, which its header does not hold");
+	CHECK(
+	    refusal("fonts/font-past.ttc") ==
+	    "The font 'fonts/font-past.ttc' has a table directory past its end");
+	CHECK(
+	    refusal("fonts/large.ttf") ==
+	    "The font 'fonts/large.ttf' is 33554444 bytes, more than the 33554432 a font may be");
+	CHECK(refusal("fonts/Karla-Regular.ttf").empty());
+
+	// A face that names no family, which RmlUi read a null name from, found by the font fuzz target.
+	scratch.Put("base/fonts/unnamed.ttf", FixtureFont(false));
+	CHECK(refusal("fonts/unnamed.ttf") == "UiSystem: the font 'fonts/unnamed.ttf' did not load");
+}
+
+
+TEST_CASE("Ui: a font cut short or with bytes changed is refused or draws, and reads nothing past it")
+{
+	std::ifstream in{
+	    std::filesystem::path(JETTISON_ASSET_SOURCE_DIR) / "fonts/Karla-Regular.ttf", std::ios::binary};
+	const std::string whole{std::istreambuf_iterator<char>{in}, {}};
+	REQUIRE(!whole.empty());
+	Scratch scratch;
+	scratch.Put(
+	    "base/ui/text.rml",
+	    "<rml><head><style>body { font-family: Karla; font-size: 20px; }</style></head>"
+	    "<body><p>Fuzzy jackdaws, 0123456789 &amp; more.</p></body></rml>");
+	std::size_t loaded = 0;
+	std::size_t refused = 0;
+	std::size_t copy = 0;
+	const auto load = [&](const std::string &bytes)
+	{
+		const std::string path = "fonts/malformed-" + std::to_string(copy++) + ".ttf";
+		scratch.Put("base/" + path, bytes);
+		Ui::UiSystem ui{scratch.Files(), 640, 480};
+		try
+		{
+			ui.LoadFont(path);
+			++loaded;
+		}
+		catch (const std::runtime_error &error)
+		{
+			CHECK(std::string_view{error.what()}.find(path) != std::string_view::npos);
+			++refused;
+		}
+		ui.Show(ui.LoadDocument("ui/text.rml"));
+		ui.Update(0.0);
+	};
+	for (std::size_t length = 0; length < whole.size(); length += 1 + length / 4)
+		load(whole.substr(0, length));
+	for (std::size_t at = 0; at < whole.size(); at += 1 + at / 8)
+	{
+		std::string changed = whole;
+		changed[at] = static_cast<char>(changed[at] ^ 0x5a);
+		load(changed);
+	}
+	CHECK(loaded >= 1);
+	CHECK(refused >= 1);
+}
+
+
+TEST_CASE("Ui: a document too large or nested too deep is refused before RmlUi parses it")
+{
+	const auto nested = [](std::size_t depth)
+	{
+		std::string text = "<rml><body>";
+		for (std::size_t level = 2; level < depth; ++level)
+			text += "<div a='/>'>";
+		for (std::size_t level = 2; level < depth; ++level)
+			text += "</div>";
+		return text + "</body></rml>";
+	};
+	Scratch scratch;
+	scratch.Put("base/ui/deepest.rml", nested(256));
+	scratch.Put("base/ui/too-deep.rml", nested(257));
+	scratch.Put(
+	    "base/ui/large.rml",
+	    "<rml><body>" + std::string(std::size_t{1} * 1024 * 1024, ' ') + "</body></rml>");
+	Ui::UiSystem ui{scratch.Files(), 640, 480};
+	ui.LoadDocument("ui/deepest.rml");
+	CHECK_THROWS_WITH_AS(
+	    ui.LoadDocument("ui/too-deep.rml"), "UiSystem: the document 'ui/too-deep.rml' did not load",
+	    std::runtime_error);
+	CHECK_THROWS_WITH_AS(
+	    ui.LoadDocument("ui/large.rml"), "UiSystem: the document 'ui/large.rml' did not load",
+	    std::runtime_error);
+}
+
+
+TEST_CASE(
+    "Ui: a document cut short or with bytes changed is refused or loads, and reads nothing past it")
+{
+	std::ifstream in{
+	    std::filesystem::path(JETTISON_ASSET_SOURCE_DIR) / "ui/saves.rml", std::ios::binary};
+	const std::string whole{std::istreambuf_iterator<char>{in}, {}};
+	REQUIRE(!whole.empty());
+	Scratch scratch;
+	Ui::UiSystem ui{scratch.Files(), 640, 480};
+	ui.LoadFont("fonts/DroidSans.ttf");
+	std::size_t loaded = 0;
+	std::size_t copy = 0;
+	const auto load = [&](const std::string &bytes)
+	{
+		const std::string path = "ui/malformed-" + std::to_string(copy++) + ".rml";
+		scratch.Put("base/" + path, bytes);
+		try
+		{
+			const Ui::DocumentHandle document = ui.LoadDocument(path);
+			ui.Show(document);
+			ui.Update(0.0);
+			ui.Close(document);
+			++loaded;
+		}
+		catch (const std::runtime_error &error)
+		{
+			CHECK(std::string_view{error.what()}.find(path) != std::string_view::npos);
+		}
+	};
+	for (std::size_t length = 0; length < whole.size(); length += 1 + length / 8)
+		load(whole.substr(0, length));
+	for (std::size_t at = 0; at < whole.size(); at += 7)
+	{
+		std::string changed = whole;
+		changed[at] = static_cast<char>(changed[at] ^ 0x5a);
+		load(changed);
+	}
+	CHECK(loaded >= 1);
 }

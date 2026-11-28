@@ -27,10 +27,17 @@
 #    operation, which signals the thread, and scripts have no blocking operation to wake.
 #  - Its messages through the engine's log: os_printf calls jettison_wamr_vprintf (print.cpp), which
 #    the script module points at Log.h.
-#  - One change to WAMR's source, fuel-left.patch: the fast interpreter keeps the fuel left in a local
-#    and never reports it, so the patch writes it back to the call's environment as the call ends,
-#    and wasm_runtime_get_instruction_count_left reads it, for the fuel a call used (the console's
-#    scripts command). It is applied to the fetched tree once; a later configure finds it applied.
+#  - Two changes to WAMR's source, each applied to the fetched tree once, a later configure finding
+#    it applied:
+#    - fuel-left.patch: the fast interpreter keeps the fuel left in a local and never reports it, so
+#      the patch writes it back to the call's environment as the call ends, and
+#      wasm_runtime_get_instruction_count_left reads it, for the fuel a call used (the console's
+#      scripts command).
+#    - stack-frame.patch: the check that a call has native stack left compares the address of a
+#      local with the thread's stack boundary. Under AddressSanitizer a local whose address is taken
+#      lives on its fake stack, in the heap, so every call in the script suite trapped with "native
+#      stack overflow" once the sanitised tree compiled C with the sanitisers (2026-11-28). The patch
+#      compares the frame's address, on the thread's stack in every build.
 
 set(WAMR_ROOT_DIR "${wamr_SOURCE_DIR}")
 set(WAMR_BUILD_PLATFORM linux)
@@ -53,19 +60,21 @@ set(WAMR_DISABLE_WAKEUP_BLOCKING_OP 1)
 set(WAMR_BH_VPRINTF jettison_wamr_vprintf)
 
 find_package(Git REQUIRED)
-set(wamr_patch "${CMAKE_CURRENT_SOURCE_DIR}/fuel-left.patch")
-execute_process(
-	COMMAND "${GIT_EXECUTABLE}" apply --reverse --check "${wamr_patch}"
-	WORKING_DIRECTORY "${WAMR_ROOT_DIR}"
-	RESULT_VARIABLE wamr_patched
-	OUTPUT_QUIET ERROR_QUIET)
-if(NOT wamr_patched EQUAL 0)
+foreach(wamr_patch IN ITEMS fuel-left.patch stack-frame.patch)
+	set(wamr_patch "${CMAKE_CURRENT_SOURCE_DIR}/${wamr_patch}")
 	execute_process(
-		COMMAND "${GIT_EXECUTABLE}" apply "${wamr_patch}"
+		COMMAND "${GIT_EXECUTABLE}" apply --reverse --check "${wamr_patch}"
 		WORKING_DIRECTORY "${WAMR_ROOT_DIR}"
-		COMMAND_ERROR_IS_FATAL ANY)
-endif()
-set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${wamr_patch}")
+		RESULT_VARIABLE wamr_patched
+		OUTPUT_QUIET ERROR_QUIET)
+	if(NOT wamr_patched EQUAL 0)
+		execute_process(
+			COMMAND "${GIT_EXECUTABLE}" apply "${wamr_patch}"
+			WORKING_DIRECTORY "${WAMR_ROOT_DIR}"
+			COMMAND_ERROR_IS_FATAL ANY)
+	endif()
+	set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${wamr_patch}")
+endforeach()
 
 include("${WAMR_ROOT_DIR}/build-scripts/runtime_lib.cmake")
 
@@ -77,6 +86,16 @@ target_include_directories(wamr PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include")
 # held to the coding standards' rule for simulation code: no multiply and add fused into one FMA at
 # one optimisation level and not at another.
 target_compile_options(wamr PRIVATE $<$<COMPILE_LANGUAGE:C>:-ffp-contract=off>)
+
+# UBSan's alignment check is the one sanitiser left out of WAMR. Its fast interpreter is written for
+# a processor with unaligned loads, as x86-64 is (core/config.h): it reads and writes its compiled
+# code, its instances' tables and a script's memory through pointers cast to wider types at any
+# byte, which C leaves undefined, and UBSan stopped the script suite for it at once when the
+# sanitised tree first compiled C with the sanitisers (2026-11-28). WAMR's aligned build for other
+# processors is no way out on x86-64: with WASM_CPU_SUPPORTS_UNALIGNED_ADDR_ACCESS=0 its loader
+# still stored an int32 misaligned, and 13 of the suite's checks failed, calls returning nothing.
+# The address sanitiser and the rest of UBSan's checks run over it.
+target_compile_options(wamr PRIVATE $<$<COMPILE_LANGUAGE:C>:-fno-sanitize=alignment>)
 
 # WAMR's x86-64 call trampoline (invokeNative_em64.s) has no .note.GNU-stack section, and an
 # object without one makes the linker mark the whole executable as needing an executable stack -

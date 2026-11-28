@@ -4,15 +4,20 @@
 
 #include <array>
 #include <cstdio>
+#include <stdexcept>
 #include <string>
 #include <utility>
 
+#include "jettison/core/Log.h"
+#include "jettison/render/FontFile.h"
 #include "jettison/vfs/FileSystem.h"
 
 namespace Jettison::Render
 {
 namespace
 {
+constexpr Core::Category kRender{"render"};
+
 // The faces the dev tools draw with. Roboto is in Tailwind's default stack and carries accented
 // Latin, Greek and Cyrillic, so the UI face needs no fallback for the words a log line holds; Hack
 // is the mono face of the Menlo and Consolas class that stack names, and is the face the console
@@ -30,9 +35,21 @@ DevToolFaces LoadDevToolFaces(const Vfs::FileSystem &assets, float size)
 	DevToolFaces faces;
 	const auto add = [&faces, &assets, size](const char *file, ImFont *&slot)
 	{
-		std::optional<std::vector<std::byte>> bytes = assets.Read(std::string{"fonts/"} + file);
+		const std::string path = std::string{"fonts/"} + file;
+		std::optional<std::vector<std::byte>> bytes = assets.Read(path);
 		if (!bytes || bytes->empty())
 			return;
+		try
+		{
+			CheckFontFile(*bytes, path);
+		}
+		catch (const std::runtime_error &error)
+		{
+			Core::Log(
+			    Core::Severity::Warning, kRender, "{}, and the dev tools draw without it",
+			    error.what());
+			return;
+		}
 		std::vector<std::byte> &data = faces.m_bytes.emplace_back(std::move(*bytes));
 		ImFontConfig config;
 		config.FontDataOwnedByAtlas = false;

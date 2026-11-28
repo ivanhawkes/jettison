@@ -271,7 +271,9 @@ struct RotationAnimationComponent
   (fastgltf's accessor tools) reads wherever it is pointed and may assert rather than refuse. Nothing
   is allocated for what the bytes merely claim: an allocation is bounded by what they can hold, or by
   a named limit whose comment justifies it. The checks live in one function per format, which names
-  the file in its refusal (`Geometry::GltfFile::Parse`, a pack's index in `Vfs`).
+  the file in its refusal (`Geometry::GltfFile::Parse`, a pack's index in `Vfs`); a format a
+  library parses is checked before the library reads it. What each format's loader checks is in
+  [files and mods](files-and-mods.md#what-a-loader-checks).
 - No exceptions inside per-frame or per-step hot paths. Programming errors there are assertions.
 - Outcomes that are expected and recoverable, such as a lookup that can miss or a command the
   simulation refuses, return `std::optional` or a small result type naming the

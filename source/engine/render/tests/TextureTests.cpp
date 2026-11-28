@@ -192,6 +192,43 @@ TEST_CASE("Texture: a file claiming more than it holds is refused before its cla
 	    DecodeKtx2(put(put(panels, 20, 65536, 4), 24, 65536, 4), TranscodeTarget::Rgba8, "wide.ktx2"),
 	    doctest::Contains("65536 by 65536"), std::runtime_error);
 
+	// The supercompression global data's length, at byte 72, as the ktx2 fuzz target found one, for
+	// which libktx allocated what it claimed; and the key/value data's offset, at 56.
+	CHECK_THROWS_WITH_AS(
+	    DecodeKtx2(put(panels, 72, 0x4100000000000000, 8), TranscodeTarget::Rgba8, "global.ktx2"),
+	    doctest::Contains("its index names data past the end of the file"), std::runtime_error);
+	CHECK_THROWS_WITH_AS(
+	    DecodeKtx2(put(panels, 56, 0xffffff00, 4), TranscodeTarget::Rgba8, "values.ktx2"),
+	    doctest::Contains("its index names data past the end of the file"), std::runtime_error);
+	CHECK_THROWS_WITH_AS(
+	    DecodeKtx2(put(panels, 40, 0x10000000, 4), TranscodeTarget::Rgba8, "levels.ktx2"),
+	    doctest::Contains("levels' index does not fit"), std::runtime_error);
+
+	// An ETC1S file's Huffman tables, the last of its supercompression global data, zeroed: libktx
+	// transcoded with the empty tables they decode to, where the ktx2 fuzz target found Basis
+	// Universal asserting. The global data's header is 20 bytes, then 20 for each of its images (a
+	// level each here), then the endpoints and the selectors, then the tables.
+	{
+		std::vector<std::byte> emissive = ReadBytes(Sample("panels-emissive.ktx2"));
+		const auto read = [&emissive](std::size_t at, int width)
+		{
+			std::uint64_t value = 0;
+			for (int byte = width; byte-- > 0;)
+				value = (value << 8) |
+				        std::to_integer<std::uint64_t>(emissive[at + static_cast<std::size_t>(byte)]);
+			return static_cast<std::size_t>(value);
+		};
+		const std::size_t global = read(64, 8);
+		const std::size_t images = read(40, 4);
+		const std::size_t tables =
+		    global + 20 + 20 * images + read(global + 4, 4) + read(global + 8, 4);
+		std::fill_n(
+		    emissive.begin() + static_cast<std::ptrdiff_t>(tables), read(global + 12, 4), std::byte{0});
+		CHECK_THROWS_WITH_AS(
+		    DecodeKtx2(emissive, TranscodeTarget::Bc7, "tables.ktx2"), doctest::Contains("tables.ktx2"),
+		    std::runtime_error);
+	}
+
 	// The first level's length in the level index, which follows the 80-byte header and index.
 	CHECK_THROWS_WITH_AS(
 	    DecodeKtx2(put(panels, 80 + 8, std::uint64_t{1} << 40, 8), TranscodeTarget::Rgba8, "long.ktx2"),
@@ -212,6 +249,12 @@ TEST_CASE("Texture: a file claiming more than it holds is refused before its cla
 	CHECK_THROWS_WITH_AS(
 	    DecodeImage(Ppm(100000, 1, {1, 2, 3}), true, "wide.ppm"), doctest::Contains("100000 by 1"),
 	    std::runtime_error);
+
+	// An image past the side stb_image's images are read at, which KTX 2 is not held to: one 16384
+	// a side took the image fuzz target past its ten seconds building the mip chain.
+	CHECK_THROWS_WITH_AS(
+	    DecodeImage(Ppm(4097, 1, {1, 2, 3}), true, "past.ppm"),
+	    doctest::Contains("4097 by 1, past the 4096 a side"), std::runtime_error);
 }
 
 

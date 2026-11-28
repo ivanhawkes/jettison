@@ -305,14 +305,15 @@ std::string TriangleAccessors(const std::string &accessors, const std::string &r
 // The triangle's positions as one view compressed with these parameters, decoding into buffer 1.
 std::string Compressed(
     const char *mode, std::size_t stride, std::size_t count, const char *offset = "0",
-    const char *source = "0")
+    const char *source = "0", const char *viewOffset = "0")
 {
 	return WithTriangleData(
 	    R"(,{"byteLength":36}],"extensionsUsed":["EXT_meshopt_compression"],)"
-	    R"("extensionsRequired":["EXT_meshopt_compression"],"bufferViews":[{"buffer":1,"byteLength":)" +
-	    std::to_string(stride * count) + R"(,"extensions":{"EXT_meshopt_compression":{"buffer":)" +
-	    source + R"(,"byteOffset":)" + offset + R"(,"byteLength":36,"byteStride":)" +
-	    std::to_string(stride) + R"(,"count":)" + std::to_string(count) + R"(,"mode":")" + mode +
+	    R"("extensionsRequired":["EXT_meshopt_compression"],"bufferViews":[{"buffer":1,"byteOffset":)" +
+	    std::string{viewOffset} + R"(,"byteLength":)" + std::to_string(stride * count) +
+	    R"(,"extensions":{"EXT_meshopt_compression":{"buffer":)" + source + R"(,"byteOffset":)" +
+	    offset + R"(,"byteLength":36,"byteStride":)" + std::to_string(stride) + R"(,"count":)" +
+	    std::to_string(count) + R"(,"mode":")" + mode +
 	    R"("}}}],"accessors":[{"bufferView":0,"componentType":5126,"count":3,"type":"VEC3"}],)" +
 	    OneMesh(R"({"POSITION":0})"));
 }
@@ -850,7 +851,8 @@ TEST_CASE(
 
 
 TEST_CASE(
-    "A compressed view that breaks EXT_meshopt_compression, or lies outside its buffers, is refused")
+    "A compressed view that breaks EXT_meshopt_compression, lies outside its buffers or is misaligned, "
+    "is refused")
 {
 	const std::pair<std::string, const char *> cases[] = {
 	    {Compressed("ATTRIBUTES", 3, 12), "breaks EXT_meshopt_compression"},
@@ -865,6 +867,10 @@ TEST_CASE(
 	    {Compressed("ATTRIBUTES", 4, 67108864), "claims more than meshoptimizer's codec decodes"},
 	    {Compressed("TRIANGLES", 2, 60), "claims more than meshoptimizer's codec decodes"},
 	    {Compressed("INDICES", 4, 32), "claims more than meshoptimizer's codec decodes"},
+	    // Views at offsets their numbers are misaligned at, the first found by the gltf fuzz target.
+	    {Compressed("TRIANGLES", 2, 3, "0", "0", "1"), "not a multiple of its numbers' alignment"},
+	    {Compressed("INDICES", 4, 3, "0", "0", "2"), "not a multiple of its numbers' alignment"},
+	    {Compressed("ATTRIBUTES", 4, 3, "0", "0", "2"), "not a multiple of its numbers' alignment"},
 	};
 	for (const auto &[gltf, reason] : cases)
 	{
@@ -1032,6 +1038,8 @@ TEST_CASE("An accessor of a type or component type its use does not allow is ref
 	     "allows for inverse-bind matrices"},
 	    {withSecond(times, clip("rotation")), "allows for a clip's rotations"},
 	    {withSecond(times, clip("weights")), "allows for a clip's weights"},
+	    // A path glTF does not define, found by the gltf fuzz target, read as a scale of vec4s.
+	    {withSecond(times, clip("rota&ion")), "has a channel of a path glTF does not define"},
 	    {TriangleAccessors(
 	         "[" + std::string{kPositions} + "]",
 	         OneMesh(R"({"POSITION":0})") +

@@ -31,7 +31,8 @@ jettison/
 ├── .claude/                    Claude Code's project settings and hooks (formats edited sources)
 ├── .mcp.json                   MCP servers for coding agents: Context7, for library documentation
 ├── CMakeLists.txt              project, options, warnings target, shader helper, Jettison::Engine
-├── CMakePresets.json           clang-debug, clang-release, clang-headless, clang-asan, clang-cpu
+├── CMakePresets.json           clang-debug, clang-release, clang-headless, clang-asan, clang-cpu,
+│                               clang-fuzz
 ├── cmake/                      jettison_add_module(), jettison_check_dependencies(),
 │                               neutral-words.txt, JettisonConfig.cmake.in
 ├── assets/                     the engine's assets (Git LFS), staged beside executables: shaders,
@@ -39,6 +40,7 @@ jettison/
 ├── docs/                       this documentation
 ├── scripts/                    the gate and tools: ci.sh, tidy.sh, format-check.sh, smoke-test.sh,
 │                               capture.sh, cross-review.sh, comment-only.sh, symbolise-crash.sh,
+│                               fuzz.sh,
 │                               lib/headless.sh (Xvfb and lavapipe), the test assets' generators
 └── source/
     ├── external/               every third-party dependency, pinned, through FetchContent
@@ -93,6 +95,8 @@ jettison/
         │                       cinematics and grades, cooked by the build; the suites read them
         ├── test_meshes.cpp     jettison_test_meshes: the dense test meshes, made for the cook
         ├── frames/             the reference frames and their views
+        ├── fuzz/               a libFuzzer target a loaded format, their seeds' generator,
+        │                       dictionaries and regression inputs (JETTISON_FUZZ)
         ├── consumer/           the consumer project: the CPU engine fetched as a game would
         ├── devtools_alone.cpp  devtools linked alone, with no Vulkan or GLFW
         └── dependency_probe.cpp  one executable calling every third-party library

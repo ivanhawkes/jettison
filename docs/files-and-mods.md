@@ -229,6 +229,30 @@ build, a pack stays as mounted.
 renamed over it once complete, so a reader never finds half a pack. Files whose
 names no virtual path could have are left out and listed in `PackSummary::skipped`.
 
+### What a loader checks
+
+A mod can ship a file of any format the engine reads, so each loader checks what a file declares
+before anything follows it ([loading bytes](coding-standards.md#errors)), in one function that names
+the file in its refusal. Where a library parses the format, the engine's checks come first, and the
+library's own refusals after them. Each format has a fuzz target, and its corpus is replayed by the
+gate ([fuzzing](build-and-gates.md#fuzzing)).
+
+| Format | Loader | Checked before it is read |
+| --- | --- | --- |
+| glTF model | `Geometry::GltfFile::Parse` | Every index, view, accessor and compressed view within the file, each accessor's type the one its use allows, a compressed view aligned to its numbers, an animation's paths glTF's, the decoded sizes bounded ([the cooked model](rendering.md#the-cooked-model)) |
+| Pack | `Vfs` (mount) | Its header and index whole, each file within the data, a compressed file's size within what its frame can hold ([packs](#packs)) |
+| KTX 2 texture | `Render::DecodeKtx2` | Its header, and every region its index names (data format, key/value, supercompression data, each level) within the file, before libktx allocates for any; 16,384 texels a side; each level within the bytes it has |
+| PNG, JPEG and stb_image's others | `Render::DecodeImage` | Its size from its header, 4,096 texels a side, before stb_image allocates |
+| World save, save game | `Sim::SimWorld::Load`, `Sim::SaveGame::Read` | Every count within the data; the entity storage's entities in use within its length, each entity once; a component's entities among them |
+| Network message | `Net::Wire` | A message's kind and a snapshot's step within the opened bytes, a hello's fields within its body |
+| Collision file | `Physics::ReadCollisionFile` | Its shape a compound of convex hulls and meshes; every size, point and offset finite and within 10^7 m, a mesh's indices within its vertices |
+| Clip file | `Animation::ReadClipFile` | Its version, names, nodes, times and values ([clips](animation.md)) |
+| String table | `Ui::StringTable::Load` | A table's shape and version, and a translation's arguments and expressions its base text's ([string tables](ui.md#string-tables)) |
+| Script module | `Script::ScriptHost::Load` | At most 4 MiB; WebAssembly's magic and version 1; each section one of the format's, within the module, and a section of entries holding no more of them than it has bytes; then WAMR's validation, and its imports and exports ([scripts](scripts.md)) |
+| Sound | `Audio::AudioSystem` (the VFS bridge) | At most 64 MiB; a WAV's RIFF size, chunks, format and data within the file; a FLAC's metadata blocks, the first its stream information; an MP3's tag and first frame header |
+| Font | `Render::CheckFontFile`, for the UI's and the dev tools' faces | At most 32 MiB; an sfnt version or a collection, and each table directory and table within the file |
+| RML document, RCSS stylesheet | `Ui`'s file interface | At most 1 MiB; a document's elements nested at most 256 deep |
+
 ### Layering definitions
 
 Shadowing works file by file, which is too coarse for game data: two mods that each change one

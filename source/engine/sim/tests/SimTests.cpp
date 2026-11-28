@@ -16,6 +16,7 @@
 #include <cmath>
 #include <cstdint>
 #include <functional>
+#include <iterator>
 #include <memory>
 #include <span>
 #include <stdexcept>
@@ -685,6 +686,54 @@ TEST_CASE("Sim: a save that does not fit is refused, and the world is left as it
 	    doctest::Contains("component 'SimTests.Hold', which this world does not register"),
 	    Serialise::FormatError);
 	CHECK(smaller.Clock().Step() == 0);
+
+	// The entity storage's length, how many of its entities are in use and its first, which EnTT's
+	// loader asserted on where the save fuzz target found more in use than there are, and an entity
+	// given twice.
+	const auto &entities = world.Registry().storage<entt::entity>();
+	REQUIRE(entities.size() >= 2);
+	const auto le = [](std::uint32_t value)
+	{
+		std::vector<std::byte> bytes;
+		bytes.reserve(4);
+		for (int index = 0; index < 4; ++index)
+			bytes.push_back(static_cast<std::byte>(value >> (8 * index)));
+		return bytes;
+	};
+	std::vector<std::byte> block = le(static_cast<std::uint32_t>(entities.size()));
+	for (const std::uint32_t value :
+	     {static_cast<std::uint32_t>(entities.free_list()), entt::to_integral(entities.data()[0])})
+		std::ranges::copy(le(value), std::back_inserter(block));
+	const auto found = std::ranges::search(save, block);
+	REQUIRE(!found.empty());
+	const auto at = static_cast<std::size_t>(found.begin() - save.begin());
+	std::vector<std::byte> moreInUse = save;
+	std::ranges::copy(
+	    le(static_cast<std::uint32_t>(entities.size() + 1)),
+	    moreInUse.begin() + static_cast<std::ptrdiff_t>(at + 4));
+	CHECK_THROWS_WITH_AS(
+	    world.Load(moreInUse), doctest::Contains("entities are in use of the"), Serialise::FormatError);
+	std::vector<std::byte> twice = save;
+	std::copy_n(
+	    save.begin() + static_cast<std::ptrdiff_t>(at + 8), 4,
+	    twice.begin() + static_cast<std::ptrdiff_t>(at + 12));
+	CHECK_THROWS_WITH_AS(world.Load(twice), doctest::Contains("twice"), Serialise::FormatError);
+	CHECK(world.StateHash() == before);
+
+	// A component's storage naming an entity the save does not hold, as the save fuzz target found
+	// one, where EnTT's loader made another entity and asserted it was the one asked for. One entity,
+	// so the last count of one before entity 0 is the component's storage, not the entity storage.
+	Sim::SimWorld one{kStep, kSeed};
+	one.RegisterComponent<Position>();
+	one.Registry().emplace<Position>(one.Registry().create(), glm::dvec3{1.0, 2.0, 3.0});
+	std::vector<std::byte> stray = one.Save();
+	const std::vector<std::byte> storage = {std::byte{1}, {}, {}, {}, {}, {}, {}, {}};
+	const auto last = std::ranges::find_end(stray, storage);
+	REQUIRE(!last.empty());
+	*(last.begin() + 4) = std::byte{5};
+	CHECK_THROWS_WITH_AS(
+	    one.Load(stray), doctest::Contains("a component is given to an entity the save does not hold"),
+	    Serialise::FormatError);
 }
 
 

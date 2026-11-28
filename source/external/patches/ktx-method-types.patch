@@ -1,0 +1,99 @@
+--- a/lib/texture2.c
++++ b/lib/texture2.c
+@@ -3018,28 +3018,78 @@
+  * the virtual functions.
+  */
+ 
++/*
++ * The tables call each method through a function of the type they declare, which takes a
++ * ktxTexture: a call through a pointer cast to another function type is undefined (C11 6.5.2.2).
++ */
++#define KTX2_THUNK(ret, name, params, args) \
++    static ret KTX_APIENTRY vtbl_##name params { return ktxTexture2_##name args; }
++KTX2_THUNK(ktx_size_t, calcDataSizeLevels, (ktxTexture* This, ktx_uint32_t levels),
++           ((ktxTexture2*)This, levels))
++KTX2_THUNK(ktx_size_t, calcFaceLodSize, (ktxTexture* This, ktx_uint32_t level),
++           ((ktxTexture2*)This, level))
++KTX2_THUNK(ktx_size_t, calcLevelOffset, (ktxTexture* This, ktx_uint32_t level),
++           ((ktxTexture2*)This, level))
++static void KTX_APIENTRY vtbl_Destroy(ktxTexture* This) { ktxTexture2_Destroy((ktxTexture2*)This); }
++KTX2_THUNK(KTX_error_code, GetImageOffset,
++           (ktxTexture* This, ktx_uint32_t level, ktx_uint32_t layer, ktx_uint32_t faceSlice,
++            ktx_size_t* pOffset),
++           ((ktxTexture2*)This, level, layer, faceSlice, pOffset))
++KTX2_THUNK(ktx_size_t, GetDataSizeUncompressed, (ktxTexture* This), ((ktxTexture2*)This))
++KTX2_THUNK(ktx_size_t, GetImageSize, (ktxTexture* This, ktx_uint32_t level),
++           ((ktxTexture2*)This, level))
++KTX2_THUNK(ktx_size_t, GetLevelSize, (ktxTexture* This, ktx_uint32_t level),
++           ((ktxTexture2*)This, level))
++KTX2_THUNK(KTX_error_code, IterateLevels, (ktxTexture* This, PFNKTXITERCB iterCb, void* userdata),
++           ((ktxTexture2*)This, iterCb, userdata))
++KTX2_THUNK(KTX_error_code, IterateLoadLevelFaces,
++           (ktxTexture* This, PFNKTXITERCB iterCb, void* userdata),
++           ((ktxTexture2*)This, iterCb, userdata))
++KTX2_THUNK(ktx_bool_t, NeedsTranscoding, (ktxTexture* This), ((ktxTexture2*)This))
++KTX2_THUNK(KTX_error_code, LoadImageData,
++           (ktxTexture* This, ktx_uint8_t* pBuffer, ktx_size_t bufSize),
++           ((ktxTexture2*)This, pBuffer, bufSize))
++KTX2_THUNK(KTX_error_code, SetImageFromMemory,
++           (ktxTexture* This, ktx_uint32_t level, ktx_uint32_t layer, ktx_uint32_t faceSlice,
++            const ktx_uint8_t* src, ktx_size_t srcSize),
++           ((ktxTexture2*)This, level, layer, faceSlice, src, srcSize))
++KTX2_THUNK(KTX_error_code, SetImageFromStdioStream,
++           (ktxTexture* This, ktx_uint32_t level, ktx_uint32_t layer, ktx_uint32_t faceSlice,
++            FILE* src, ktx_size_t srcSize),
++           ((ktxTexture2*)This, level, layer, faceSlice, src, srcSize))
++KTX2_THUNK(KTX_error_code, WriteToStdioStream, (ktxTexture* This, FILE* dstsstr),
++           ((ktxTexture2*)This, dstsstr))
++KTX2_THUNK(KTX_error_code, WriteToNamedFile, (ktxTexture* This, const char* const dstname),
++           ((ktxTexture2*)This, dstname))
++KTX2_THUNK(KTX_error_code, WriteToMemory,
++           (ktxTexture* This, ktx_uint8_t** bytes, ktx_size_t* size),
++           ((ktxTexture2*)This, bytes, size))
++KTX2_THUNK(KTX_error_code, WriteToStream, (ktxTexture* This, ktxStream* dststr),
++           ((ktxTexture2*)This, dststr))
++#undef KTX2_THUNK
++
+ struct ktxTexture_vtblInt ktxTexture2_vtblInt = {
+-    (PFNCALCDATASIZELEVELS)ktxTexture2_calcDataSizeLevels,
+-    (PFNCALCFACELODSIZE)ktxTexture2_calcFaceLodSize,
+-    (PFNCALCLEVELOFFSET)ktxTexture2_calcLevelOffset
++    vtbl_calcDataSizeLevels,
++    vtbl_calcFaceLodSize,
++    vtbl_calcLevelOffset
+ };
+ 
+ struct ktxTexture_vtbl ktxTexture2_vtbl = {
+-    (PFNKTEXDESTROY)ktxTexture2_Destroy,
+-    (PFNKTEXGETIMAGEOFFSET)ktxTexture2_GetImageOffset,
+-    (PFNKTEXGETDATASIZEUNCOMPRESSED)ktxTexture2_GetDataSizeUncompressed,
+-    (PFNKTEXGETIMAGESIZE)ktxTexture2_GetImageSize,
+-    (PFNKTEXGETLEVELSIZE)ktxTexture2_GetLevelSize,
+-    (PFNKTEXITERATELEVELS)ktxTexture2_IterateLevels,
+-    (PFNKTEXITERATELOADLEVELFACES)ktxTexture2_IterateLoadLevelFaces,
+-    (PFNKTEXNEEDSTRANSCODING)ktxTexture2_NeedsTranscoding,
+-    (PFNKTEXLOADIMAGEDATA)ktxTexture2_LoadImageData,
+-    (PFNKTEXSETIMAGEFROMMEMORY)ktxTexture2_SetImageFromMemory,
+-    (PFNKTEXSETIMAGEFROMSTDIOSTREAM)ktxTexture2_SetImageFromStdioStream,
+-    (PFNKTEXWRITETOSTDIOSTREAM)ktxTexture2_WriteToStdioStream,
+-    (PFNKTEXWRITETONAMEDFILE)ktxTexture2_WriteToNamedFile,
+-    (PFNKTEXWRITETOMEMORY)ktxTexture2_WriteToMemory,
+-    (PFNKTEXWRITETOSTREAM)ktxTexture2_WriteToStream,
++    vtbl_Destroy,
++    vtbl_GetImageOffset,
++    vtbl_GetDataSizeUncompressed,
++    vtbl_GetImageSize,
++    vtbl_GetLevelSize,
++    vtbl_IterateLevels,
++    vtbl_IterateLoadLevelFaces,
++    vtbl_NeedsTranscoding,
++    vtbl_LoadImageData,
++    vtbl_SetImageFromMemory,
++    vtbl_SetImageFromStdioStream,
++    vtbl_WriteToStdioStream,
++    vtbl_WriteToNamedFile,
++    vtbl_WriteToMemory,
++    vtbl_WriteToStream,
+ };
+ 
+ /** @} */

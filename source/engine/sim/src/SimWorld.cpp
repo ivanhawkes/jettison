@@ -10,6 +10,8 @@
 #include <array>
 #include <cmath>
 #include <format>
+#include <optional>
+#include <set>
 #include <stdexcept>
 #include <string_view>
 #include <utility>
@@ -24,6 +26,38 @@ constexpr std::string_view kFormat = "Jettison.World";
 // components, changes it in place, and the saves the repositories hold are written again
 // (docs/decisions.md, "Formats change in place until player testing"); the version stays.
 constexpr Serialise::FormatVersion kVersion{5};
+
+// The entity storage as a save holds it: how many entities, how many of them are in use, then each.
+// EnTT's loader takes the second as where its free list starts, and asserts it is within the first,
+// and makes each entity it is given; the save fuzz target found a count past the length
+// (sparse_set.hpp, free_list, 2026-11-28), so both, and each entity once, are checked here.
+struct EntityInput : Detail::SnapshotInput
+{
+	using SnapshotInput::operator();
+
+	std::optional<std::uint32_t> length;
+	std::set<entt::id_type> seen;
+
+
+	void operator()(std::uint32_t &count)
+	{
+		SnapshotInput::operator()(count);
+		if (!length)
+			length = count;
+		else if (count > *length)
+			reader.Fail(std::format("{} entities are in use of the {} the save holds", count, *length));
+	}
+
+
+	void operator()(entt::entity &entity)
+	{
+		SnapshotInput::operator()(entity);
+		if (entity == entt::null || !seen.insert(entt::to_entity(entity)).second)
+			reader.Fail(
+			    std::format(
+			        "the save holds entity {} twice, or as no entity", entt::to_integral(entity)));
+	}
+};
 
 
 const Serialise::BinaryMigrations &Migrations()
@@ -346,8 +380,8 @@ void SimWorld::Load(std::span<const std::byte> save)
 
 	entt::registry registry;
 	entt::snapshot_loader loader{registry};
-	Detail::SnapshotInput input{reader};
-	loader.get<entt::entity>(input);
+	EntityInput entities{{reader, nullptr}, {}, {}};
+	loader.get<entt::entity>(entities);
 	const auto componentCount = static_cast<std::uint32_t>(reader.ReadUnsigned(4));
 	std::vector<std::string_view> seen;
 	for (std::uint32_t index = 0; index < componentCount; ++index)
@@ -363,7 +397,8 @@ void SimWorld::Load(std::span<const std::byte> save)
 		const auto version =
 		    std::ranges::find(versions, name, &std::pair<std::string_view, std::uint32_t>::first);
 		component->load(
-		    loader, reader, component->migrations, version == versions.end() ? 1 : version->second);
+		    loader, registry, reader, component->migrations,
+		    version == versions.end() ? 1 : version->second);
 	}
 
 	// A service reads its state against the registry and the queue it will have, and keeps it aside

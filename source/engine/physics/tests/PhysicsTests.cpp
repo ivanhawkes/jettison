@@ -331,6 +331,24 @@ TEST_CASE("Physics: a shape sits in its body at its offset and turn")
 	CHECK_THROWS_WITH_AS(
 	    physics.DefineShape("nowhere", nowhere),
 	    doctest::Contains("'nowhere' has a point that is not finite"), std::invalid_argument);
+
+	// A hull with a point no float shape holds, found by the collision fuzz target, where Jolt's hull
+	// builder asserted rather than refusing it.
+	ShapeDefinition far;
+	far.kind = ShapeKind::ConvexHull;
+	far.points = {
+	    {2.57698038e10f, 3.21848171e21f, 1.7858662e31f},
+	    {7.09316626e22f, -0.5f, -0.5f},
+	    {2.5f, 0.5f, -0.5f},
+	    {1.5f, 0.5f, -0.5f},
+	    {1.5f, -0.5f, 0.5f},
+	    {2.5f, -0.5f, 0.5f}};
+	CHECK_THROWS_WITH_AS(
+	    physics.DefineShape("far", far), doctest::Contains("'far' has a point farther than"),
+	    std::invalid_argument);
+	CHECK_THROWS_WITH_AS(
+	    physics.DefineShape("huge", Sphere(1.0e8f)), doctest::Contains("'huge' has a radius of"),
+	    std::invalid_argument);
 }
 
 

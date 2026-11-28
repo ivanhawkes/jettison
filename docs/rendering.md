@@ -419,10 +419,11 @@ Textures decode on the I/O worker with no device (`render/Texture.h`):
   averaged in linear light for sRGB data. A name ending `.linear.png` marks linear data, such as a
   normal map.
 
-A file's header claims the size its decoder allocates, so either is refused, naming the file, past
-16,384 texels a side (lavapipe's `maxImageDimension2D`) before anything is allocated, and a KTX 2
-file's levels are held to the bytes it has before libktx loads them, and each to the data it is
-given before it is copied.
+A file's header claims the size its decoder allocates, so either is refused, naming the file, before
+anything is allocated: a KTX 2 file past 16,384 texels a side (lavapipe's `maxImageDimension2D`),
+an stb_image one past 4,096, since its mip chain is built here. A KTX 2 file's index is held to the
+file, and its levels to the bytes it has before libktx loads them, and each to the data it is given
+before it is copied ([what a loader checks](files-and-mods.md#what-a-loader-checks)).
 
 A CPU device is given RGBA8 rather than BC7, and its material sampler takes no anisotropy. Lavapipe
 decodes BC7 and filters anisotropically in software at every fetch, each of which multiplied the

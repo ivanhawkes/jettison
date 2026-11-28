@@ -8,6 +8,9 @@
 #include <algorithm>
 #include <atomic>
 #include <cstring>
+#include <format>
+#include <optional>
+#include <span>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -28,6 +31,51 @@ constexpr std::uint32_t kChannels = 2;
 // step to silence does not click, short enough to be heard as at once.
 constexpr std::uint32_t kBusVolumeEaseMilliseconds = 50;
 constexpr std::uint32_t kMillisecondsPerSecond = 1000;
+
+
+// The largest sound file read. The test content's music is 1.2 MB of FLAC, and the largest effect
+// 103 KiB of WAV (2026-11-28): this is about six minutes of 16-bit stereo WAV at 48 kHz, or hours of
+// compressed music, and keeps a file from being read whole however large.
+constexpr std::size_t kMaxSoundBytes = std::size_t{64} * 1024 * 1024;
+
+// WAV: a RIFF file of form WAVE, chunks of a four-character id and a little-endian u32 size, each
+// padded to an even length. Its format chunk is at least PCM's 16 bytes.
+constexpr std::size_t kRiffHeaderBytes = 12;
+constexpr std::size_t kChunkIdBytes = 4;
+constexpr std::size_t kChunkHeaderBytes = 8;
+constexpr std::uint32_t kWavFormatBytes = 16;
+
+// FLAC: "fLaC", then metadata blocks of a one-byte header (the last block's top bit set, then its
+// type) and a big-endian 24-bit length, the first the 34-byte stream info.
+constexpr std::size_t kFlacMagicBytes = 4;
+constexpr std::size_t kFlacBlockHeaderBytes = 4;
+constexpr std::uint8_t kFlacLastBlock = 0x80;
+constexpr std::uint8_t kFlacBlockType = 0x7f;
+constexpr std::uint8_t kFlacInvalidBlock = 127;
+constexpr std::uint32_t kFlacStreamInfoBytes = 34;
+
+// MP3: an optional ID3v2 tag (ten bytes, its size in four 7-bit bytes, ten more with a footer), then
+// the first frame's four-byte header: eleven sync bits, and no reserved version, layer, bitrate or
+// sample rate.
+constexpr std::size_t kId3HeaderBytes = 10;
+constexpr std::size_t kId3FlagsAt = 5;
+constexpr std::size_t kId3SizeAt = 6;
+constexpr std::uint8_t kId3Footer = 0x10;
+constexpr unsigned kId3SizeBits = 7;
+constexpr std::uint8_t kId3SizeHigh = 0x80;
+constexpr std::size_t kMp3FrameHeaderBytes = 4;
+constexpr std::uint32_t kMp3SyncByte = 0xff;
+constexpr std::uint8_t kMp3Sync = 0xe0;
+constexpr unsigned kMp3VersionShift = 3;
+constexpr unsigned kMp3LayerShift = 1;
+constexpr unsigned kMp3BitrateShift = 4;
+constexpr unsigned kMp3RateShift = 2;
+constexpr unsigned kMp3TwoBits = 3;
+constexpr unsigned kMp3ReservedVersion = 1;
+constexpr unsigned kMp3ReservedLayer = 0;
+constexpr unsigned kMp3BadBitrate = 15;
+constexpr unsigned kMp3ReservedRate = 3;
+constexpr unsigned kBitsPerByte = 8;
 
 
 std::size_t BusIndex(Bus bus)
@@ -58,6 +106,134 @@ OpenFile &FileOf(ma_vfs_file file)
 }
 
 
+bool HasTag(std::span<const std::byte> bytes, std::size_t at, std::string_view tag)
+{
+	return bytes.size() >= at + tag.size() &&
+	       std::memcmp(bytes.data() + at, tag.data(), tag.size()) == 0;
+}
+
+
+std::uint32_t ByteAt(std::span<const std::byte> bytes, std::size_t at)
+{
+	return std::to_integer<std::uint32_t>(bytes[at]);
+}
+
+
+std::uint32_t LittleEndian32(std::span<const std::byte> bytes, std::size_t at)
+{
+	std::uint32_t value = 0;
+	for (std::size_t index = sizeof(std::uint32_t); index-- > 0;)
+		value = (value << kBitsPerByte) | ByteAt(bytes, at + index);
+	return value;
+}
+
+
+std::optional<std::string> WavProblem(std::span<const std::byte> bytes)
+{
+	if (bytes.size() < kRiffHeaderBytes || !HasTag(bytes, kChunkHeaderBytes, "WAVE"))
+		return "a RIFF file that is not a WAVE";
+	const std::uint64_t end = std::uint64_t{LittleEndian32(bytes, kChunkIdBytes)} + kChunkHeaderBytes;
+	if (end > bytes.size())
+		return std::format("a WAVE that claims {} bytes and has {}", end, bytes.size());
+	bool format = false;
+	bool data = false;
+	std::uint64_t at = kRiffHeaderBytes;
+	while (at < end)
+	{
+		if (end - at < kChunkHeaderBytes)
+			return "a WAVE whose last chunk is cut short";
+		const auto chunk = static_cast<std::size_t>(at);
+		const std::uint32_t size = LittleEndian32(bytes, chunk + kChunkIdBytes);
+		if (size > end - at - kChunkHeaderBytes)
+			return std::format("a WAVE with a chunk of {} bytes past its end", size);
+		if (HasTag(bytes, chunk, "fmt "))
+		{
+			if (size < kWavFormatBytes)
+				return "a WAVE whose format chunk is too short";
+			format = true;
+		}
+		data = data || HasTag(bytes, chunk, "data");
+		at += kChunkHeaderBytes + size + (size & 1u);
+	}
+	if (!format || !data)
+		return "a WAVE without its format and data chunks";
+	return std::nullopt;
+}
+
+
+std::optional<std::string> FlacProblem(std::span<const std::byte> bytes)
+{
+	std::size_t at = kFlacMagicBytes;
+	for (bool first = true;; first = false)
+	{
+		if (bytes.size() - at < kFlacBlockHeaderBytes)
+			return "a FLAC file cut short in its metadata";
+		const std::uint32_t header = ByteAt(bytes, at);
+		const std::uint32_t type = header & kFlacBlockType;
+		std::uint32_t length = 0;
+		for (std::size_t index = 1; index < kFlacBlockHeaderBytes; ++index)
+			length = (length << kBitsPerByte) | ByteAt(bytes, at + index);
+		at += kFlacBlockHeaderBytes;
+		if (type == kFlacInvalidBlock || (first && (type != 0 || length != kFlacStreamInfoBytes)))
+			return "a FLAC file whose metadata does not begin with its stream info";
+		if (length > bytes.size() - at)
+			return std::format("a FLAC file with a metadata block of {} bytes past its end", length);
+		at += length;
+		if ((header & kFlacLastBlock) != 0)
+			return std::nullopt;
+	}
+}
+
+
+std::optional<std::string> Mp3Problem(std::span<const std::byte> bytes)
+{
+	std::uint64_t at = 0;
+	if (HasTag(bytes, 0, "ID3"))
+	{
+		if (bytes.size() < kId3HeaderBytes)
+			return "an MP3 file cut short in its tag";
+		std::uint64_t size = 0;
+		for (std::size_t index = kId3SizeAt; index < kId3HeaderBytes; ++index)
+		{
+			if ((ByteAt(bytes, index) & kId3SizeHigh) != 0)
+				return "an MP3 file whose tag's size is not one";
+			size = (size << kId3SizeBits) | ByteAt(bytes, index);
+		}
+		at = kId3HeaderBytes + size +
+		     ((ByteAt(bytes, kId3FlagsAt) & kId3Footer) != 0 ? kId3HeaderBytes : 0);
+	}
+	if (at > bytes.size() || bytes.size() - at < kMp3FrameHeaderBytes)
+		return "an MP3 file with no frame after its tag";
+	const auto offset = static_cast<std::size_t>(at);
+	const std::uint32_t second = ByteAt(bytes, offset + 1);
+	const std::uint32_t third = ByteAt(bytes, offset + 2);
+	if (ByteAt(bytes, offset) != kMp3SyncByte || (second & kMp3Sync) != kMp3Sync ||
+	    ((second >> kMp3VersionShift) & kMp3TwoBits) == kMp3ReservedVersion ||
+	    ((second >> kMp3LayerShift) & kMp3TwoBits) == kMp3ReservedLayer ||
+	    (third >> kMp3BitrateShift) == kMp3BadBitrate ||
+	    ((third >> kMp3RateShift) & kMp3TwoBits) == kMp3ReservedRate)
+		return "an MP3 file whose first frame's header is not one";
+	return std::nullopt;
+}
+
+
+// What is wrong with a sound file before miniaudio reads it, or nothing: its size, and, by its first
+// bytes, the container's header and the lengths it declares, which must lie within the file. The
+// one check of a sound's bytes the engine makes; miniaudio's decoders read the rest.
+std::optional<std::string> SoundProblem(std::span<const std::byte> bytes)
+{
+	if (bytes.size() > kMaxSoundBytes)
+		return std::format("{} bytes, more than the {} a sound may be", bytes.size(), kMaxSoundBytes);
+	if (HasTag(bytes, 0, "RIFF"))
+		return WavProblem(bytes);
+	if (HasTag(bytes, 0, "fLaC"))
+		return FlacProblem(bytes);
+	if (HasTag(bytes, 0, "ID3") || (!bytes.empty() && ByteAt(bytes, 0) == kMp3SyncByte))
+		return Mp3Problem(bytes);
+	return "not a WAV, FLAC or MP3 file";
+}
+
+
 ma_result OnOpen(ma_vfs *pVfs, const char *pPath, ma_uint32 openMode, ma_vfs_file *pFile)
 {
 	if (pFile == nullptr || (openMode & MA_OPEN_MODE_WRITE) != 0)
@@ -68,6 +244,11 @@ ma_result OnOpen(ma_vfs *pVfs, const char *pPath, ma_uint32 openMode, ma_vfs_fil
 	std::optional<std::vector<std::byte>> bytes = bridge.pFiles->Read(pPath);
 	if (!bytes)
 		return MA_DOES_NOT_EXIST;
+	if (const std::optional<std::string> problem = SoundProblem(*bytes))
+	{
+		Core::Log(Core::Severity::Warning, kAudio, "'{}' is refused: {}", pPath, *problem);
+		return MA_INVALID_FILE;
+	}
 
 	// miniaudio holds the file by an opaque pointer until it closes it, which takes it back.
 	*pFile = std::make_unique<OpenFile>(OpenFile{std::move(*bytes), 0}).release();

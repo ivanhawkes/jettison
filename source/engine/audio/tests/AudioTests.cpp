@@ -13,11 +13,14 @@
 #include <unistd.h>
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <filesystem>
 #include <fstream>
+#include <iterator>
 #include <stdexcept>
 #include <string>
+#include <utility>
 #include <vector>
 
 using namespace Jettison;
@@ -382,6 +385,91 @@ TEST_CASE("Audio: a sound that cannot be played is reported and counted, not thr
 	// A handle to nothing is ignored.
 	audio.SetVolume({}, 1.0f);
 	audio.Stop({});
+}
+
+
+TEST_CASE("Audio: a sound file whose header or lengths do not fit it is refused before it is decoded")
+{
+	using namespace std::string_literals;
+	const auto le32 = [](std::uint32_t value)
+	{
+		std::string bytes;
+		for (int index = 0; index < 4; ++index)
+			bytes.push_back(static_cast<char>((value >> (8 * index)) & 0xffu));
+		return bytes;
+	};
+	const std::string format = "fmt "s + le32(16) + std::string(16, '\x01');
+	const auto wave = [&](const std::string &chunks)
+	{ return "RIFF"s + le32(static_cast<std::uint32_t>(4 + chunks.size())) + "WAVE" + chunks; };
+
+	Scratch scratch;
+	scratch.Put("text.wav", "not a sound");
+	scratch.Put("claims-more.wav", "RIFF"s + le32(1000) + "WAVE" + format);
+	scratch.Put("chunk-past.wav", wave(format + "data" + le32(64) + "abcd"));
+	scratch.Put("no-data.wav", wave(format));
+	scratch.Put("short-format.wav", wave("fmt "s + le32(2) + "ab" + "data" + le32(0)));
+	scratch.Put("no-stream-info.flac", "fLaC\x81\0\0\x04"s + "abcd");
+	scratch.Put("block-past.flac", "fLaC\0\0\0\x22"s + std::string(34, '\0') + "\x84\0\x10\0"s);
+	scratch.Put("tag-past.mp3", "ID3\x04\0\0\0\0\x7f\x7f"s);
+	scratch.Put("bad-frame.mp3", "\xff\xfb\xf0\0"s);
+	scratch.Put("large.wav", "RIFF"s + std::string(std::size_t{64} * 1024 * 1024, '\0'));
+	AudioSystem audio(scratch.Files(), NoDevice());
+	const std::vector<std::string> refused{"text.wav",        "claims-more.wav",  "chunk-past.wav",
+	                                       "no-data.wav",     "short-format.wav", "no-stream-info.flac",
+	                                       "block-past.flac", "tag-past.mp3",     "bad-frame.mp3",
+	                                       "large.wav"};
+	for (const std::string &path : refused)
+		CHECK_MESSAGE(audio.PlayFlat(path, Bus::Ui) == Audio::SourceHandle{}, path);
+	CHECK(audio.Counters().failed == refused.size());
+}
+
+
+TEST_CASE(
+    "Audio: a sound cut short or with bytes changed is refused or plays, and reads nothing past it")
+{
+	Scratch scratch;
+	const auto read = [](const char *path, std::size_t most)
+	{
+		std::ifstream in{
+		    std::filesystem::path(JETTISON_TEST_CONTENT_DIR) / "audio" / path, std::ios::binary};
+		std::string bytes{std::istreambuf_iterator<char>{in}, {}};
+		bytes.resize(std::min(bytes.size(), most));
+		return bytes;
+	};
+
+	// The effect whole, and the head of the music, whose frames are all alike to a decoder.
+	const std::array<std::pair<std::string, std::string>, 2> sounds{
+	    std::pair{std::string{".wav"}, read(kFilled, std::string::npos)},
+	    std::pair{std::string{".flac"}, read(kMusic, std::size_t{64} * 1024)}};
+	AudioSystem audio(scratch.Files(), NoDevice());
+	std::vector<float> buffer(std::size_t{2} * 2400);
+	std::size_t played = 0;
+	std::size_t copy = 0;
+	const auto play = [&](const std::string &bytes, const std::string &extension)
+	{
+		const std::string path = "malformed-" + std::to_string(copy++) + extension;
+		scratch.Put(path, bytes);
+		const Audio::SourceHandle source = audio.PlayFlat(path, Bus::Ui);
+		if (source == Audio::SourceHandle{})
+			return;
+		++played;
+		audio.Mix(buffer);
+		audio.Stop(source);
+		audio.Update();
+	};
+	for (const auto &[extension, whole] : sounds)
+	{
+		REQUIRE(!whole.empty());
+		for (std::size_t length = 0; length < whole.size(); length += 1 + length / 4)
+			play(whole.substr(0, length), extension);
+		for (std::size_t at = 0; at < whole.size(); at += 1 + at / 2)
+		{
+			std::string changed = whole;
+			changed[at] = static_cast<char>(changed[at] ^ 0x5a);
+			play(changed, extension);
+		}
+	}
+	CHECK(played >= 2);
 }
 
 

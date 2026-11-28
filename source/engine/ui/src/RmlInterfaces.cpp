@@ -7,10 +7,12 @@
 #include <glm/gtc/type_ptr.hpp>
 
 #include <algorithm>
+#include <cctype>
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
 #include <exception>
+#include <format>
 #include <limits>
 #include <memory>
 #include <optional>
@@ -33,6 +35,19 @@ constexpr Core::Category kUi{"ui"};
 // A stylesheet a mod's `<name>.patch.rcss` is appended to, so its rules come after the text below
 // them and win by the cascade; a mod that wants none of the base's replaces the whole file instead.
 constexpr std::string_view kStylesheetExtension = ".rcss";
+
+// A document or template, which RmlUi parses as XML.
+constexpr std::string_view kDocumentExtension = ".rml";
+
+// The largest document, template or stylesheet RmlUi is given. The engine's largest is base.rcss,
+// 4.9 KiB, and Manifest's 2.8 KiB (2026-11-28): this is hundreds of screens' worth, and keeps a mod's
+// file from being read whole however large.
+constexpr std::size_t kMaxDocumentBytes = std::size_t{1} * 1024 * 1024;
+
+// The deepest elements nest in a document. RmlUi builds, lays out and destroys its element tree by
+// recursion, so the depth is a bound on its stack; the engine's and Manifest's screens nest under
+// ten deep, at most 8 (2026-11-28).
+constexpr std::size_t kMaxDocumentDepth = 256;
 
 // A line between the texts, so a patch is not glued to a last line the file left unterminated.
 constexpr std::byte kStylesheetSeparator{'\n'};
@@ -86,6 +101,75 @@ Render::OverlayTexture DecodeForOverlay(std::span<const std::byte> bytes, std::s
 	return texture;
 }
 
+// How deep the document's elements nest at most, read as RmlUi's XML parser reads tags: an element
+// opens at "<" and a letter and closes at "</" or at the "/>" ending its tag, a quoted attribute's
+// value holding neither, and comments and declarations ("<!", "<?") hold no element. An element left
+// open counts as nesting what follows, so the depth is never less than RmlUi's.
+std::size_t DocumentDepth(std::string_view text)
+{
+	std::size_t depth = 0;
+	std::size_t deepest = 0;
+	std::size_t at = 0;
+	const auto skipPast = [&](std::string_view end)
+	{
+		const std::size_t found = text.find(end, at);
+		at = found == std::string_view::npos ? text.size() : found + end.size();
+	};
+	while ((at = text.find('<', at)) != std::string_view::npos)
+	{
+		++at;
+		if (text.substr(at).starts_with("!--"))
+			skipPast("-->");
+		else if (at < text.size() && (text[at] == '!' || text[at] == '?'))
+			skipPast(">");
+		else if (at < text.size() && text[at] == '/')
+		{
+			depth -= depth > 0 ? 1 : 0;
+			skipPast(">");
+		}
+		else if (at < text.size() && std::isalpha(static_cast<unsigned char>(text[at])) != 0)
+		{
+			deepest = std::max(deepest, ++depth);
+			char quote = 0;
+			char last = 0;
+			for (; at < text.size() && (quote != 0 || text[at] != '>'); ++at)
+			{
+				if (quote == 0 && (text[at] == '"' || text[at] == '\''))
+					quote = text[at];
+				else if (text[at] == quote)
+					quote = 0;
+				last = text[at];
+			}
+			if (last == '/')
+				--depth;
+		}
+	}
+	return deepest;
+}
+
+
+// The checks of a document, template or stylesheet made before RmlUi parses it: its size, and a
+// document's depth. Logs the problem, naming the file, and returns false for one that breaks them.
+bool CheckDocument(std::span<const std::byte> bytes, const std::string &path)
+{
+	std::string problem;
+	if (bytes.size() > kMaxDocumentBytes)
+		problem = std::format(
+		    "it is {} bytes, more than the {} a document may be", bytes.size(), kMaxDocumentBytes);
+	else if (path.ends_with(kDocumentExtension))
+	{
+		const std::size_t depth =
+		    DocumentDepth({reinterpret_cast<const char *>(bytes.data()), bytes.size()});
+		if (depth > kMaxDocumentDepth)
+			problem = std::format(
+			    "its elements nest {} deep, past the {} a document may", depth, kMaxDocumentDepth);
+	}
+	if (problem.empty())
+		return true;
+	Core::Log(Core::Severity::Error, kUi, "'{}' is refused: {}", path, problem);
+	return false;
+}
+
 static_assert(sizeof(Rml::Vertex) == sizeof(Render::OverlayVertex));
 static_assert(offsetof(Rml::Vertex, colour) == offsetof(Render::OverlayVertex, color));
 static_assert(offsetof(Rml::Vertex, tex_coord) == offsetof(Render::OverlayVertex, uv));
@@ -106,6 +190,9 @@ Rml::FileHandle FileInterface::Open(const Rml::String &path)
 		auto bytes =
 		    path.ends_with(kStylesheetExtension) ? ReadStylesheet(m_files, path) : m_files.Read(path);
 		if (!bytes)
+			return 0;
+		if ((path.ends_with(kDocumentExtension) || path.ends_with(kStylesheetExtension)) &&
+		    !CheckDocument(*bytes, path))
 			return 0;
 		const Rml::FileHandle handle = m_next++;
 		m_open.emplace(handle, std::make_unique<OpenFile>(OpenFile{std::move(*bytes), 0}));
@@ -159,7 +246,8 @@ size_t FileInterface::Read(void *buffer, size_t size, Rml::FileHandle file)
 	if (!open)
 		return 0;
 	const std::size_t count = std::min(size, open->bytes.size() - open->offset);
-	std::memcpy(buffer, open->bytes.data() + open->offset, count);
+	if (count > 0)
+		std::memcpy(buffer, open->bytes.data() + open->offset, count);
 	open->offset += count;
 	return count;
 }

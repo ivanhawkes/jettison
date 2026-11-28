@@ -26,6 +26,14 @@ namespace Jettison::Physics::Detail
 {
 namespace
 {
+// The farthest a shape's point or size reaches, in metres. A shape is a model's, about its body, and
+// in float a coordinate past this is held to a metre, which no shape a body collides as is; within it
+// Jolt's convex builder, which takes a face's area squared, a coordinate to the fourth power, stays
+// far inside a float. A point at 1.8e31 m from a fuzzed collision file overflowed it, and Jolt asserted
+// (normal_len > 0, ConvexHullBuilder::DetermineMaxError) where it should have refused (2026-11-28).
+constexpr float kMaxCoordinate = 1.0e7f;
+
+
 [[noreturn]] void Refuse(std::string_view name, std::string_view problem)
 {
 	throw std::invalid_argument{std::format("Physics: shape '{}' {}", name, problem)};
@@ -34,7 +42,7 @@ namespace
 
 void RequireSize(std::string_view name, std::string_view what, float value)
 {
-	if (!std::isfinite(value) || value <= 0.0f)
+	if (!std::isfinite(value) || value <= 0.0f || value > kMaxCoordinate)
 		Refuse(name, std::format("has a {} of {}, which is not a size", what, value));
 }
 
@@ -43,6 +51,8 @@ void RequirePoint(std::string_view name, const glm::vec3 &point)
 {
 	if (!std::isfinite(point.x) || !std::isfinite(point.y) || !std::isfinite(point.z))
 		Refuse(name, "has a point that is not finite");
+	if (std::max({std::abs(point.x), std::abs(point.y), std::abs(point.z)}) > kMaxCoordinate)
+		Refuse(name, std::format("has a point farther than {} m from its centre", kMaxCoordinate));
 }
 
 

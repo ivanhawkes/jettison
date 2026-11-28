@@ -32,6 +32,12 @@ constexpr ktx_uint32_t kVkBc7Srgb = 146;
 // test content's largest, 4096.
 constexpr std::uint32_t kMaxTextureDimension = 16384;
 
+// The largest width or height an image stb_image reads is decoded at: a development texture or a UI
+// image, whose mip chain is built here texel by texel, where a shipped texture is KTX 2 and arrives
+// with its chain. The test content's largest texture is 4096 a side; a PNG of 16384 a side, a few
+// KiB of a fuzzed file, took the image fuzz target over ten seconds to build the chain of (2026-11-28).
+constexpr std::uint32_t kMaxImageDimension = 4096;
+
 // RGBA8's, the widest texel a texture is read as.
 constexpr std::uint64_t kTexelBytes = 4;
 
@@ -110,13 +116,67 @@ void ProbeSize(std::span<const std::byte> bytes, std::string_view name)
 }
 
 
-void CheckDimensions(std::uint64_t width, std::uint64_t height, std::string_view name)
+// A KTX 2 file's layout (the KTX 2.0 specification, sections 3.1 to 3.5): an 80-byte header whose
+// level count is at 40, its index of the data format descriptor's, the key/value data's and the
+// supercompression global data's offsets and lengths from 48, then a level index of 24 bytes a level,
+// each its offset, length and uncompressed length.
+constexpr std::size_t kKtx2HeaderBytes = 80;
+constexpr std::size_t kKtx2LevelCountAt = 40;
+constexpr std::size_t kKtx2DfdAt = 48;
+constexpr std::size_t kKtx2KvdAt = 56;
+constexpr std::size_t kKtx2SgdAt = 64;
+constexpr std::size_t kKtx2LevelBytes = 24;
+constexpr std::size_t kU32 = sizeof(std::uint32_t);
+constexpr std::size_t kU64 = sizeof(std::uint64_t);
+constexpr unsigned kBitsPerByte = 8;
+
+
+std::uint64_t LittleEndian(std::span<const std::byte> bytes, std::size_t at, std::size_t width)
 {
-	if (width > kMaxTextureDimension || height > kMaxTextureDimension)
+	std::uint64_t value = 0;
+	for (std::size_t index = width; index-- > 0;)
+		value = (value << kBitsPerByte) | std::to_integer<std::uint64_t>(bytes[at + index]);
+	return value;
+}
+
+
+// Every region a KTX 2 file's index names lies within the file, before libktx reads it: libktx
+// allocates each region's claimed length before reading it, and a fuzzed file's supercompression
+// global data claimed 0x4100000000000000 bytes (texture2.c, ktxTexture2_constructFromStreamAndHeader,
+// 2026-11-28).
+void CheckKtx2Layout(std::span<const std::byte> bytes, std::string_view name)
+{
+	if (bytes.size() < kKtx2HeaderBytes)
+		Refuse(name, "not a KTX 2 file it can read: shorter than a KTX 2 header");
+	const std::uint64_t levels =
+	    std::max<std::uint64_t>(LittleEndian(bytes, kKtx2LevelCountAt, kU32), 1);
+	if (levels > (bytes.size() - kKtx2HeaderBytes) / kKtx2LevelBytes)
+		Refuse(name, std::format("its {} levels' index does not fit in the file", levels));
+	const auto within = [&bytes](std::uint64_t offset, std::uint64_t length)
+	{ return offset <= bytes.size() && length <= bytes.size() - offset; };
+	const bool regions =
+	    within(LittleEndian(bytes, kKtx2DfdAt, kU32), LittleEndian(bytes, kKtx2DfdAt + kU32, kU32)) &&
+	    within(LittleEndian(bytes, kKtx2KvdAt, kU32), LittleEndian(bytes, kKtx2KvdAt + kU32, kU32)) &&
+	    within(LittleEndian(bytes, kKtx2SgdAt, kU64), LittleEndian(bytes, kKtx2SgdAt + kU64, kU64));
+	if (!regions)
+		Refuse(name, "its index names data past the end of the file");
+	for (std::uint64_t level = 0; level < levels; ++level)
+	{
+		const std::size_t at = kKtx2HeaderBytes + static_cast<std::size_t>(level) * kKtx2LevelBytes;
+		if (!within(LittleEndian(bytes, at, kU64), LittleEndian(bytes, at + kU64, kU64)))
+			Refuse(name, std::format("its level {} lies past the end of the file", level));
+	}
+}
+
+
+void CheckDimensions(
+    std::uint64_t width, std::uint64_t height, std::string_view name,
+    std::uint64_t most = kMaxTextureDimension)
+{
+	if (width > most || height > most)
 		Refuse(
 		    name, std::format(
-		              "it is {} by {}, past the {} a side a texture is read at", width, height,
-		              kMaxTextureDimension));
+		              "it is {} by {}, past the {} a side a texture is read at", width, height, most));
 }
 } // namespace
 
@@ -137,6 +197,7 @@ TextureData DecodeKtx2(std::span<const std::byte> bytes, TranscodeTarget target,
 {
 	ProbeSize(bytes, name);
 	ktxTexture2 *pRaw = nullptr;
+	CheckKtx2Layout(bytes, name);
 	const KTX_error_code created = ktxTexture2_CreateFromMemory(
 	    reinterpret_cast<const ktx_uint8_t *>(bytes.data()), bytes.size(), KTX_TEXTURE_CREATE_NO_FLAGS,
 	    &pRaw);
@@ -223,7 +284,9 @@ TextureData DecodeImage(std::span<const std::byte> bytes, bool srgb, std::string
 	        reinterpret_cast<const stbi_uc *>(bytes.data()), static_cast<int>(bytes.size()), &width,
 	        &height, &channels) == 0)
 		Refuse(name, std::string{"stb_image cannot decode it: "} + stbi_failure_reason());
-	CheckDimensions(static_cast<std::uint64_t>(width), static_cast<std::uint64_t>(height), name);
+	CheckDimensions(
+	    static_cast<std::uint64_t>(width), static_cast<std::uint64_t>(height), name,
+	    kMaxImageDimension);
 	stbi_uc *pPixels = stbi_load_from_memory(
 	    reinterpret_cast<const stbi_uc *>(bytes.data()), static_cast<int>(bytes.size()), &width,
 	    &height, &channels, STBI_rgb_alpha);

@@ -21,6 +21,7 @@ jettison_add_module(render
 		include/jettison/render/Culling.h
 		include/jettison/render/DebugDraw.h
 		include/jettison/render/DrawBatches.h
+		include/jettison/render/FontFile.h
 		include/jettison/render/FrameData.h
 		include/jettison/render/FrameStats.h
 		include/jettison/render/IRenderer.h
@@ -43,6 +44,7 @@ jettison_add_module(render
 		src/Culling.cpp
 		src/DebugDraw.cpp
 		src/DrawBatches.cpp
+		src/FontFile.cpp
 		src/Material.cpp
 		src/Overlay.cpp
 		src/Particles.cpp

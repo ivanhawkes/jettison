@@ -1,4 +1,7 @@
 include(FetchContent)
+# The patches below are applied with git, to a clone put back as it was first, so a changed list
+# applies again.
+find_package(Git REQUIRED)
 if(JETTISON_PRESENTATION)
 	find_package(Vulkan REQUIRED)
 endif()
@@ -144,7 +147,12 @@ if(JETTISON_PRESENTATION)
 	# Game UI, behind ui (phase 8b). The samples, Lua, Tracy and the plugins are off; RmlUi's own
 	# warnings are not this project's gate. Its containers stay the third-party ones it bundles
 	# (robin_hood maps), private to its library: no RmlUi type crosses ui's public headers. In every
-	# presentation tree since 8b.
+	# presentation tree since 8b. One patch, rmlui-null-glyphs.patch, for two null pointers FreeType
+	# hands over that FreeTypeInterface.cpp follows, each found by the font fuzz target (2026-11-28):
+	# a face whose file names no family has a null family_name, which was copied into a string, a
+	# null read in strlen; and a glyph FreeType rendered no bitmap for, a null buffer under a width
+	# and rows, was copied from row by row. The patch files such a face under no family, which
+	# RmlUi then refuses to load, and takes such a glyph as one of no bitmap.
 	block()
 		set(RMLUI_SAMPLES OFF)
 		set(RMLUI_FONT_ENGINE freetype)
@@ -156,6 +164,8 @@ if(JETTISON_PRESENTATION)
 		  GIT_REPOSITORY https://github.com/mikke89/RmlUi.git
 		  GIT_TAG 6.3
 		  GIT_SHALLOW TRUE
+		  PATCH_COMMAND "${GIT_EXECUTABLE}" -C <SOURCE_DIR> checkout -- .
+		  COMMAND "${GIT_EXECUTABLE}" -C <SOURCE_DIR> apply "${CMAKE_CURRENT_SOURCE_DIR}/patches/rmlui-null-glyphs.patch"
 		  SYSTEM
 		  EXCLUDE_FROM_ALL
 		)
@@ -306,10 +316,18 @@ target_include_directories(FastNoiseLite SYSTEM INTERFACE "${fastnoiselite_SOURC
 
 # Tangent generation, behind math's Tangents.h: the reference MikkTSpace, which is what glTF
 # specifies. It has no releases and one commit. In every tree since phase 2, because math links it.
+# One patch, mikktspace-rotate-shift.patch: its quicksort's pseudo-random rotation shifts a 32-bit
+# value by 32 when the rotation is 0, which is undefined, and which UBSan stopped the geometry,
+# animation and render suites for once the sanitised tree compiled C with the sanitisers
+# (2026-11-28). The patch masks the shift to 0, what x86-64 does with the shift as written, so the
+# same tangents come out. The repository has had no commit since 2020.
 FetchContent_Declare(
   mikktspace
   GIT_REPOSITORY https://github.com/mmikk/MikkTSpace.git
   GIT_TAG 3e895b49d05ea07e4c2133156cfa94369e19e409
+  PATCH_COMMAND "${GIT_EXECUTABLE}" -C <SOURCE_DIR> checkout -- .
+  COMMAND "${GIT_EXECUTABLE}" -C <SOURCE_DIR> apply
+    "${CMAKE_CURRENT_SOURCE_DIR}/patches/mikktspace-rotate-shift.patch"
   SOURCE_SUBDIR _fetchcontent_no_cmake
 )
 FetchContent_MakeAvailable(mikktspace)
@@ -412,7 +430,7 @@ endif()
 #    this project's gate, so ASTCENC_WERROR is off.
 #  - libktx publicly defines DEBUG in Debug builds. It is linked privately by whatever uses it,
 #    so the definition stays out of public engine headers.
-#  - Three patches (patches/), applied to the clone as it stands, so a changed list applies again:
+#  - Five patches (patches/), applied to the clone as it stands, so a changed list applies again:
 #    - ktx-uastc-rdo-hash.patch: Basis Universal's UASTC rate-distortion pass hashes a key's
 #      padding, four bytes nothing writes, into its history table, so a lookup could miss what it
 #      holds and the same image encode to other bytes. Found by the cook's tree giving a different
@@ -431,6 +449,20 @@ endif()
 #      texture's, which every later failure destructs with it. LeakSanitizer fails render's suite
 #      for it, which refuses such files; the patch destructs the stream there. Unfixed in
 #      KTX-Software's main on 2026-11-28 (lib/src/texture2.c).
+#    - ktx-method-types.patch: a texture's method table holds its KTX 2 methods cast to the table's
+#      types, which take a ktxTexture, so every call through it (ktxTexture_Destroy and the other
+#      macros, the writer's own calls) calls a function through another type than its own, which C
+#      leaves undefined. UBSan stopped render's suite for it once the sanitised tree compiled C with
+#      the sanitisers (2026-11-28); the patch fills the table with functions of its types that call
+#      the methods. The KTX 1 table, which nothing here makes a texture with, is left as it is.
+#    - ktx-etc1s-data.patch, for two of an ETC1S texture's data a fuzzed file broke, each found by
+#      the ktx2 fuzz target (2026-11-28). Its palettes and Huffman tables are decoded from its
+#      supercompression global data and the decoders' failures ignored (lib/basis_transcode.cpp), so
+#      a file whose tables do not decode was transcoded with empty ones, where Basis Universal asserts
+#      (decode_huffman, m_code_sizes.size()) in a Debug tree and reads past them in another; the
+#      patch refuses the file as libktx refuses other bad data (KTX_FILE_DATA_ERROR). And a run
+#      length longer than 32 bits asserted (decode_vlc, assert(0)) where the transcoder goes on to
+#      refuse the run as longer than the slice; the patch leaves that refusal alone to answer.
 #
 # zstd, for pack files (vfs, phase 11a) and for libktx's supercompressed textures, one copy for
 # all. The library alone, static, from zstd's own CMake build: no programs, no legacy formats
@@ -487,6 +519,8 @@ block()
 	    "${CMAKE_CURRENT_SOURCE_DIR}/patches/ktx-uastc-rdo-hash.patch"
 	    "${CMAKE_CURRENT_SOURCE_DIR}/patches/ktx-writer-leak.patch"
 	    "${CMAKE_CURRENT_SOURCE_DIR}/patches/ktx-short-header-leak.patch"
+	    "${CMAKE_CURRENT_SOURCE_DIR}/patches/ktx-method-types.patch"
+	    "${CMAKE_CURRENT_SOURCE_DIR}/patches/ktx-etc1s-data.patch"
 	  SYSTEM
 	  EXCLUDE_FROM_ALL
 	)
@@ -606,12 +640,17 @@ add_subdirectory(wamr)
 # over UDP, so one stack carries an idle game's requests and a real-time game's snapshots and inputs
 # (decided 2026-11-20). TCP through Asio would serve the first and not the second; yojimbo's connect
 # tokens would shape the game's accounts. 1.3.18 is the newest release. Its build puts its headers
-# on the directory, not the target, so the target is given them here.
+# on the directory, not the target, so the target is given them here. One patch, enet-offsetof.patch:
+# a datagram's header length is taken as the address of a member of a null pointer, which UBSan stops
+# net's suite for (member access within null pointer, protocol.c) once the sanitised tree compiles C
+# with the sanitisers (2026-11-28); the patch uses offsetof, the same number defined.
 FetchContent_Declare(
   enet
   GIT_REPOSITORY https://github.com/lsalzman/enet.git
   GIT_TAG v1.3.18
   GIT_SHALLOW TRUE
+  PATCH_COMMAND "${GIT_EXECUTABLE}" -C <SOURCE_DIR> checkout -- .
+  COMMAND "${GIT_EXECUTABLE}" -C <SOURCE_DIR> apply "${CMAKE_CURRENT_SOURCE_DIR}/patches/enet-offsetof.patch"
   SYSTEM
 )
 FetchContent_MakeAvailable(enet)

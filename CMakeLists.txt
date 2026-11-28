@@ -29,7 +29,11 @@ include(JettisonModule)
 # its own tests and not ours.
 option(JETTISON_BUILD_TESTS "Build the engine's unit tests and register them with CTest"
 	${PROJECT_IS_TOP_LEVEL})
-if(JETTISON_BUILD_TESTS)
+
+# The fuzz targets, one a format the engine loads (source/test/fuzz), and the replay of each one's
+# seed corpus as a test. The clang-fuzz preset sets it, with the flags libFuzzer needs.
+option(JETTISON_FUZZ "Build the fuzz targets and register their corpus replays with CTest" OFF)
+if(JETTISON_BUILD_TESTS OR JETTISON_FUZZ)
 	enable_testing()
 endif()
 

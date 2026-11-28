@@ -17,6 +17,7 @@
 #include <chrono>
 #include <filesystem>
 #include <fstream>
+#include <iterator>
 #include <memory>
 #include <optional>
 #include <span>
@@ -348,6 +349,21 @@ TEST_CASE("Script: a definition is refused for what does not fit it")
 	};
 	module("starts.wasm", std::string_view{"\x08\x01\0", 3});
 	module("initialised.wasm", std::string_view{"\x07\x16\x01\x12__post_instantiate\0\0", 24});
+
+	// Modules whose header or sections are not the format's, refused before WAMR reads them, and one
+	// whose sections are whole but hold no types, which WAMR refuses.
+	const auto bytes = [&](std::string_view name, std::string_view contents)
+	{ std::ofstream{scratch / name, std::ios::binary} << contents; };
+	using namespace std::string_view_literals;
+	bytes("version-2.wasm", "\0asm\x02\0\0\0"sv);
+	bytes("past.wasm", "\0asm\x01\0\0\0\x01\x10\x01"sv);
+	bytes("unknown.wasm", "\0asm\x01\0\0\0\x0d\0"sv);
+	bytes("long-size.wasm", "\0asm\x01\0\0\0\x01\x80\x80\x80\x80\x80\0"sv);
+	bytes(
+	    "many-types.wasm",
+	    "\0asm\x01\0\0\0\x01\x13\xfc\x9f\xff\x76\x9f\xfe\x81\x07\x7f\0\x01\x01\x7f\x01\x7f\0\x01\x01\x7f"sv);
+	bytes("no-types.wasm", "\0asm\x01\0\0\0\x01\x02\x01\x7f"sv);
+	bytes("large.wasm", std::string(std::size_t{4} * 1024 * 1024 + 1, '\0'));
 	Vfs::FileSystem files = Modules();
 	files.AddMount({"scratch", scratch, false});
 	Script::ScriptHost host{files};
@@ -418,8 +434,40 @@ TEST_CASE("Script: a definition is refused for what does not fit it")
 	CHECK(refused(definition) == "Script 'events': there is no module at 'missing.wasm'");
 	definition = Events();
 	definition.module = "garbage.wasm";
+	CHECK(
+	    refused(definition) ==
+	    "Script 'events': its module 'garbage.wasm' is not a WebAssembly module of version 1");
+	definition.module = "version-2.wasm";
+	CHECK(
+	    refused(definition) ==
+	    "Script 'events': its module 'version-2.wasm' is not a WebAssembly module of version 1");
+	definition.module = "past.wasm";
+	CHECK(
+	    refused(definition) ==
+	    "Script 'events': its module 'past.wasm' has a section of 16 bytes, past its end");
+	definition.module = "unknown.wasm";
+	CHECK(
+	    refused(definition) == "Script 'events': its module 'unknown.wasm' has a section of id 13, "
+	                           "which the format has none of");
+	definition.module = "long-size.wasm";
+	CHECK(
+	    refused(definition) ==
+	    "Script 'events': its module 'long-size.wasm' has a section whose size or count is not a "
+	    "32-bit number");
+
+	// The script fuzz target's module of 29 bytes whose type section claims 249,548,796 types, for
+	// which WAMR allocated 2 GiB.
+	definition.module = "many-types.wasm";
+	CHECK(
+	    refused(definition) ==
+	    "Script 'events': its module 'many-types.wasm' has a section of 249548796 entries in 15 bytes");
+	definition.module = "large.wasm";
+	CHECK(
+	    refused(definition) == "Script 'events': its module 'large.wasm' is 4194305 bytes, more than "
+	                           "the 4194304 a module may be");
+	definition.module = "no-types.wasm";
 	CHECK(refused(definition)
-	          .starts_with("Script 'events': 'garbage.wasm' is not a module it can run: "));
+	          .starts_with("Script 'events': 'no-types.wasm' is not a module it can run: "));
 	definition.module = "starts.wasm";
 	CHECK(refused(definition) == "Script 'events': its module 'starts.wasm' has a start function");
 	definition.module = "initialised.wasm";
@@ -436,6 +484,54 @@ TEST_CASE("Script: a definition is refused for what does not fit it")
 	CHECK_THROWS_WITH_AS(
 	    host.Load("other", other),
 	    "Script 'other': input 'doubled' is answered by script 'events' already", Script::ScriptError);
+}
+
+
+TEST_CASE(
+    "Script: a module cut short or with any byte changed is refused or loads, and reads nothing past "
+    "it")
+{
+	std::ifstream in{
+	    std::filesystem::path{JETTISON_SCRIPT_TEST_MODULES} / "limits.wasm", std::ios::binary};
+	const std::string whole{std::istreambuf_iterator<char>{in}, {}};
+	REQUIRE(whole.size() > 8);
+	const std::filesystem::path scratch =
+	    std::filesystem::path{JETTISON_SCRIPT_TEST_OUTPUT} / "malformed-scripts";
+	std::filesystem::create_directories(scratch);
+	Vfs::FileSystem files;
+	files.AddMount({"scratch", scratch, false});
+	Script::ScriptDefinition definition;
+	definition.module = "malformed.wasm";
+
+	// Each copy by a host of its own, as a mod's module is loaded once a session.
+	std::size_t loaded = 0;
+	std::size_t refused = 0;
+	const auto load = [&](const std::string &bytes)
+	{
+		std::ofstream{scratch / definition.module, std::ios::binary | std::ios::trunc} << bytes;
+		Script::ScriptHost host{files};
+		try
+		{
+			host.Load("malformed", definition);
+			++loaded;
+		}
+		catch (const Script::ScriptError &error)
+		{
+			CHECK(std::string_view{error.what()}.starts_with("Script 'malformed': "));
+			++refused;
+		}
+	};
+	for (std::size_t length = 0; length < whole.size(); ++length)
+		load(whole.substr(0, length));
+	for (std::size_t at = 0; at < whole.size(); ++at)
+	{
+		std::string changed = whole;
+		changed[at] = static_cast<char>(changed[at] ^ 0xff);
+		load(changed);
+	}
+	load(whole);
+	CHECK(loaded >= 1);
+	CHECK(refused >= 1);
 }
 
 

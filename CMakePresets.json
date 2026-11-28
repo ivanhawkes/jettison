@@ -52,6 +52,7 @@
 			"inherits": "clang-headless",
 			"binaryDir": "${sourceDir}/build/clang-asan",
 			"cacheVariables": {
+				"CMAKE_C_FLAGS": "-fsanitize=address,undefined -fno-omit-frame-pointer -fno-sanitize-recover=all",
 				"CMAKE_CXX_FLAGS": "-fsanitize=address,undefined -fno-omit-frame-pointer -fno-sanitize-recover=all",
 				"CMAKE_EXE_LINKER_FLAGS": "-fsanitize=address,undefined",
 				"CMAKE_SHARED_LINKER_FLAGS": "-fsanitize=address,undefined"
@@ -66,6 +67,22 @@
 				"JETTISON_PRESENTATION": "OFF",
 				"CMAKE_DISABLE_FIND_PACKAGE_Vulkan": "ON",
 				"JETTISON_PLANNED_DEPENDENCIES": "OFF"
+			}
+		},
+		{
+			"name": "clang-fuzz",
+			"displayName": "Clang -O1 + X11, the fuzz targets: libFuzzer with address and undefined sanitizers",
+			"inherits": "clang-headless",
+			"binaryDir": "${sourceDir}/build/clang-fuzz",
+			"cacheVariables": {
+				"JETTISON_FUZZ": "ON",
+				"JETTISON_BUILD_TESTS": "OFF",
+				"CMAKE_C_FLAGS": "-fsanitize=fuzzer-no-link,address,undefined -fno-omit-frame-pointer -fno-sanitize-recover=all",
+				"CMAKE_CXX_FLAGS": "-fsanitize=fuzzer-no-link,address,undefined -fno-omit-frame-pointer -fno-sanitize-recover=all",
+				"CMAKE_C_FLAGS_DEBUG": "-g -O1",
+				"CMAKE_CXX_FLAGS_DEBUG": "-g -O1",
+				"CMAKE_EXE_LINKER_FLAGS": "-fsanitize=address,undefined",
+				"CMAKE_SHARED_LINKER_FLAGS": "-fsanitize=address,undefined"
 			}
 		}
 	],
@@ -89,6 +106,10 @@
 		{
 			"name": "clang-cpu",
 			"configurePreset": "clang-cpu"
+		},
+		{
+			"name": "clang-fuzz",
+			"configurePreset": "clang-fuzz"
 		}
 	],
 	"testPresets": [

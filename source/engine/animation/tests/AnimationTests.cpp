@@ -287,6 +287,15 @@ TEST_CASE("Clip file: a track or an event the player could not play is refused, 
 	refused(track + "    events:\n      - {time: 0.5}\n");
 	refused(track + "    events:\n      - {time: -1, name: early}\n");
 	refused("  - name: a\n    events:\n      - {time: 0, name: now}\n");
+
+	// Another version, and text that is not the file's YAML, found by the clip fuzz target: the
+	// archive's own errors named no file, and the version's was not a FormatError.
+	CHECK_THROWS_WITH_AS(
+	    ReadClipFile("version: 2\nclips: []\n", "animations/bad.clip.yaml"),
+	    doctest::Contains("animations/bad.clip.yaml"), Jettison::Serialise::FormatError);
+	CHECK_THROWS_WITH_AS(
+	    ReadClipFile("version: 1\nclips: [{name: a, tracks: 3}]\n", "animations/bad.clip.yaml"),
+	    doctest::Contains("animations/bad.clip.yaml"), Jettison::Serialise::FormatError);
 }
 
 

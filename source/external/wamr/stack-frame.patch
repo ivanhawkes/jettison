@@ -1,0 +1,38 @@
+--- a/core/iwasm/common/wasm_runtime_common.c
++++ b/core/iwasm/common/wasm_runtime_common.c
+@@ -7877,7 +7877,7 @@
+ wasm_runtime_detect_native_stack_overflow(WASMExecEnv *exec_env)
+ {
+     uint8 *boundary = exec_env->native_stack_boundary;
+-    RECORD_STACK_USAGE(exec_env, (uint8 *)&boundary);
++    RECORD_STACK_USAGE(exec_env, (uint8 *)__builtin_frame_address(0));
+     if (boundary == NULL) {
+         /* the platform doesn't support os_thread_get_stack_boundary */
+         return true;
+@@ -7887,7 +7887,7 @@
+     uint32 guard_page_count = STACK_OVERFLOW_CHECK_GUARD_PAGE_COUNT;
+     boundary = boundary + page_size * guard_page_count;
+ #endif
+-    if ((uint8 *)&boundary < boundary) {
++    if ((uint8 *)__builtin_frame_address(0) < boundary) {
+         wasm_runtime_set_exception(wasm_runtime_get_module_inst(exec_env),
+                                    "native stack overflow");
+         return false;
+@@ -7900,7 +7900,7 @@
+                                                uint32 requested_size)
+ {
+     uint8 *boundary = exec_env->native_stack_boundary;
+-    RECORD_STACK_USAGE(exec_env, (uint8 *)&boundary);
++    RECORD_STACK_USAGE(exec_env, (uint8 *)__builtin_frame_address(0));
+     if (boundary == NULL) {
+         /* the platform doesn't support os_thread_get_stack_boundary */
+         return true;
+@@ -7912,7 +7912,7 @@
+ #endif
+     /* adjust the boundary for the requested size */
+     boundary = boundary - WASM_STACK_GUARD_SIZE + requested_size;
+-    if ((uint8 *)&boundary < boundary) {
++    if ((uint8 *)__builtin_frame_address(0) < boundary) {
+         wasm_runtime_set_exception(wasm_runtime_get_module_inst(exec_env),
+                                    "native stack overflow");
+         return false;

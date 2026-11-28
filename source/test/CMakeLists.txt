@@ -82,6 +82,10 @@ if(JETTISON_BUILD_TESTS)
 		-DEXECUTABLE=$<TARGET_FILE:devtools_alone> -P "${CMAKE_CURRENT_SOURCE_DIR}/CheckDevtoolsAlone.cmake")
 endif()
 
+if(JETTISON_FUZZ)
+	add_subdirectory(fuzz)
+endif()
+
 # One executable linking the engine and every third-party library it has or plans to have (see
 # source/external/CMakeLists.txt). The gate runs it after the Debug build. The libraries the
 # engine links privately are named here as well, because the probe calls each of them directly.
