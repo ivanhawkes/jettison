@@ -335,13 +335,6 @@ Until then RmlUi's defaults draw nothing for them, and no screen uses them.
 - The game UI's own stylesheet in the same palette, so a game's screens and the tools read as one
   design: an RmlUi stylesheet over the VFS, no engine work.
 - The palette as a player setting on a game's own settings screen.
-- A light-attachment swap noticed mid-run. `ApplyThemeIfChanged` answers only when a setting
-  changes.
-- The darkest tones exact on the palette, which wants the sRGB encoding done in the UI's own shader
-  over a UNORM attachment: ImGui packs a vertex colour into 8-bit linear bytes, so `#1e1e2e` lands
-  as `#1c1c2e`. This is the further work of the theme review's finding F5
-  ([the record](history/devtools-theme.md#f5-in-detail--the-colour-contract)); finding F6 carries
-  none, its corrected explanation committed and its stock start tested.
 
 **What exists.** The dev tools are themed on Catppuccin's four varieties, switched live by the
 `dev.palette` and `dev.ui_scale` settings
@@ -367,6 +360,7 @@ Until then RmlUi's defaults draw nothing for them, and no screen uses them.
 | Air over a mesh | The haze is the planet's own surface's and the sky's, not that of a mesh within the air, nor of a transparent draw. Two bodies' air and rings are not sorted where they overlap on the screen. |
 | The environment capture's planets | The capture draws a body as a sphere of its mesh's colour, without its maps or clouds. |
 | A gas giant's bands | The test content's Corva is one colour under its air. |
+| A swapchain whose format changes when it is recreated | `Renderer::RecreateSwapchain` throws; surviving it rebuilds the output and overlay pipelines and re-initialises ImGui's Vulkan backend, whose fragment stage follows the format. lavapipe cannot change format, so it is tested on a GPU. |
 
 **Feature doc:** [rendering](rendering.md).
 
