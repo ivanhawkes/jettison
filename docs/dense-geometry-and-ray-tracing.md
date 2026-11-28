@@ -686,7 +686,7 @@ order, logging each step with the model's name:
 | [J24](roadmap.md#j24) | Transparent draws stay out of the TLAS; its tinted shadow would be the first any-hit shader. |
 | [J25](roadmap.md#j25) | J46 changes how ambient occlusion samples, not whether it runs at half size. |
 | [J27](roadmap.md#j27) | Its level-of-detail row moves to J37. Point and spot shadows come with J45 on devices with ray queries; the fallback still has none. The cook's tangents unblock its normal-mapping row. The bodies' analytic shadow test is shared with its planets' shadows row. |
-| [J28](roadmap.md#j28) | Its reference frames are recorded again as each path switches on. |
+| [J28](history.md#j28) | Its reference frames are recorded again as each path switches on. |
 | [Characters](characters.md) | J42 needs J51's deform pass; J59's hair is the first non-opaque ray-query geometry |
 
 ## Expected issues

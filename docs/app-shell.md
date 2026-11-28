@@ -406,7 +406,7 @@ for a frame of a game's world, such as its bodies with `--run "bodies on"`.
 - The shell gives scripts no sender: a game names its own through `Scripts().SendCommandsTo`
   ([scripts](scripts.md#who-a-scripts-commands-are-from)).
 - There is no prebuilt SDK, so a game builds the engine from source: [J18](roadmap.md#j18).
-- No reference view holds the ground sample's frames: [J28](roadmap.md#j28).
+- No reference view holds the ground sample's frames: [J28](history.md#j28).
 - The mods' scripts are the shell's, loaded beside the session's world, so a program that starts a
   session with no shell runs none of them.
 

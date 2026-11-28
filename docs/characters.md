@@ -385,7 +385,7 @@ flowchart LR
 | [J44](roadmap.md#j44) | Hair's non-opaque geometry is the shadow rays' first candidate test |
 | [J49](roadmap.md#j49) | Hair's alpha to coverage gives way to a dither temporal AA resolves |
 | [J21](roadmap.md#j21) | Lip sync needs a voice's play position from audio |
-| [J28](roadmap.md#j28) | Its skinned reference frames are recorded again in J51 if they move |
+| [J28](history.md#j28) | Its skinned reference frames are recorded again in J51 if they move |
 | [Dense geometry](dense-geometry-and-ray-tracing.md) | Its "no alpha-tested geometry" holds until J59; its deforming meshes come from J51 |
 
 ## Expected issues
