@@ -440,8 +440,8 @@ loaders with it ([models](#models-and-textures)).
   | --- | --- |
   | `POSITION` | float, with its bounds |
   | `NORMAL`, `TANGENT` | 16-bit signed, normalised |
-  | `TEXCOORD_n` | 16-bit unsigned, normalised, where every value is within [0, 1]; float otherwise |
-  | `COLOR_n`, `WEIGHTS_n` | 16-bit unsigned, normalised |
+  | `TEXCOORD_n`, `COLOR_n` | 16-bit unsigned, normalised, where every value is within [0, 1]; float otherwise, kept exactly |
+  | `WEIGHTS_n` | 16-bit unsigned, normalised, clamped to [0, 1] as glTF requires, with a warning naming the file, mesh, primitive and attribute |
   | `JOINTS_n` | 8-bit unsigned, or 16-bit past joint 255 |
   | any other | float |
 
@@ -459,9 +459,12 @@ loaders with it ([models](#models-and-textures)).
   record names the source by (`GltfFile::CookKey`, empty for a file that was not cooked).
 - **The rest, as it was.** Nodes, materials, textures, samplers, cameras and lights are copied. A
   skin's matrices and a clip's times and values are float accessors with their bounds, stored
-  uncompressed, a shared one once; images are stored in the binary chunk with their MIME type (an
-  image in a file of its own is refused until the cook reads source trees). A primitive that is not
-  triangles or has morph targets is refused, naming the file.
+  uncompressed, a shared one once. A primitive that is not triangles or has morph targets is
+  refused, naming the file.
+- **Images.** Given KTX 2 files for them, as the cook gives every model's, each image is stored in
+  the binary chunk as `image/ktx2` and every texture names it through `KHR_texture_basisu`, used and
+  required, with no fallback image. Given none, images are copied into the binary chunk with their
+  MIME type, and one in a file of its own is refused.
 
 The same source, settings and key give the same bytes. The geometry suite cooks a rock of 5,120
 triangles into five levels of 5,120, 2,560, 1,280, 640 and 320 with errors 0, 0.0037, 0.0078,

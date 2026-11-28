@@ -34,7 +34,7 @@ reviewed on 2026-11-10; ENet and libsodium were added on 2026-11-20, meshoptimiz
 | GLM | 1.0.3 | `math` and most modules | Geometry ABI asserted by the dependency probe |
 | GLFW | 3.5.1 | `render`, `app` | Upstream skipped 3.5.0 (bad tag); one window backend a tree |
 | Dear ImGui | v1.93.0 (commit) | `devtools`, `render` | GLFW and Vulkan backends from the same release; fonts through `imgui_freetype` |
-| stb | master, 2026-11-10 (commit) | `render` | No releases |
+| stb | master, 2026-11-10 (commit) | `render`, `jettison_cook` | No releases; fetched in every tree |
 | yaml-cpp | 0.9.0 | `core`, `serialise` and others | |
 | fastgltf | v1.0.1 | `geometry`, `render`, `animation` | Downloads its own simdjson 5.1.0 and simdutf; `geometry` reads its extras through that simdjson |
 | spdlog | v1.17.0 | `core` | `SPDLOG_USE_STD_FORMAT` |
@@ -48,9 +48,9 @@ reviewed on 2026-11-10; ENet and libsodium were added on 2026-11-20, meshoptimiz
 | FreeType | 2.15.0 | `ui`, RmlUi, ImGui | Answers RmlUi's `find_package(Freetype)` |
 | RmlUi | 6.3 | `ui`, privately | |
 | miniaudio | 0.11.26 | `audio`, privately | Vorbis and Opus off; backends loaded at run time |
-| KTX-Software | v4.4.2 | `render` (`ktx_read` only) | **Held back** from v5.0.0-rc2, a release candidate on 2026-11-11; built against the engine's zstd |
+| KTX-Software | v4.4.2 | `render` (`ktx_read`), `jettison_cook` (`ktx`, the encoder), never both in one program | **Held back** from v5.0.0-rc2, a release candidate on 2026-11-11; fetched in every tree; both built against the engine's zstd |
 | WAMR | 2.4.5 | `script`, privately | Fast interpreter with instruction metering; no libc or WASI ([scripts](scripts.md)) |
-| zstd | v1.5.7 | `vfs`, privately; `ktx_read` | The library alone, static |
+| zstd | v1.5.7 | `vfs`, privately; `ktx_read` and `ktx` | The library alone, static |
 | ENet | v1.3.18 | `net`, privately | Reliable and unreliable channels over UDP ([networking](networking.md)) |
 | libsodium | robinlinden/libsodium-cmake 9b2848d | `net`, privately | libsodium 1.0.20 (stable branch) through a CMake wrapper, static |
 
@@ -112,7 +112,7 @@ set:
 | Rule | Why |
 |---|---|
 | **Static only.** `BUILD_SHARED_LIBS` is OFF for the dependency directory. | RmlUi declares it as an option defaulting to ON, which would make every later dependency shared. |
-| **One copy of each library.** Before adding a dependency, check whether it compiles its own copy of another (`grep` its build for vendored `.c` files). | libktx compiles zstd 1.5.5 with public symbols, so `ktx_read` is built against the engine's own zstd instead (the `ktx_read` block in `source/external/CMakeLists.txt`). |
+| **One copy of each library.** Before adding a dependency, check whether it compiles its own copy of another (`grep` its build for vendored `.c` files). | libktx compiles zstd 1.5.5 with public symbols, so `ktx_read` and `ktx` are built against the engine's own zstd instead (the KTX block in `source/external/CMakeLists.txt`). |
 | **Options in a `block()`.** Options are plain variables inside a `block()` around the dependency they are for. `CMAKE_POLICY_DEFAULT_CMP0077` is NEW, so a dependency declaring an old CMake honours them. | Jolt's options are called `DOUBLE_PRECISION`, `ENABLE_INSTALL` and `INTERPROCEDURAL_OPTIMIZATION`; a cache entry would configure every other dependency reading the same name. Tracy 0.13.1 silently discarded options before CMP0077. |
 | **The project's language features.** No dependency builds without RTTI or exceptions when the engine derives from its classes. | Jolt defaults to both off. |
 | **No system libraries found by accident.** Optional codecs (FreeType's zlib, PNG and HarfBuzz; miniaudio's libvorbis and libopus) are off. `OVERRIDE_FIND_PACKAGE` answers a dependency's `find_package` for a library the set provides. | Each is found on a developer's machine and missing on a runner. |
@@ -144,7 +144,7 @@ has a test preset; for another tree, use `ctest --test-dir build/<preset>`.
 | Option | Default | Effect |
 |---|---|---|
 | `JETTISON_BUILD_TESTS` | ON when Jettison is the top-level project, OFF as a dependency | Builds each module's doctest suite and registers it with CTest. A game's build does not compile the engine's tests. |
-| `JETTISON_PRESENTATION` | ON | Builds the renderer, UI, audio and the shell (`render`, `audio`, `ui`, `devtools`, `app`), the assets and shaders, Flotsam, the ground sample and the render harness, and fetches what only they use (Vulkan and `glslc`, GLFW, FreeType, RmlUi, miniaudio, ImGui, stb, VMA, KTX). OFF leaves the CPU modules, the host, their suites and the packer. |
+| `JETTISON_PRESENTATION` | ON | Builds the renderer, UI, audio and the shell (`render`, `audio`, `ui`, `devtools`, `app`), the assets and shaders, Flotsam, the ground sample and the render harness, and fetches what only they use (Vulkan and `glslc`, GLFW, FreeType, RmlUi, miniaudio, ImGui, VMA). OFF leaves the CPU modules, the host, their suites, the packer, the collision baker and the cook. |
 | `JETTISON_PLANNED_DEPENDENCIES` | ON | Fetches libraries planned for later work and builds `dependency_probe` ([above](#planned-dependencies-and-the-probe)). |
 | `JETTISON_WERROR` | OFF | Adds `-Werror` to the project's warnings ([warnings](#warnings)). `ci.sh --werror` sets it. |
 | `JETTISON_CCACHE` | ON | Compiles through ccache when it is on the `PATH` ([compiler cache](#compiler-cache)). A `CMAKE_CXX_COMPILER_LAUNCHER` you set wins. |
@@ -162,8 +162,8 @@ has a test preset; for another tree, use `ctest --test-dir build/<preset>`.
 - **The test content** (`source/test/content`) is staged and packed the same way
   (`jettison_test_content`, `jettison_test_content_pack`), under `build/<preset>/source/test`.
 - **Executables**: `render_test` (the shell with no game, `source/test`), `ground` (the ground
-  sample, `source/samples/ground`), `flotsam`, `jettison_pack` and `jettison_bake_collision`
-(`source/tools`). Their
+  sample, `source/samples/ground`), `flotsam`, `jettison_pack`, `jettison_bake_collision` and
+  `jettison_cook` (`source/tools`). Their
   command-line arguments are in [the app shell](app-shell.md).
 
 The render harness is `render_test`, not `test`: CMake reserves `test` once testing is enabled, and

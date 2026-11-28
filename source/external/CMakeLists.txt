@@ -200,21 +200,21 @@ if(JETTISON_PRESENTATION)
 	target_include_directories(imgui_backends SYSTEM PUBLIC "${imgui_SOURCE_DIR}/backends")
 	target_compile_definitions(imgui_backends PRIVATE GLFW_INCLUDE_NONE)
 	target_link_libraries(imgui_backends PUBLIC imgui glfw Vulkan::Vulkan)
-
-	# stb has no releases; this is the head of master on 2026-11-10. The image implementation is
-	# compiled once, in source/engine/render/src/vulkan/MaterialCache.cpp: nothing else in the set
-	# compiles an stb implementation (KTX-Software carries a copy of the headers on a private include
-	# path).
-	FetchContent_Declare(
-	  stb
-	  GIT_REPOSITORY https://github.com/nothings/stb.git
-	  GIT_TAG 4e9b368bfc071e97206ea5c6adba68dd0cbf8897
-	  SOURCE_SUBDIR _fetchcontent_no_cmake
-	)
-	FetchContent_MakeAvailable(stb)
-	add_library(stb INTERFACE)
-	target_include_directories(stb SYSTEM INTERFACE "${stb_SOURCE_DIR}")
 endif()
+
+# stb has no releases; this is the head of master on 2026-11-10. Header-only, fetched in every tree:
+# the image implementation is compiled once in each program that decodes images, render's
+# src/vulkan/MaterialCache.cpp and the cook's Texture.cpp (source/tools/cook), which are never linked
+# together. KTX-Software carries a copy of the headers on a private include path.
+FetchContent_Declare(
+  stb
+  GIT_REPOSITORY https://github.com/nothings/stb.git
+  GIT_TAG 4e9b368bfc071e97206ea5c6adba68dd0cbf8897
+  SOURCE_SUBDIR _fetchcontent_no_cmake
+)
+FetchContent_MakeAvailable(stb)
+add_library(stb INTERFACE)
+target_include_directories(stb SYSTEM INTERFACE "${stb_SOURCE_DIR}")
 
 FetchContent_Declare(
     yaml-cpp
@@ -365,18 +365,20 @@ if(JETTISON_PRESENTATION)
 	FetchContent_MakeAvailable(VulkanMemoryAllocator)
 endif()
 
-# Textures, behind render's Texture.h: KTX 2 files with Basis Universal transcoding. v4.4.2, not
-# v5.0.0-rc2: phase 5 was to move to v5 if it was out of release candidate, and on 2026-11-11 its
-# newest tag is still rc2. It is in use from phase 5, so every presentation tree fetches it, the
-# headless ones included; it stays EXCLUDE_FROM_ALL, so a tree builds ktx_read, which render links,
-# and not ktx.
-#  - The engine links ktx_read (transcode and upload), never ktx and ktx_read together: both
-#    compile the same Basis Universal transcoder and the same zstd.
+# Textures: KTX 2 files with Basis Universal transcoding, behind render's Texture.h, and their
+# encoding in the cook. v4.4.2, not v5.0.0-rc2: phase 5 was to move to v5 if it was out of release
+# candidate, and on 2026-11-11 its newest tag is still rc2. Every tree fetches it, the CPU-only ones
+# too, since the cook (source/tools/cook) is built in every tree; it stays EXCLUDE_FROM_ALL, so a
+# tree builds only what it links: ktx_read for render, ktx (the encoder) for the cook.
+#  - render links ktx_read (transcode and upload) and the cook ktx, never both in one program: both
+#    compile the same Basis Universal transcoder.
 #  - libktx compiles its own zstd 1.5.5 (external/basisu/zstd/zstd.c, public ZSTD_* symbols),
 #    in v4.4.2 and still in v5.0.0-rc2, with no option to use another. A second zstd in the same
 #    executable is duplicate symbols, or two versions of one library resolving each other's calls,
-#    so ktx_read is built against the engine's zstd (below) instead: its copy is taken out of the
-#    target's sources and the engine's headers put before its own (docs/decisions.md, "Files, packs and mods").
+#    so ktx_read and ktx are built against the engine's zstd (below) instead: its copy is taken out of
+#    each target's sources and the engine's headers put before its own (docs/decisions.md, "Files,
+#    packs and mods").
+#  - Vulkan upload is on only where there is Vulkan: a CPU tree has none to find.
 #  - ETC unpacking is off: it is Ericsson's code under its own licence, and desktop GPUs do not
 #    need ETC. OpenGL upload, tools, tests and documentation are off. KTX 1 stays on, although
 #    the engine reads KTX 2 only: with KTX_FEATURE_KTX1 off, ktx_read's texture.c still calls
@@ -396,8 +398,8 @@ endif()
 #  - libktx publicly defines DEBUG in Debug builds. It is linked privately by whatever uses it,
 #    so the definition stays out of public engine headers.
 #
-# zstd, for pack files (vfs, phase 11a) and for ktx_read's supercompressed textures, one copy for
-# both. The library alone, static, from zstd's own CMake build: no programs, no legacy formats
+# zstd, for pack files (vfs, phase 11a) and for libktx's supercompressed textures, one copy for
+# all. The library alone, static, from zstd's own CMake build: no programs, no legacy formats
 # (frames older than 0.8, which nothing here wrote), no threads, since the packer compresses each
 # file on its own and a file is read whole.
 block()
@@ -421,43 +423,43 @@ block()
 endblock()
 add_library(zstd::zstd ALIAS libzstd_static)
 
-if(JETTISON_PRESENTATION)
-	block()
-		set(KTX_FEATURE_TESTS OFF)
-		set(KTX_FEATURE_TOOLS OFF)
-		set(KTX_FEATURE_DOC OFF)
-		set(KTX_FEATURE_JNI OFF)
-		set(KTX_FEATURE_PY OFF)
-		set(KTX_FEATURE_GL_UPLOAD OFF)
-		set(KTX_FEATURE_VK_UPLOAD ON)
-		set(KTX_FEATURE_ETC_UNPACK OFF)
-		set(KTX_FEATURE_LOADTEST_APPS OFF)
-		set(BASISU_SUPPORT_OPENCL OFF)
-		set(ASTCENC_WERROR OFF)
-		find_package(Git REQUIRED)
-		FetchContent_Declare(
-		  KTX-Software
-		  DOWNLOAD_COMMAND "${CMAKE_COMMAND}" -E rm -rf <SOURCE_DIR>
-		  COMMAND "${GIT_EXECUTABLE}" -c advice.detachedHead=false clone --quiet
-		    --depth 1 --single-branch --branch v4.4.2
-		    --config filter.lfs.smudge= --config filter.lfs.process= --config filter.lfs.required=false
-		    https://github.com/KhronosGroup/KTX-Software.git <SOURCE_DIR>
-		  SYSTEM
-		  EXCLUDE_FROM_ALL
-		)
-		FetchContent_MakeAvailable(KTX-Software)
-	endblock()
-	# libktx's texture2.c includes <zstd.h> and <zstd_errors.h> from its private copy's directory, which
-	# is taken off its include path with the copy, so it compiles against the headers of the library it
-	# links. It uses the stable API alone (ZSTD_decompressDCtx and the error codes), which 1.5.5 and
-	# 1.5.7 share.
+block()
+	set(KTX_FEATURE_TESTS OFF)
+	set(KTX_FEATURE_TOOLS OFF)
+	set(KTX_FEATURE_DOC OFF)
+	set(KTX_FEATURE_JNI OFF)
+	set(KTX_FEATURE_PY OFF)
+	set(KTX_FEATURE_GL_UPLOAD OFF)
+	set(KTX_FEATURE_VK_UPLOAD ${JETTISON_PRESENTATION})
+	set(KTX_FEATURE_ETC_UNPACK OFF)
+	set(KTX_FEATURE_LOADTEST_APPS OFF)
+	set(BASISU_SUPPORT_OPENCL OFF)
+	set(ASTCENC_WERROR OFF)
+	find_package(Git REQUIRED)
+	FetchContent_Declare(
+	  KTX-Software
+	  DOWNLOAD_COMMAND "${CMAKE_COMMAND}" -E rm -rf <SOURCE_DIR>
+	  COMMAND "${GIT_EXECUTABLE}" -c advice.detachedHead=false clone --quiet
+	    --depth 1 --single-branch --branch v4.4.2
+	    --config filter.lfs.smudge= --config filter.lfs.process= --config filter.lfs.required=false
+	    https://github.com/KhronosGroup/KTX-Software.git <SOURCE_DIR>
+	  SYSTEM
+	  EXCLUDE_FROM_ALL
+	)
+	FetchContent_MakeAvailable(KTX-Software)
+endblock()
+# libktx's texture2.c and writer2.c include <zstd.h> and <zstd_errors.h> from its private copy's
+# directory, which is taken off its include path with the copy, so they compile against the headers of
+# the library they link. They use the stable API alone (ZSTD_decompressDCtx, ZSTD_compressCCtx and the
+# error codes), which 1.5.5 and 1.5.7 share.
+foreach(target IN ITEMS ktx_read ktx)
 	foreach(property IN ITEMS SOURCES INCLUDE_DIRECTORIES)
-		get_target_property(ktx_read_items ktx_read ${property})
-		list(FILTER ktx_read_items EXCLUDE REGEX "basisu/zstd(/zstd\\.c)?>?$")
-		set_property(TARGET ktx_read PROPERTY ${property} ${ktx_read_items})
+		get_target_property(ktx_items ${target} ${property})
+		list(FILTER ktx_items EXCLUDE REGEX "basisu/zstd(/zstd\\.c)?>?$")
+		set_property(TARGET ${target} PROPERTY ${property} ${ktx_items})
 	endforeach()
-	target_link_libraries(ktx_read PRIVATE zstd::zstd)
-endif()
+	target_link_libraries(${target} PRIVATE zstd::zstd)
+endforeach()
 
 # Physics, behind physics' PhysicsWorld.h (phase 7a). Every setting here is one the engine has to
 # agree with:

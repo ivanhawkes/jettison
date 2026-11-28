@@ -204,7 +204,7 @@ names keep their own words where they are the API's: a CLAS is a cluster acceler
 | Part | Where | Depends on |
 | --- | --- | --- |
 | `geometry` | A new module in the Data tier, CPU only, built with presentation off: triangle meshes read from glTF, levels of detail, the meshlet hierarchy, the cooked formats' readers and writers | `math` (mikktspace through it); fastgltf, meshoptimizer |
-| `jettison_cook` | `source/tools/cook`, beside the packer; CPU only | `geometry`, `serialise` (settings), `platform` (the watch), libktx (`ktx`, its encoder) |
+| `jettison_cook` | `source/tools/cook`, beside the packer; CPU only | `geometry`, `serialise` (settings), the collision baker's library, `platform` (the watch, J38), libktx (`ktx`, its encoder), stb_image |
 | Drawing, culling, acceleration structures | `render` | `geometry` (readers only) |
 | Rig and clips | `animation`, reading the cooked GLB through `geometry`'s reader | `geometry` (the reader) |
 
@@ -270,6 +270,40 @@ flowchart LR
 - **The engine and the game.** The tool, its formats and defaults are the engine's. The source
   tree's location, the game's `cook.yaml`, its content and how its source tree is versioned are the
   game's.
+
+**Built (J37c): one-shot mode.** `jettison_cook <source> <output>` (`source/tools/cook`, the
+library `Cook::CookTree`, `CookTree.h`, which documents the contract); the watch is
+[J38](roadmap.md#j38), the meshlet page file [J39](roadmap.md#j39), the engine's own content cooked
+at build time later in J37. As built:
+
+- **Outputs.** A model (`.gltf`, `.glb`) becomes `.glb` through `Geometry::CookModel`, every one of
+  its images KTX 2 inside it; an image (`.png`, `.jpg`, `.jpeg`, `.tga`) no model references
+  becomes `.ktx2`; anything else is copied. A model's collision file is baked by `Bake::CollisionShape`
+  at the path [physics](physics.md#a-models-collision-shape) gives it (`models/rover.gltf`'s at
+  `collision/rover.collision`), written before its GLB. A model's buffers and images are beside it
+  or below it, never `..` (`GltfFile::Parse` reads a `.gltf`'s buffers from its directory and
+  refuses one outside it). Hidden files (a leading dot) are not sources, so a source tree can be a
+  git checkout.
+- **Settings.** `Cook::Settings` (`Settings.h`): `lod` (`maxLevels`, `reduction`, `maxError`,
+  `Geometry::LodSettings`) and `textures` (`quality`, `rdo`, `zstdLevel`, `mipmaps`: UASTC level
+  2, rate-distortion optimised, zstd 19, mipmapped, the import script's `ktx create` line). A
+  layer is a YAML document with `version: 1`; the first layer whose patch puts a value out of range
+  is named.
+- **Colour.** A model's image is sRGB when a material names it as base colour or emission, data
+  otherwise (one named as both is refused); a loose image is sRGB when its map is `color` or
+  `emissive` (not `detail-color`, which the import script encodes as data). Mipmaps are a box
+  filter, in linear light for colour, where `ktx create` uses its own resampler. Normal maps keep
+  their green: a glTF's already point up, unlike the planet pack's that the import script flips.
+- **The record** is `cook-record.yaml` in the output, each source's key a 64-bit FNV-1a
+  (`Core::Fnv1a64`, `HashCombine`) of its bytes, its references' paths and bytes, its settings
+  layers' names and text and `Cook::kCookVersion`. A copied file has no settings layers, so
+  `cook.yaml` cooks again only what it applies to. A model whose bytes are unchanged is checked
+  against the files its record entry lists without being parsed.
+- **The same bytes.** libktx encodes on one thread with RDO's multithreading off, which its header
+  documents as deterministic; the suite cooks one tree twice into identical outputs.
+- **Checked by** the `cook` suite (`source/tools/cook/tests`), over a tree it writes: layered and
+  refused settings, the record, refused names and glTF, skipping, deletion, cooking again on a
+  changed buffer, image or `cook.yaml`, the same bytes twice, copies and collision files.
 
 ### Cooked formats
 

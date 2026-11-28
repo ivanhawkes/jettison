@@ -10,7 +10,7 @@
 
 // jettison_bake_collision <model> <collision file>: a glTF or GLB model's collision shape
 // (Bake::CollisionShape) into the file physics reads (Physics::ReadCollisionFile), directories made
-// as needed. What the cook (J37) will do for every model it cooks.
+// as needed. The cook (source/tools/cook) does the same for every model it cooks.
 
 namespace
 {

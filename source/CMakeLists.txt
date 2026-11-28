@@ -211,6 +211,7 @@ add_subdirectory("engine")
 
 add_subdirectory("tools/pack")
 add_subdirectory("tools/collision")
+add_subdirectory("tools/cook")
 
 if(JETTISON_PRESENTATION)
 	add_subdirectory("tools/flotsam")

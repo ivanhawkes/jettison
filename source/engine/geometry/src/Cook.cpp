@@ -24,6 +24,7 @@
 #include <utility>
 #include <variant>
 
+#include <jettison/core/Log.h>
 #include <jettison/geometry/GltfFile.h>
 #include <jettison/math/Tangents.h>
 
@@ -59,10 +60,17 @@ constexpr float kUnorm16 = 65535.0f;
 
 constexpr float kMaxByteJoint = 255.0f;
 
+constexpr Core::Category kGeometry{"geometry"};
+
 constexpr std::string_view kGenerator = "Jettison's cook (jettison_cook)";
 
 constexpr std::array kCookExtensions{
     std::string_view{"EXT_meshopt_compression"}, std::string_view{"KHR_mesh_quantization"}};
+
+// fastgltf writes a texture's KHR_texture_basisu source but lists the extension only as the asset's
+// extensionsUsed says, so the cook adds it.
+constexpr std::array kKtxExtensions{std::string_view{"KHR_texture_basisu"}};
+
 
 std::runtime_error Error(const GltfFile &source, std::string_view what)
 {
@@ -421,6 +429,7 @@ class Writer
 	{
 	}
 
+
 	std::size_t AddView(
 	    std::span<const std::byte> bytes, std::optional<std::size_t> stride = {},
 	    std::optional<fastgltf::BufferTarget> target = {})
@@ -438,6 +447,7 @@ class Writer
 		m_asset.bufferViews.push_back(std::move(view));
 		return m_asset.bufferViews.size() - 1;
 	}
+
 
 	// encoded is the codec's output, which decodes into count elements of stride bytes.
 	std::size_t AddCompressedView(
@@ -463,6 +473,7 @@ class Writer
 		m_asset.bufferViews.push_back(std::move(view));
 		return m_asset.bufferViews.size() - 1;
 	}
+
 
 	void Finish()
 	{
@@ -581,16 +592,21 @@ StoredStream Quantise(
 }
 
 
-// KHR_mesh_quantization's types by attribute: unit vectors and weights in 16 bits normalised,
-// texture coordinates in 16 bits where they lie within [0, 1] (tiling ones stay float), joints in 8
-// bits where they fit; positions, and any attribute the cook does not know, stay float.
+bool Within(const Stream &stream, float low, float high)
+{
+	return std::ranges::all_of(
+	    stream.values, [&](float value) { return value >= low && value <= high; });
+}
+
+
+// KHR_mesh_quantization's types by attribute: unit vectors and weights in 16 bits normalised, weights
+// clamped to [0, 1] as glTF requires them to be (CookMesh warns of it); colours and texture
+// coordinates in 16 bits normalised where every value lies within [0, 1], float otherwise, so an HDR
+// colour or a tiling coordinate is kept exactly; joints in 8 bits where they fit; positions, and any
+// attribute the cook does not know, stay float.
 StoredStream Store(const Stream &stream, std::size_t vertexCount)
 {
-	const auto within = [&](float low, float high)
-	{
-		return std::ranges::all_of(
-		    stream.values, [&](float value) { return value >= low && value <= high; });
-	};
+	const auto within = [&](float low, float high) { return Within(stream, low, high); };
 	const auto snorm16 = [](float value)
 	{ return static_cast<std::int16_t>(std::lround(std::clamp(value, -1.0f, 1.0f) * kSnorm16)); };
 	const auto unorm16 = [](float value)
@@ -600,8 +616,8 @@ StoredStream Store(const Stream &stream, std::size_t vertexCount)
 	if (name == "NORMAL" || name == "TANGENT")
 		return Quantise<std::int16_t>(
 		    stream, vertexCount, fastgltf::ComponentType::Short, true, snorm16);
-	if (name.starts_with("WEIGHTS_") || name.starts_with("COLOR_") ||
-	    (name.starts_with("TEXCOORD_") && within(0.0f, 1.0f)))
+	const bool unitRange = name.starts_with("COLOR_") || name.starts_with("TEXCOORD_");
+	if (name.starts_with("WEIGHTS_") || (unitRange && within(0.0f, 1.0f)))
 		return Quantise<std::uint16_t>(
 		    stream, vertexCount, fastgltf::ComponentType::UnsignedShort, true, unorm16);
 	if (name.starts_with("JOINTS_"))
@@ -675,6 +691,12 @@ fastgltf::Mesh CookMesh(
 	for (const auto &primitive : mesh.primitives)
 	{
 		Primitive read = ReadPrimitive(source, primitive);
+		for (const Stream &stream : read.streams)
+			if (stream.name.starts_with("WEIGHTS_") && !Within(stream, 0.0f, 1.0f))
+				Core::Log(
+				    Core::Severity::Warning, kGeometry,
+				    "{}: mesh '{}', primitive {}: {} has weights outside [0, 1], clamped to it",
+				    source.Name(), mesh.name, primitives.size(), stream.name);
 		if (!FindStream(read.streams, "NORMAL"))
 			AddNormals(read);
 		AddTangents(source, read);
@@ -734,34 +756,46 @@ fastgltf::sources::BufferView CopyImage(
 }
 
 
-void AddExtensions(std::vector<std::string> &extensions)
+void AddExtensions(std::vector<std::string> &extensions, std::span<const std::string_view> added)
 {
-	for (const std::string_view extension : kCookExtensions)
+	for (const std::string_view extension : added)
 		if (std::ranges::find(extensions, extension) == extensions.end())
 			extensions.emplace_back(extension);
 }
 } // namespace
 
 
-std::vector<std::byte> CookModel(
-    const GltfFile &source, const LodSettings &settings, std::string_view cookKey)
+bool IsValid(const LodSettings &settings)
 {
 	// Written so a NaN is out of range too.
 	const bool reductionInRange = settings.reduction > 0.0f && settings.reduction < 1.0f;
 	const bool errorInRange = settings.maxError >= 0.0f;
-	if (settings.maxLevels < 1 || !reductionInRange || !errorInRange)
+	return settings.maxLevels >= 1 && reductionInRange && errorInRange;
+}
+
+
+std::vector<std::byte> CookModel(
+    const GltfFile &source, const LodSettings &settings, std::string_view cookKey,
+    std::span<const std::vector<std::byte>> ktxImages)
+{
+	if (!IsValid(settings))
 		throw Error(source, "its level-of-detail settings are out of range");
 	const fastgltf::Asset &asset = source.Asset();
 	if (asset.scenes.empty())
 		throw Error(source, "it has no scene, whose extras carry the cook key");
+	if (!ktxImages.empty() && ktxImages.size() != asset.images.size())
+		throw Error(
+		    source, std::format(
+		                "it has {} images and was given {} to replace them", asset.images.size(),
+		                ktxImages.size()));
 
 	fastgltf::Asset out;
 	out.assetInfo = asset.assetInfo;
 	out.assetInfo.generator = kGenerator;
 	out.extensionsUsed = asset.extensionsUsed;
 	out.extensionsRequired = asset.extensionsRequired;
-	AddExtensions(out.extensionsUsed);
-	AddExtensions(out.extensionsRequired);
+	AddExtensions(out.extensionsUsed, kCookExtensions);
+	AddExtensions(out.extensionsRequired, kCookExtensions);
 	out.defaultScene = asset.defaultScene;
 	out.cameras = asset.cameras;
 	out.lights = asset.lights;
@@ -770,6 +804,17 @@ std::vector<std::byte> CookModel(
 	out.samplers = asset.samplers;
 	out.scenes = asset.scenes;
 	out.textures = asset.textures;
+	if (!ktxImages.empty())
+	{
+		AddExtensions(out.extensionsUsed, kKtxExtensions);
+		AddExtensions(out.extensionsRequired, kKtxExtensions);
+		for (auto &texture : out.textures)
+			if (texture.imageIndex)
+			{
+				texture.basisuImageIndex = *texture.imageIndex;
+				texture.imageIndex.reset();
+			}
+	}
 	out.materialVariants = asset.materialVariants;
 	Writer writer{out};
 
@@ -802,8 +847,17 @@ std::vector<std::byte> CookModel(
 			sampler.inputAccessor = copy(sampler.inputAccessor);
 			sampler.outputAccessor = copy(sampler.outputAccessor);
 		}
-	for (const auto &image : asset.images)
-		out.images.push_back({CopyImage(source, image, writer), image.name});
+	for (std::size_t index = 0; index < asset.images.size(); ++index)
+	{
+		const auto &image = asset.images[index];
+		if (ktxImages.empty())
+			out.images.push_back({CopyImage(source, image, writer), image.name});
+		else
+			out.images.push_back(
+			    {fastgltf::sources::BufferView{
+			         writer.AddView(ktxImages[index]), fastgltf::MimeType::KTX2},
+			     image.name});
+	}
 	writer.Finish();
 
 	fastgltf::Exporter exporter;

@@ -9,6 +9,8 @@
 #include <algorithm>
 #include <cctype>
 #include <format>
+#include <fstream>
+#include <iterator>
 #include <limits>
 #include <stdexcept>
 #include <utility>
@@ -22,6 +24,7 @@ namespace
 constexpr auto kExtensions = fastgltf::Extensions::EXT_meshopt_compression |
                              fastgltf::Extensions::KHR_mesh_quantization |
                              fastgltf::Extensions::KHR_texture_basisu;
+
 
 bool IsGltf(std::string_view path)
 {
@@ -123,6 +126,30 @@ std::span<const std::byte> BufferBytes(const fastgltf::Asset &asset, std::size_t
 }
 
 
+// A buffer's file, which must lie within directory, so a model's URI cannot read what is outside it.
+std::vector<std::byte> ReadBufferFile(
+    const std::filesystem::path &directory, const fastgltf::Buffer &buffer, const std::string &name)
+{
+	const auto &uri = *std::get<fastgltf::sources::URI>(buffer.data).uri;
+	const std::filesystem::path relative = uri.fspath();
+	const bool inside = uri.isLocalPath() && relative.is_relative() && !relative.has_root_name() &&
+	                    std::ranges::none_of(relative, [](const auto &part) { return part == ".."; });
+	if (!inside)
+		throw std::runtime_error(
+		    std::format("glTF model's buffer '{}' is outside its directory: {}", uri.string(), name));
+	std::ifstream stream{directory / relative, std::ios::binary};
+	const std::vector<char> chars{
+	    std::istreambuf_iterator<char>{stream}, std::istreambuf_iterator<char>{}};
+	if (!stream || chars.size() < buffer.byteLength)
+		throw std::runtime_error(
+		    std::format(
+		        "glTF model's buffer '{}' cannot be read, or is shorter than the buffer: {}",
+		        uri.string(), name));
+	const auto *pBytes = reinterpret_cast<const std::byte *>(chars.data());
+	return {pBytes, pBytes + chars.size()};
+}
+
+
 // Each compressed view decoded into its fallback buffer, which then holds the bytes the file's
 // accessors read, as an uncompressed file's buffer does.
 void DecodeCompressedViews(fastgltf::Asset &asset, const std::string &name)
@@ -182,7 +209,8 @@ void DecodeCompressedViews(fastgltf::Asset &asset, const std::string &name)
 } // namespace
 
 
-std::unique_ptr<GltfFile> GltfFile::Parse(std::span<const std::byte> bytes, std::string_view name)
+std::unique_ptr<GltfFile> GltfFile::Parse(
+    std::span<const std::byte> bytes, std::string_view name, const std::filesystem::path &directory)
 {
 	std::string label{name};
 	if (!IsGltf(name))
@@ -202,11 +230,18 @@ std::unique_ptr<GltfFile> GltfFile::Parse(std::span<const std::byte> bytes, std:
 		        "Failed to parse glTF model ({}): {}", fastgltf::getErrorMessage(parsed.error()),
 		        label));
 	auto &asset = parsed.get();
-	for (const auto &buffer : asset.buffers)
-		if (std::holds_alternative<fastgltf::sources::URI>(buffer.data))
+
+	// Read here rather than by fastgltf's LoadExternalBuffers, which would follow a URI anywhere.
+	for (auto &buffer : asset.buffers)
+	{
+		if (!std::holds_alternative<fastgltf::sources::URI>(buffer.data))
+			continue;
+		if (directory.empty())
 			throw std::runtime_error(
 			    "glTF model keeps a buffer in another file, which a resource cannot read: " + label +
 			    " (make it a .glb, or embed the buffer)");
+		buffer.data = fastgltf::sources::Vector{ReadBufferFile(directory, buffer, label)};
+	}
 	if (extras.malformed)
 		throw std::runtime_error("glTF model's cook extras are malformed: " + label);
 	DecodeCompressedViews(asset, label);

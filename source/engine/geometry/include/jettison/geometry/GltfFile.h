@@ -2,6 +2,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <filesystem>
 #include <memory>
 #include <span>
 #include <string>
@@ -31,11 +32,15 @@ struct MeshLevel
 class GltfFile
 {
   public:
-	// A binary .glb, or a .gltf whose buffers are embedded: the bytes are all it is given, so a buffer
-	// in a file beside it cannot be read, and is refused. Throws std::runtime_error naming the file for
-	// another extension, bytes that are not glTF, such a buffer, a compressed view that does not
-	// decode, and levels that do not cover their mesh's primitives.
-	static std::unique_ptr<GltfFile> Parse(std::span<const std::byte> bytes, std::string_view name);
+	// A binary .glb, or a .gltf. A buffer in a file of its own is read from directory, at its URI
+	// relative to it; with no directory (a resource, whose bytes are all it is given) such a buffer is
+	// refused. Images in files of their own are left as URIs. Throws std::runtime_error naming the file
+	// for another extension, bytes that are not glTF, a buffer's URI that is absolute or climbs out of
+	// the directory (..), a buffer file that cannot be read or is shorter than the buffer, a compressed
+	// view that does not decode, and levels that do not cover their mesh's primitives.
+	static std::unique_ptr<GltfFile> Parse(
+	    std::span<const std::byte> bytes, std::string_view name,
+	    const std::filesystem::path &directory = {});
 
 	~GltfFile();
 

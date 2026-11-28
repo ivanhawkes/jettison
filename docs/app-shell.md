@@ -86,14 +86,15 @@ A program with no window starts the same `Host::Game` through `Host::Session` it
 | `ground` | `source/samples/ground` | `Sample::GroundGame` | `source/samples/ground/assets` |
 | `jettison_pack` | `source/tools/pack` | Not a shell program | Packs a directory into a [pack](glossary.md#pack) |
 | `jettison_bake_collision` | `source/tools/collision` | Not a shell program | Bakes a model's [collision file](physics.md#a-models-collision-shape) |
+| `jettison_cook` | `source/tools/cook` | Not a shell program | `jettison_cook <source> <output>` cooks a source tree into a game's asset tree once, failing on any source it refuses ([the cook](dense-geometry-and-ray-tracing.md#the-cook)) |
 | `consumer` | `source/test/consumer` | A `Host::Game`, with no shell | Its own `content` |
 
 Flotsam is the editor's entry point; today it is the shell with nothing composed into it.
 render_test is the experimentation harness and the renderer's smoke test, over static scenes. The
 ground sample and the consumer project are the engine's own [consumers](glossary.md#consumer)
-([samples](sample-game.md), [guide](guide.md#composing-a-game-on-the-engine)). `jettison_pack` and
-`jettison_bake_collision` are built even with presentation off, so a CPU-only build can pack content
-and bake collision files.
+([samples](sample-game.md), [guide](guide.md#composing-a-game-on-the-engine)). `jettison_pack`,
+`jettison_bake_collision` and `jettison_cook` are built even with presentation off, so a CPU-only
+build can pack content, bake collision files and cook.
 
 ## How it works
 

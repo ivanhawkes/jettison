@@ -1,6 +1,6 @@
 # The collision baker: a model's collision shape into the file physics reads
 # (physics/CollisionFile.h), world content a server collides with and reads no model for. The baking is
-# a library, which the cook (J37) is to call for every model it cooks; until then the tool runs it.
+# a library, which the cook (source/tools/cook) calls for every model it cooks, and the tool for one.
 add_library(jettison_collision_bake STATIC Bake.cpp Bake.h)
 target_include_directories(jettison_collision_bake PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}")
 target_link_libraries(jettison_collision_bake

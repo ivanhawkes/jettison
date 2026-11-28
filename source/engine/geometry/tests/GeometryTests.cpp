@@ -12,9 +12,11 @@
 #include <iterator>
 #include <map>
 #include <stdexcept>
+#include <string>
 #include <utility>
 #include <vector>
 
+#include <jettison/core/Log.h>
 #include <jettison/geometry/Cook.h>
 #include <jettison/geometry/GltfFile.h>
 
@@ -186,6 +188,89 @@ std::vector<glm::vec3> Positions(const fastgltf::Asset &asset, const fastgltf::P
 	fastgltf::iterateAccessorWithIndex<glm::vec3>(
 	    asset, accessor, [&](glm::vec3 position, std::size_t index) { positions[index] = position; });
 	return positions;
+}
+
+
+// One triangle with a COLOR_0 and a WEIGHTS_0 of these values, a vertex each.
+std::vector<std::byte> MakeTriangle(
+    const std::vector<glm::vec4> &colours, const std::vector<glm::vec4> &weights)
+{
+	const std::vector<glm::vec3> positions{{0, 0, 0}, {1, 0, 0}, {0, 1, 0}};
+	fastgltf::Asset asset;
+	std::vector<std::byte> bytes;
+	Append(bytes, positions);
+	Append(bytes, colours);
+	Append(bytes, weights);
+	fastgltf::Buffer buffer{};
+	buffer.byteLength = bytes.size();
+	buffer.data = fastgltf::sources::Vector{std::move(bytes)};
+	asset.buffers.push_back(std::move(buffer));
+	const std::size_t sizes[] = {sizeof(glm::vec3) * 3, sizeof(glm::vec4) * 3, sizeof(glm::vec4) * 3};
+	std::size_t offset = 0;
+	for (std::size_t index = 0; index < 3; ++index)
+	{
+		fastgltf::BufferView view{};
+		view.bufferIndex = 0;
+		view.byteOffset = offset;
+		view.byteLength = sizes[index];
+		asset.bufferViews.push_back(std::move(view));
+		offset += sizes[index];
+		fastgltf::Accessor accessor{};
+		accessor.bufferViewIndex = index;
+		accessor.count = 3;
+		accessor.type = index == 0 ? fastgltf::AccessorType::Vec3 : fastgltf::AccessorType::Vec4;
+		accessor.componentType = fastgltf::ComponentType::Float;
+		asset.accessors.push_back(std::move(accessor));
+	}
+	fastgltf::Primitive primitive{};
+	primitive.attributes = {{"POSITION", 0}, {"COLOR_0", 1}, {"WEIGHTS_0", 2}};
+	fastgltf::Mesh mesh{};
+	mesh.name = "triangle";
+	mesh.primitives.push_back(std::move(primitive));
+	asset.meshes.push_back(std::move(mesh));
+	fastgltf::Node node{};
+	node.meshIndex = 0;
+	asset.nodes.push_back(std::move(node));
+	asset.scenes.push_back({{0}, "scene"});
+	asset.defaultScene = 0;
+
+	fastgltf::Exporter exporter;
+	auto written = exporter.writeGltfBinary(asset);
+	REQUIRE(written.error() == fastgltf::Error::None);
+	return std::move(written.get().output);
+}
+
+
+// An attribute of the cooked triangle's first primitive, by the vertex's position, since the cook
+// reorders vertices.
+std::map<std::pair<float, float>, glm::vec4> ByPosition(
+    const fastgltf::Asset &asset, const char *attribute)
+{
+	const auto &primitive = asset.meshes[0].primitives[0];
+	const auto positions = Positions(asset, primitive);
+	std::map<std::pair<float, float>, glm::vec4> values;
+	fastgltf::iterateAccessorWithIndex<glm::vec4>(
+	    asset, asset.accessors[primitive.findAttribute(attribute)->accessorIndex],
+	    [&](glm::vec4 value, std::size_t index)
+	    { values[{positions[index].x, positions[index].y}] = value; });
+	return values;
+}
+
+
+// A .gltf of one triangle whose positions are in a file of their own at uri.
+std::string TriangleWithBuffer(const std::string &uri)
+{
+	return R"({"asset":{"version":"2.0"},"buffers":[{"uri":")" + uri +
+	       R"(","byteLength":36}],"bufferViews":[{"buffer":0,"byteLength":36}],)"
+	       R"("accessors":[{"bufferView":0,"componentType":5126,"count":3,"type":"VEC3"}],)"
+	       R"("meshes":[{"primitives":[{"attributes":{"POSITION":0}}]}],"nodes":[{"mesh":0}],)"
+	       R"("scenes":[{"nodes":[0]}],"scene":0})";
+}
+
+
+std::span<const std::byte> AsBytes(const std::string &text)
+{
+	return std::as_bytes(std::span{text});
 }
 
 
@@ -361,4 +446,123 @@ TEST_CASE("The cook refuses what it cannot cook, naming the file")
 	CHECK_THROWS_WITH_AS(
 	    Geometry::CookModel(*withScene, settings, "key"), doctest::Contains("rock.glb"),
 	    std::runtime_error);
+}
+
+
+TEST_CASE(
+    "A colour outside [0, 1] is kept exactly as float, and a weight outside it is clamped, with a "
+    "warning")
+{
+	std::vector<std::string> warnings;
+	const Core::LogCallbackId callback = Core::AddLogCallback(
+	    [&](const Core::LogRecord &record)
+	    {
+		    if (record.severity == Core::Severity::Warning)
+			    warnings.emplace_back(record.message);
+	    });
+	const auto file = Cook(
+	    MakeTriangle(
+	        {{1.5f, -0.25f, 0.5f, 1.0f}, {0.0f, 1.0f, 2.0f, 1.0f}, {0.25f, 0.5f, 0.75f, 1.0f}},
+	        {{1.25f, 0.0f, 0.0f, 0.0f}, {0.5f, 0.5f, 0.0f, 0.0f}, {1.0f, 0.0f, 0.0f, 0.0f}}),
+	    "triangle.glb");
+	Core::RemoveLogCallback(callback);
+	const auto &asset = file->Asset();
+	const auto &primitive = asset.meshes[0].primitives[0];
+
+	const auto &colourAccessor = asset.accessors[primitive.findAttribute("COLOR_0")->accessorIndex];
+	CHECK(colourAccessor.componentType == fastgltf::ComponentType::Float);
+	auto colours = ByPosition(asset, "COLOR_0");
+	CHECK(colours[{0.0f, 0.0f}] == glm::vec4{1.5f, -0.25f, 0.5f, 1.0f});
+	CHECK(colours[{1.0f, 0.0f}] == glm::vec4{0.0f, 1.0f, 2.0f, 1.0f});
+	CHECK(colours[{0.0f, 1.0f}] == glm::vec4{0.25f, 0.5f, 0.75f, 1.0f});
+
+	const auto &weightAccessor = asset.accessors[primitive.findAttribute("WEIGHTS_0")->accessorIndex];
+	CHECK(weightAccessor.componentType == fastgltf::ComponentType::UnsignedShort);
+	CHECK(weightAccessor.normalized);
+	auto weights = ByPosition(asset, "WEIGHTS_0");
+	CHECK(weights[{0.0f, 0.0f}].x == 1.0f);
+	CHECK(weights[{1.0f, 0.0f}].x == doctest::Approx(0.5f).epsilon(0.0001));
+	REQUIRE(warnings.size() == 1);
+	CHECK(warnings[0].find("triangle.glb") != std::string::npos);
+	CHECK(warnings[0].find("WEIGHTS_0") != std::string::npos);
+}
+
+
+TEST_CASE("Colours and weights within [0, 1] are stored in 16 bits normalised")
+{
+	const auto file = Cook(
+	    MakeTriangle(
+	        {{1.0f, 0.0f, 1.0f, 1.0f}, {0.0f, 1.0f, 0.5f, 1.0f}, {0.25f, 0.5f, 0.75f, 1.0f}},
+	        {{1.0f, 0.0f, 0.0f, 0.0f}, {0.5f, 0.5f, 0.0f, 0.0f}, {1.0f, 0.0f, 0.0f, 0.0f}}),
+	    "triangle.glb");
+	const auto &asset = file->Asset();
+	const auto &primitive = asset.meshes[0].primitives[0];
+	for (const char *attribute : {"COLOR_0", "WEIGHTS_0"})
+	{
+		const auto &accessor = asset.accessors[primitive.findAttribute(attribute)->accessorIndex];
+		CHECK(accessor.componentType == fastgltf::ComponentType::UnsignedShort);
+		CHECK(accessor.normalized);
+	}
+	CHECK(ByPosition(asset, "COLOR_0")[{0.0f, 0.0f}] == glm::vec4{1.0f, 0.0f, 1.0f, 1.0f});
+}
+
+
+TEST_CASE("A cooked model given KTX 2 images names them through KHR_texture_basisu")
+{
+	const auto bytes = ReadContent("models/arm.glb");
+	const auto source = Geometry::GltfFile::Parse(bytes, "arm.glb");
+	const std::vector<std::vector<std::byte>> images{{std::byte{1}, std::byte{2}, std::byte{3}}};
+	const auto cooked = Geometry::CookModel(*source, {}, "key", images);
+	const auto file = Geometry::GltfFile::Parse(cooked, "arm.glb");
+	const auto &asset = file->Asset();
+
+	for (const auto *pList : {&asset.extensionsUsed, &asset.extensionsRequired})
+		CHECK(std::ranges::find(*pList, "KHR_texture_basisu") != pList->end());
+	REQUIRE(asset.textures.size() == source->Asset().textures.size());
+	for (const auto &texture : asset.textures)
+	{
+		CHECK_FALSE(texture.imageIndex.has_value());
+		CHECK(texture.basisuImageIndex.has_value());
+	}
+	const auto &view = std::get<fastgltf::sources::BufferView>(asset.images[0].data);
+	CHECK(view.mimeType == fastgltf::MimeType::KTX2);
+	const auto stored = fastgltf::DefaultBufferDataAdapter{}(asset, view.bufferViewIndex);
+	CHECK(std::vector<std::byte>{stored.begin(), stored.end()} == images[0]);
+
+	const std::vector<std::vector<std::byte>> tooMany(2);
+	CHECK_THROWS_WITH_AS(
+	    Geometry::CookModel(*source, {}, "key", tooMany), doctest::Contains("arm.glb"),
+	    std::runtime_error);
+}
+
+
+TEST_CASE("A .gltf's buffer in a file of its own is read from its directory, and only from within it")
+{
+	const auto directory = std::filesystem::temp_directory_path() / "jettison-geometry-buffers";
+	std::filesystem::remove_all(directory);
+	std::filesystem::create_directories(directory / "inside");
+	const std::vector<glm::vec3> positions{{0, 0, 0}, {1, 0, 0}, {0, 1, 0}};
+	for (const auto &path : {directory / "inside" / "triangle.bin", directory / "outside.bin"})
+	{
+		std::ofstream stream{path, std::ios::binary};
+		stream.write(reinterpret_cast<const char *>(positions.data()), sizeof(glm::vec3) * 3);
+	}
+	const std::string gltf = TriangleWithBuffer("triangle.bin");
+
+	const auto file = Geometry::GltfFile::Parse(AsBytes(gltf), "triangle.gltf", directory / "inside");
+	CHECK(Positions(file->Asset(), file->Asset().meshes[0].primitives[0]) == positions);
+
+	CHECK_THROWS_WITH_AS(
+	    Geometry::GltfFile::Parse(AsBytes(gltf), "triangle.gltf"), doctest::Contains("triangle.gltf"),
+	    std::runtime_error);
+	for (const std::string &uri : {std::string{"../outside.bin"}, (directory / "outside.bin").string()})
+		CHECK_THROWS_WITH_AS(
+		    Geometry::GltfFile::Parse(
+		        AsBytes(TriangleWithBuffer(uri)), "escape.gltf", directory / "inside"),
+		    doctest::Contains("outside its directory: escape.gltf"), std::runtime_error);
+	CHECK_THROWS_WITH_AS(
+	    Geometry::GltfFile::Parse(
+	        AsBytes(TriangleWithBuffer("missing.bin")), "missing.gltf", directory / "inside"),
+	    doctest::Contains("missing.gltf"), std::runtime_error);
+	std::filesystem::remove_all(directory);
 }
