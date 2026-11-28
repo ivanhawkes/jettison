@@ -7,6 +7,7 @@
 #include <vector>
 
 #include <jettison/sim/SaveGame.h>
+#include <jettison/vfs/Mount.h>
 
 namespace Jettison::Vfs
 {
@@ -42,7 +43,8 @@ struct ModList
 // The shell's mounts, bottom to top: the engine's assets (a directory or a pack) as "engine"; the
 // game's content over them (likewise), unless there is none, as its description's identifier
 // (Host::PackageDescription), "base" when it has none, which a mod's requires may name; the user's mods
-// in the data directory, as "mod:<identifier>"; the user's data directory itself, writable, as "user",
+// in the data directory, as "mod:<identifier>" (Host::kModMountPrefix), which another mod's requires
+// names by its identifier alone; the user's data directory itself, writable, as "user",
 // where saves go. The mods are in the list's order and only those it enables; a mod found and not
 // listed is added at the end, enabled, in the order of the identifiers' bytes, and the list written
 // again, so a directory dropped in works and keeps its place; one listed and missing is reported and
@@ -65,6 +67,10 @@ struct ModList
 std::vector<Sim::ModVersion> MountAssets(
     Vfs::FileSystem &files, const std::filesystem::path &assets, const std::filesystem::path &content,
     const std::filesystem::path &userData, const std::filesystem::path &modList = {});
+
+// The sources a session of the shell's world mounts: the shell's, but the user's writable directory,
+// names and all, so a mod is "mod:<identifier>" to the session's package checks too.
+std::vector<Vfs::Mount> SessionMounts(const Vfs::FileSystem &files);
 
 void RegisterModTypes();
 } // namespace Jettison::App

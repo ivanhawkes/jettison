@@ -15,6 +15,10 @@ namespace Jettison::Host
 inline constexpr std::string_view kPackageDescriptionFile = "mod.yaml";
 inline constexpr std::uint32_t kPackageFormatVersion = 1;
 
+// A mod's mount name is this prefix and its identifier ("mod:copper") wherever mods are mounted: the
+// shell's mounts, its session's and a server's, so one mod is one package on every end.
+inline constexpr std::string_view kModMountPrefix = "mod:";
+
 // The directories that hold the world, which a server reads: definitions and scripts. The rest of a
 // package (models, textures, scenes, UI, sounds, string tables) is presentation. Cooked collision
 // shapes join them once the cook writes them (J12).
@@ -40,7 +44,9 @@ struct PackageDescription
 	// The oldest engine version the package runs on, "major.minor.patch"; empty for any.
 	std::string engine;
 
-	// The packages that must be mounted before it, by mount name; "requires" in the file.
+	// The packages that must be mounted before it, "requires" in the file: a mod by its identifier
+	// ("copper", mounted as "mod:copper"), the engine's assets or a game's content by its mount name
+	// ("engine", "manifest"). A mod named by its mount name is refused as the description is read.
 	std::vector<std::string> required;
 
 	Side side{Side::Both};
@@ -56,8 +62,13 @@ void RegisterPackageTypes();
 
 // The description at the root of a directory or pack, read through a mount of it alone, or none for
 // a package with no mod.yaml. Throws for a source that cannot be mounted or a description that does
-// not read. A field the file omits is left empty: whether one is required is the caller's policy.
+// not read, one requiring a mod by its mount name among them. A field the file omits is left empty:
+// whether one is required is the caller's policy.
 std::optional<PackageDescription> DescribePackage(const std::filesystem::path &source);
+
+// Whether the mount is the package a requires entry names (PackageDescription::required): the mount
+// of that name, or the mod of that identifier.
+bool Fulfils(std::string_view mount, std::string_view required);
 
 // Whether the version is the required one or later. Throws std::invalid_argument for either that is
 // not one to three numbers separated by dots.

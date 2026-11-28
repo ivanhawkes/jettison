@@ -14,6 +14,7 @@
 
 #include <jettison/audio/EventSounds.h>
 #include <jettison/core/Log.h>
+#include <jettison/host/Session.h>
 #include <jettison/serialise/Archive.h>
 #include <jettison/sim/DefinitionRegistry.h>
 #include <jettison/sim/SaveGame.h>
@@ -254,6 +255,36 @@ TEST_CASE("Mounts: a mod for a newer engine, or one whose requirement is not bef
 	CHECK(reported.Contains("requires the mod zz-later, which is not mounted before it"));
 	CHECK(reported.Contains("misspelt is left out"));
 	CHECK(reported.lines.size() == 4);
+}
+
+
+TEST_CASE("Mounts: a mod requires another by its identifier, in the shell and in its session")
+{
+	const Scratch scratch;
+	scratch.Put("assets/defs/goods/beer.yaml", "version: 1\n");
+	scratch.Put("user/mods/copper/mod.yaml", "version: 1\nrelease: 0.0.1\n");
+	scratch.Put("user/mods/needs-copper/mod.yaml", "version: 1\nrequires: [copper]\n");
+	scratch.Put("user/mods/old-form/mod.yaml", "version: 1\nrequires: [mod:copper]\n");
+
+	const Reported reported;
+	Vfs::FileSystem files;
+	(void)App::MountAssets(files, scratch.Path("assets"), {}, scratch.Path("user"));
+	CHECK(
+	    NamesOf(files) == std::vector<std::string>{"engine", "mod:copper", "mod:needs-copper", "user"});
+	CHECK(reported.Contains(
+	    "old-form is left out: it requires 'mod:copper', a mod's mount name; a mod "
+	    "is required by its identifier, 'copper'"));
+	CHECK(reported.lines.size() == 1);
+
+	// The session mounts the same sources by the same names, and checks the requirement again.
+	std::vector<std::string> names;
+	for (const Vfs::Mount &mount : App::SessionMounts(files))
+		names.push_back(mount.name);
+	CHECK(names == std::vector<std::string>{"engine", "mod:copper", "mod:needs-copper"});
+	Host::Session session{{App::SessionMounts(files), 1.0, 0}, std::make_unique<Host::Game>()};
+	REQUIRE(session.Packages().size() == 3);
+	REQUIRE(session.Packages()[2].description.has_value());
+	CHECK(session.Packages()[2].description->required == std::vector<std::string>{"copper"});
 }
 
 

@@ -124,9 +124,9 @@ The user stage installs the crash handler before anything else of the engine sta
 ([start-up](runtime.md#start-up)), and makes the data and configuration directories when they do not exist, durably and mode 0700
 from the moment each is made, any missing directory above them included
 (`Core::CreateDirectoriesDurably`, [durable writes](persistence.md#durable-writes)). The resources stage builds the mount stack
-([the shell's mounts](files-and-mods.md#the-shells-mounts)); the session mounts the same sources but
-the user's writable directory, a mod under its identifier, so definitions are read from the content
-and the mods alone. The event sounds' definitions are presentation's, read through the whole tree
+([the shell's mounts](files-and-mods.md#the-shells-mounts)); the session mounts the same sources by
+the same names but the user's writable directory (`App::SessionMounts`), so definitions are read
+from the content and the mods alone. The event sounds' definitions are presentation's, read through the whole tree
 as the audio stage starts.
 
 ### The frame

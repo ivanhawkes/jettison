@@ -91,7 +91,9 @@ the mods also appear under `mods/` in the virtual tree, where nothing reads them
 
 A game or tool that composes its own start-up mounts content through `Host::Session` instead
 ([the host session](simulation.md#the-host-session)): `Options::content` lists read-only mounts in
-order, each package's description checked the same way.
+order, each package's description checked the same way. A mod mounts as `mod:<identifier>` there
+too (`Host::kModMountPrefix`), as the shell's session and a game's server mount it, so one mod is one
+package to every check, the [world content](#the-servers-world-content)'s included.
 
 ### Engine assets and game content
 
@@ -118,9 +120,14 @@ A package may describe itself in `mod.yaml` at its root (`Host::PackageDescripti
 | `name` | What the log and the game's mod menu show |
 | `release` | The package's own version, which a save records it by |
 | `engine` | The oldest engine version it runs on, `major.minor.patch`; empty for any |
-| `requires` | The mods that must be mounted before it, by identifier |
+| `requires` | The packages that must be mounted before it: a mod by its identifier (`copper`, mounted as `mod:copper`), a game's content by its `identifier`, the engine's assets as `engine` |
 | `side` | `both`, the default, or `client`: a cosmetic package, which a server leaves out and players need not match |
 | `identifier` | A game's content only: the name it mounts under, which a mod's `requires` names it by (`manifest`); `base` when left out |
+
+A `requires` names a mod the same on every end, by its identifier, and the engine finds it by its
+mount (`Host::Fulfils`): `requires: [copper]` is met by `mod:copper`, mounted before it. A mod named
+by its mount, `requires: [mod:copper]`, makes the description fail to read, the reason naming the
+identifier form (`copper`); a mod it requires that is not mounted before it is refused, naming both.
 
 A mod with no `mod.yaml` still mounts, under its identifier and of no release. A field the
 description does not have, such as a misspelt `relase`, makes it fail to read. The engine version
@@ -418,8 +425,8 @@ release: 1.0.0
 engine: 0.1.0
 ```
 
-A mod that needs another adds `requires: [base-goods]`, and must come after `base-goods` in the
-list.
+A mod that needs another adds `requires: [base-goods]`, by its identifier rather than its mount
+`mod:base-goods`, and must come after `base-goods` in the list.
 
 ### The mod list
 

@@ -387,6 +387,55 @@ TEST_CASE("Host: a file system's packages are checked as a session's are, with n
 }
 
 
+TEST_CASE("Host: a package requires a mod by its identifier, not by its mount name")
+{
+	const Scratch scratch;
+	PutContent(scratch);
+	scratch.Put("copper/mod.yaml", "version: 1\nrelease: 0.0.1\n");
+	scratch.Put("needs-copper/mod.yaml", "version: 1\nrequires: [farm, copper]\n");
+	scratch.Put("old-form/mod.yaml", "version: 1\nrequires: [mod:copper]\n");
+
+	CHECK(Host::Fulfils("mod:copper", "copper"));
+	CHECK(Host::Fulfils("farm", "farm"));
+	CHECK_FALSE(Host::Fulfils("mod:copper", "mod"));
+	CHECK_FALSE(Host::Fulfils("mod:copper-plus", "copper"));
+
+	// The mods mount as the shell mounts them; the cause of a failed start, or nothing.
+	const auto start = [&](const std::vector<std::string> &mods) -> std::string
+	{
+		Host::Options options = OptionsFor(scratch.Path("content"));
+		for (const std::string &mod : mods)
+			options.content.push_back({"mod:" + mod, scratch.Path(mod)});
+		try
+		{
+			Host::Session session{std::move(options), std::make_unique<Host::Game>()};
+			return {};
+		}
+		catch (const Host::StartupError &error)
+		{
+			CHECK(error.FailedPhase() == Host::Phase::Content);
+			CHECK(
+			    error.Source() ==
+			    std::filesystem::absolute(scratch.Path(mods.back())).lexically_normal());
+			return error.what();
+		}
+	};
+	CHECK(start({"copper", "needs-copper"}).empty());
+	CHECK(
+	    start({"needs-copper"})
+	        .find("requires the package 'copper', which is not a source before it") !=
+	    std::string::npos);
+	CHECK(
+	    start({"copper", "old-form"})
+	        .find(
+	            "requires 'mod:copper', a mod's mount name; a mod is required by its identifier, "
+	            "'copper'") != std::string::npos);
+	CHECK_THROWS_WITH(
+	    (void)Host::DescribePackage(scratch.Path("old-form")),
+	    doctest::Contains("a mod is required by its identifier, 'copper'"));
+}
+
+
 TEST_CASE("Host: a package reads the same from its directory and its pack")
 {
 	const Scratch scratch;

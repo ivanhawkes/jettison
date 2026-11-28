@@ -75,7 +75,8 @@ Package Describe(const Vfs::Mount &mount, std::span<const Package> before)
 		    "it requires engine {}, newer than this build's {}", description.engine,
 		    Core::EngineVersion())};
 	for (const std::string &required : description.required)
-		if (std::ranges::find(before, required, &Package::mount) == before.end())
+		if (std::ranges::none_of(
+		        before, [&](const Package &other) { return Fulfils(other.mount, required); }))
 			throw std::runtime_error{
 			    std::format("it requires the package '{}', which is not a source before it", required)};
 	CheckSide(description, mount.source);

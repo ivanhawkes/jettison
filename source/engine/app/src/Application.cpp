@@ -168,24 +168,6 @@ class ShellComposition final : public Host::Game
 };
 
 
-// The asset tree's read-only sources as the session mounts them: a mod by its identifier, which is
-// what another mod's requirement names, and the user's writable directory left to the shell.
-std::vector<Vfs::Mount> SessionMounts(const Vfs::FileSystem &assets)
-{
-	constexpr std::string_view kModPrefix = "mod:";
-	std::vector<Vfs::Mount> mounts;
-	for (const Vfs::Mount &mount : assets.Mounts())
-	{
-		if (mount.writable)
-			continue;
-		Vfs::Mount source = mount;
-		if (source.name.starts_with(kModPrefix))
-			source.name.erase(0, kModPrefix.size());
-		mounts.push_back(std::move(source));
-	}
-	return mounts;
-}
-
 // How far a pick reaches: past any platform a vehicle is flown by.
 constexpr double kPickDistance = 50000.0;
 

@@ -72,7 +72,21 @@ std::optional<PackageDescription> DescribePackage(const std::filesystem::path &s
 	if (!bytes)
 		return std::nullopt;
 	const std::string_view text{reinterpret_cast<const char *>(bytes->data()), bytes->size()};
-	return Serialise::YamlArchive::Read<PackageDescription>(text, {kPackageFormatVersion});
+	PackageDescription description =
+	    Serialise::YamlArchive::Read<PackageDescription>(text, {kPackageFormatVersion});
+	for (const std::string &required : description.required)
+		if (required.starts_with(kModMountPrefix))
+			throw std::runtime_error{std::format(
+			    "it requires '{}', a mod's mount name; a mod is required by its identifier, '{}'",
+			    required, required.substr(kModMountPrefix.size()))};
+	return description;
+}
+
+
+bool Fulfils(std::string_view mount, std::string_view required)
+{
+	return mount == required ||
+	       (mount.starts_with(kModMountPrefix) && mount.substr(kModMountPrefix.size()) == required);
 }
 
 

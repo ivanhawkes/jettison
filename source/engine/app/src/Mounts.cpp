@@ -26,12 +26,11 @@ namespace
 constexpr Core::Category kMounts{"mounts"};
 constexpr std::string_view kPackExtension = ".pack";
 
-// The shell's own mounts' names, which a mod may not take: a session mounts a mod under its
-// identifier, beside them.
+// The shell's own mounts' names, which a mod's identifier may not take: a mod requires them by
+// these names, and another mod by its identifier.
 constexpr std::string_view kEngineMount = "engine";
 constexpr std::string_view kContentMount = "base";
 constexpr std::string_view kUserMount = "user";
-constexpr std::string_view kModPrefix = "mod:";
 
 
 // A mod's identifier: its directory's name, or its pack's without the extension, so a mod is the same
@@ -180,7 +179,7 @@ std::vector<Sim::ModVersion> MountAssets(
 			if (!description.identifier.empty())
 			{
 				if (description.identifier == kEngineMount || description.identifier == kUserMount ||
-				    description.identifier.starts_with(kModPrefix))
+				    description.identifier.starts_with(Host::kModMountPrefix))
 					throw std::runtime_error{std::format(
 					    "its identifier, {}, is one of the shell's own mount names",
 					    description.identifier)};
@@ -261,7 +260,7 @@ std::vector<Sim::ModVersion> MountAssets(
 				    std::ranges::find(mounted, required, &Sim::ModVersion::mod) == mounted.end())
 					throw std::runtime_error{std::format(
 					    "it requires the mod {}, which is not mounted before it", required)};
-			files.AddMount({std::string{kModPrefix} + entry.mod, *pPath});
+			files.AddMount({std::string{Host::kModMountPrefix} + entry.mod, *pPath});
 			mounted.push_back({entry.mod, description.release});
 		}
 		catch (const std::exception &problem)
@@ -278,5 +277,15 @@ std::vector<Sim::ModVersion> MountAssets(
 		    Core::Severity::Info, kMounts, "{}: the {} {}", mount.name,
 		    mount.writable ? "writable directory" : KindOf(mount.source), mount.source.string());
 	return mounted;
+}
+
+
+std::vector<Vfs::Mount> SessionMounts(const Vfs::FileSystem &files)
+{
+	std::vector<Vfs::Mount> mounts;
+	std::ranges::copy_if(
+	    files.Mounts(), std::back_inserter(mounts),
+	    [](const Vfs::Mount &mount) { return !mount.writable; });
+	return mounts;
 }
 } // namespace Jettison::App
