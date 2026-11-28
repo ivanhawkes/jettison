@@ -403,9 +403,13 @@ endif()
 #      holds and the same image encode to other bytes. Found by the cook's tree giving a different
 #      UASTC block one run in six (2026-11-28), and by valgrind (an uninitialised value from
 #      uastc_rdo_blocks into the table's hash); the patch hashes the key's two members alone.
+#      Reported upstream as https://github.com/BinomialLLC/basis_universal/issues/494; on
+#      2026-11-28 it is unfixed in Basis Universal and in KTX-Software's main.
 #    - ktx-writer-leak.patch: writing a texture that names its writer (KTXwriter) takes the entry
 #      out of the key-value list to append libktx's version and never frees it, which
-#      LeakSanitizer fails the cook for in the sanitised tree; the patch frees it.
+#      LeakSanitizer fails the cook for in the sanitised tree; the patch frees it. KTX-Software's
+#      main fixes it in ktxHashList_DeleteEntry, which frees the entry itself (2026-11-28), so the
+#      patch goes when the pin moves past v4.4.2: kept, it would free the entry twice.
 #
 # zstd, for pack files (vfs, phase 11a) and for libktx's supercompressed textures, one copy for
 # all. The library alone, static, from zstd's own CMake build: no programs, no legacy formats
