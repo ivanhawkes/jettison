@@ -397,7 +397,7 @@ endif()
 #    this project's gate, so ASTCENC_WERROR is off.
 #  - libktx publicly defines DEBUG in Debug builds. It is linked privately by whatever uses it,
 #    so the definition stays out of public engine headers.
-#  - Two patches (patches/), applied to the clone as it stands, so a changed list applies again:
+#  - Three patches (patches/), applied to the clone as it stands, so a changed list applies again:
 #    - ktx-uastc-rdo-hash.patch: Basis Universal's UASTC rate-distortion pass hashes a key's
 #      padding, four bytes nothing writes, into its history table, so a lookup could miss what it
 #      holds and the same image encode to other bytes. Found by the cook's tree giving a different
@@ -410,6 +410,12 @@ endif()
 #      LeakSanitizer fails the cook for in the sanitised tree; the patch frees it. KTX-Software's
 #      main fixes it in ktxHashList_DeleteEntry, which frees the entry itself (2026-11-28), so the
 #      patch goes when the pin moves past v4.4.2: kept, it would free the entry twice.
+#    - ktx-short-header-leak.patch: a file shorter than a KTX 2 header leaks the memory stream
+#      ktxTexture2_CreateFromMemory made for it (ktxMem_create_ro), since the header's read is the
+#      one failure in ktxTexture2_constructFromStream that returns before the stream is the
+#      texture's, which every later failure destructs with it. LeakSanitizer fails render's suite
+#      for it, which refuses such files; the patch destructs the stream there. Unfixed in
+#      KTX-Software's main on 2026-11-28 (lib/src/texture2.c).
 #
 # zstd, for pack files (vfs, phase 11a) and for libktx's supercompressed textures, one copy for
 # all. The library alone, static, from zstd's own CMake build: no programs, no legacy formats
@@ -460,6 +466,7 @@ block()
 	  COMMAND "${GIT_EXECUTABLE}" -C <SOURCE_DIR> apply
 	    "${CMAKE_CURRENT_SOURCE_DIR}/patches/ktx-uastc-rdo-hash.patch"
 	    "${CMAKE_CURRENT_SOURCE_DIR}/patches/ktx-writer-leak.patch"
+	    "${CMAKE_CURRENT_SOURCE_DIR}/patches/ktx-short-header-leak.patch"
 	  SYSTEM
 	  EXCLUDE_FROM_ALL
 	)

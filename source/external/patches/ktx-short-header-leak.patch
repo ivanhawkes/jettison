@@ -1,0 +1,16 @@
+diff --git a/lib/texture2.c b/lib/texture2.c
+--- a/lib/texture2.c
++++ b/lib/texture2.c
+@@ -1097,8 +1097,11 @@
+ 
+     // Read header.
+     result = pStream->read(pStream, &header, KTX2_HEADER_SIZE);
+-    if (result != KTX_SUCCESS)
++    if (result != KTX_SUCCESS) {
++        // Every later failure destructs the stream with the texture; this one does it here.
++        pStream->destruct(pStream);
+         return result;
++    }
+ 
+ #if IS_BIG_ENDIAN
+     // byte swap the header

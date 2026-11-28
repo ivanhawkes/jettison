@@ -308,7 +308,7 @@ flowchart TD
 | `host` | A failed start-up and a teardown release what each phase built |
 | `net` | It reads a peer's packets |
 | `geometry` | Its reader decodes a model file a mod can ship, and its cook copies vertices by index |
-| `animation`, `ui`, `bake_collision` | They refuse a mod's malformed clips, translations and models. `render`'s is not run: libktx leaks its memory stream as it refuses a file's header |
+| `animation`, `ui`, `bake_collision`, `render` | They refuse a mod's malformed clips, translations, models and textures |
 
 ### Reading the result
 

@@ -243,20 +243,19 @@ if [ "$asan" -eq 1 ]; then
 	# start-ups and teardowns release what each phase built; net's, which reads a peer's packets; and
 	# transit's, whose passages a cruise is built on, saved and loaded mid-way; geometry's, whose
 	# reader decodes a model file a mod can ship and whose cook copies vertices by index; and the
-	# rig loader's, the string tables' and the collision baker's, which refuse a mod's malformed
-	# clips, translations and models. Render's is not among them: libktx leaks its memory stream
-	# when it refuses a file's header.
+	# rig loader's, the string tables', the collision baker's and render's, which refuse a mod's
+	# malformed clips, translations, models and textures.
 	# The script suite's modules are built with the tree, not as its dependency, so they
 	# are named.
-	stage "unit tests: clang-asan (vfs, serialise, resource, sim, spatial, physics, transit, ai, dock, script, host, net, geometry, animation, ui and bake_collision)"
+	stage "unit tests: clang-asan (vfs, serialise, resource, sim, spatial, physics, transit, ai, dock, script, host, net, geometry, animation, ui, bake_collision and render)"
 	cmake --build --preset clang-asan --target jettison_vfs_tests jettison_serialise_tests jettison_resource_tests \
 		jettison_sim_tests jettison_spatial_tests jettison_physics_tests jettison_transit_tests \
 		jettison_ai_tests jettison_dock_tests jettison_script_tests jettison_script_test_limits jettison_script_test_rogue \
 		jettison_script_test_events jettison_script_test_events_rs jettison_script_test_keys \
 		jettison_script_test_keys_rs jettison_script_test_reads jettison_script_test_reads_rs \
 		jettison_host_tests jettison_net_tests jettison_geometry_tests jettison_animation_tests \
-		jettison_ui_tests jettison_collision_bake_tests
-	ctest --test-dir build/clang-asan -R '^(vfs|serialise|resource|sim|spatial|physics|transit|ai|dock|script|host|net|geometry|animation|ui|bake_collision)$' \
+		jettison_ui_tests jettison_collision_bake_tests jettison_render_tests
+	ctest --test-dir build/clang-asan -R '^(vfs|serialise|resource|sim|spatial|physics|transit|ai|dock|script|host|net|geometry|animation|ui|bake_collision|render)$' \
 		--output-on-failure --no-tests=error -j "$jobs"
 fi
 
