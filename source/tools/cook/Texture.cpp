@@ -53,11 +53,6 @@ constexpr std::string_view kWriter = "Jettison's cook (jettison_cook)";
 constexpr std::array<unsigned char, 12> kKtx2Identifier{0xAB, 0x4B, 0x54, 0x58, 0x20, 0x32,
                                                         0x30, 0xBB, 0x0D, 0x0A, 0x1A, 0x0A};
 
-// Where a KTX 2 header holds pixelWidth and pixelHeight (the KTX 2 specification, "Header").
-constexpr std::size_t kPixelWidthOffset = 20;
-
-constexpr std::size_t kPixelHeightOffset = 24;
-
 // What KHR_texture_basisu requires both sides of a model's image to be multiples of.
 constexpr std::uint32_t kBasisuSideMultiple = 4;
 
@@ -260,15 +255,37 @@ std::vector<std::byte> EncodeTexture(
 }
 
 
-void CheckModelImage(std::span<const std::byte> ktx2, std::string_view name)
+void CheckModelImage(std::span<const std::byte> ktx2, std::string_view name, ColourSpace colourSpace)
 {
-	std::uint32_t width = 0;
-	std::uint32_t height = 0;
-	if (ktx2.size() >= kPixelHeightOffset + sizeof height)
-	{
-		std::memcpy(&width, ktx2.data() + kPixelWidthOffset, sizeof width);
-		std::memcpy(&height, ktx2.data() + kPixelHeightOffset, sizeof height);
-	}
+	// Its header, descriptor and index only: no level is loaded.
+	ktxTexture2 *pRead = nullptr;
+	if (ktxTexture2_CreateFromMemory(
+	        reinterpret_cast<const ktx_uint8_t *>(ktx2.data()), ktx2.size(),
+	        KTX_TEXTURE_CREATE_NO_FLAGS, &pRead) != KTX_SUCCESS)
+		throw std::runtime_error(std::format("{}: it is not a KTX 2 file libktx reads", name));
+	const std::unique_ptr<ktxTexture2, TextureDeleter> pTexture{pRead};
+
+	// KHR_texture_basisu: UASTC, supercompressed by zstd or not, or ETC1S in BasisLZ.
+	const khr_df_model_e model = ktxTexture2_GetColorModel_e(pTexture.get());
+	const ktxSupercmpScheme scheme = pTexture->supercompressionScheme;
+	const bool uastc = model == KHR_DF_MODEL_UASTC && (scheme == KTX_SS_NONE || scheme == KTX_SS_ZSTD);
+	const bool etc1s = model == KHR_DF_MODEL_ETC1S && scheme == KTX_SS_BASIS_LZ;
+	if (!uastc && !etc1s)
+		throw std::runtime_error(
+		    std::format(
+		        "{}: KHR_texture_basisu needs an image in a model to be Basis Universal, UASTC or "
+		        "ETC1S, and it is not; give the model its source image to encode",
+		        name));
+	if (colourSpace == ColourSpace::Linear &&
+	    ktxTexture2_GetPrimaries_e(pTexture.get()) != KHR_DF_PRIMARIES_UNSPECIFIED)
+		throw std::runtime_error(
+		    std::format(
+		        "{}: KHR_texture_basisu needs a data image in a model to have its colour primaries "
+		        "unspecified, and it names them; give the model its source image to encode",
+		        name));
+
+	const std::uint32_t width = pTexture->baseWidth;
+	const std::uint32_t height = pTexture->baseHeight;
 	if (width == 0 || height == 0 || width % kBasisuSideMultiple != 0 ||
 	    height % kBasisuSideMultiple != 0)
 		throw std::runtime_error(

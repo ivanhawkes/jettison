@@ -181,16 +181,6 @@ std::vector<Vertex> ReadVertices(
 	return vertices;
 }
 
-
-// Whether two primitives read the same accessors for every attribute, as a cooked file's levels of
-// one source primitive do.
-bool SameVertices(const fastgltf::Primitive &a, const fastgltf::Primitive &b)
-{
-	return std::ranges::equal(
-	    a.attributes, b.attributes,
-	    [](const fastgltf::Attribute &left, const fastgltf::Attribute &right)
-	    { return left.name == right.name && left.accessorIndex == right.accessorIndex; });
-}
 } // namespace
 
 
@@ -247,10 +237,10 @@ void Model::ReadGltf(const Geometry::GltfFile &file)
 		if (m_primitives.size() < levels.front().primitiveCount)
 			ReadBaseColorImageData(asset, primitive, path, modelPrimitive);
 
-		// A cooked file's levels share their source primitive's vertices, which are read once.
+		// Primitives that share their vertices, as a cooked file's levels do, read them once.
 		auto shared = std::ranges::find_if(
-		    read,
-		    [&](const ReadPrimitive &earlier) { return SameVertices(*earlier.pPrimitive, primitive); });
+		    read, [&](const ReadPrimitive &earlier)
+		    { return Geometry::SameVertices(*earlier.pPrimitive, primitive); });
 		if (shared == read.end())
 		{
 			const std::vector<Vertex> vertices = ReadVertices(asset, primitive, skinJoints);

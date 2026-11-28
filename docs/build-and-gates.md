@@ -309,6 +309,7 @@ flowchart TD
 | `net` | It reads a peer's packets |
 | `geometry` | Its reader decodes a model file a mod can ship, and its cook copies vertices by index |
 | `animation`, `ui`, `bake_collision`, `render` | They refuse a mod's malformed clips, translations, models and textures |
+| `cook` | It reads a source tree's models and images, on threads of its own |
 
 ### Reading the result
 

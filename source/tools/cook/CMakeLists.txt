@@ -20,7 +20,7 @@ target_link_libraries(jettison_cook PRIVATE jettison_cook_tree Jettison::Core je
 if(JETTISON_BUILD_TESTS)
 	add_executable(jettison_cook_tests tests/CookTests.cpp)
 	target_link_libraries(jettison_cook_tests PRIVATE
-		jettison_cook_tree Jettison::Physics Jettison::Core fastgltf stb doctest::doctest_with_main
+		jettison_cook_tree Jettison::Physics Jettison::Core fastgltf ktx stb doctest::doctest_with_main
 		jettison_warnings)
 	set_target_properties(jettison_cook_tests PROPERTIES FOLDER "Test")
 	add_test(NAME cook COMMAND jettison_cook_tests)

@@ -9,7 +9,7 @@
 namespace Jettison::Cook
 {
 // Part of every cook key, so a change to what the cook writes cooks every source again.
-inline constexpr std::uint32_t kCookVersion = 3;
+inline constexpr std::uint32_t kCookVersion = 4;
 
 // The game's settings, at the source root (Settings.h).
 inline constexpr std::string_view kGameSettingsName = "cook.yaml";

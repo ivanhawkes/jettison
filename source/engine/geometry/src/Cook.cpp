@@ -221,21 +221,29 @@ glm::vec3 Vec3At(const Stream &stream, std::size_t vertex)
 
 
 // The renderer's normals for a primitive with none (render's ModelGltf.cpp): each vertex's
-// triangles' face normals summed, so a cooked and an uncooked file shade alike.
-void AddNormals(Primitive &primitive)
+// triangles' face normals summed, over the mesh's primitives that share its vertices (SameVertices) in
+// their order, so a cooked and an uncooked file shade alike. Read before any primitive's vertices are
+// reordered, so the sharing primitives' indices are into the same vertices.
+void AddNormals(Primitive &primitive, std::span<const Primitive> mesh)
 {
 	const Stream &positions = primitive.streams.front();
 	std::vector<glm::vec3> normals(primitive.vertexCount, glm::vec3{0.0f});
-	for (std::size_t index = 0; index + 2 < primitive.indices.size(); index += 3)
+	for (const Primitive &sharing : mesh)
 	{
-		const std::uint32_t a = primitive.indices[index];
-		const std::uint32_t b = primitive.indices[index + 1];
-		const std::uint32_t c = primitive.indices[index + 2];
-		const glm::vec3 face = glm::cross(
-		    Vec3At(positions, b) - Vec3At(positions, a), Vec3At(positions, c) - Vec3At(positions, a));
-		normals[a] += face;
-		normals[b] += face;
-		normals[c] += face;
+		if (!SameVertices(*sharing.pSource, *primitive.pSource))
+			continue;
+		for (std::size_t index = 0; index + 2 < sharing.indices.size(); index += 3)
+		{
+			const std::uint32_t a = sharing.indices[index];
+			const std::uint32_t b = sharing.indices[index + 1];
+			const std::uint32_t c = sharing.indices[index + 2];
+			const glm::vec3 face = glm::cross(
+			    Vec3At(positions, b) - Vec3At(positions, a),
+			    Vec3At(positions, c) - Vec3At(positions, a));
+			normals[a] += face;
+			normals[b] += face;
+			normals[c] += face;
+		}
 	}
 	Stream stream{"NORMAL", 3, std::vector<float>(primitive.vertexCount * 3)};
 	for (std::size_t vertex = 0; vertex < primitive.vertexCount; ++vertex)
@@ -698,11 +706,15 @@ fastgltf::Mesh CookMesh(
 				    Core::Severity::Warning, kGeometry,
 				    "{}: mesh '{}', primitive {}: {} has weights outside [0, 1], clamped to it",
 				    source.Name(), mesh.name, primitives.size(), stream.name);
+		primitives.push_back(std::move(read));
+	}
+	for (Primitive &read : primitives)
 		if (!FindStream(read.streams, "NORMAL"))
-			AddNormals(read);
+			AddNormals(read, primitives);
+	for (Primitive &read : primitives)
+	{
 		AddTangents(source, read);
 		Optimise(read);
-		primitives.push_back(std::move(read));
 	}
 	const std::vector<Level> levels = BuildLevels(primitives, settings);
 

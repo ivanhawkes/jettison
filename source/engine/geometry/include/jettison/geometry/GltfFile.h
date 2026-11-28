@@ -13,7 +13,8 @@
 namespace fastgltf
 {
 class Asset;
-}
+struct Primitive;
+} // namespace fastgltf
 
 namespace Jettison::Geometry
 {
@@ -35,19 +36,24 @@ class GltfFile
   public:
 	// A binary .glb, or a .gltf. A buffer in a file of its own is read from directory, at its URI
 	// relative to it; with no directory (a resource, whose bytes are all it is given) such a buffer is
-	// refused. Images in files of their own are left as URIs. Throws std::runtime_error naming the file
-	// for another extension, bytes that are not glTF, a buffer's URI that is absolute, climbs out of
-	// the directory (..) or leads out of it through a symbolic link (FileWithin), a buffer file that
-	// cannot be read or is shorter than the buffer, a compressed view whose stride or count breaks
-	// EXT_meshopt_compression, that lies outside its buffers, that decodes to more than 256 MiB, or
-	// that does not decode, fallback buffers that decode to more than 1 GiB together, a view outside
-	// its buffer, an accessor that is sparse, lies outside its view or buffer, has no view and more
-	// than 256 MiB of elements, or is a type or component type glTF 2.0 (with KHR_mesh_quantization)
-	// does not allow its use, any index naming what the file lacks, nodes that are not trees, a
-	// primitive whose attributes differ in count, and levels that are empty, whose finest error is not
-	// 0, that have an error past a float's range or less than the finer level's, or do not cover their
-	// mesh's primitives. A file it returns can be read by fastgltf's accessor tools, as the type its
-	// use allows and at any index it holds, without reading outside its buffers.
+	// refused; only as much of its file is read as the buffer declares, and a file several buffers
+	// name is read once. Images in files of their own are left as URIs. Throws std::runtime_error
+	// naming the file for another extension, bytes that are not glTF, a buffer's URI that is absolute,
+	// climbs out of the directory (..) or leads out of it through a symbolic link (FileWithin), a
+	// buffer file that cannot be read or is shorter than the buffer, buffer files declared longer than
+	// 1 GiB together, a compressed view whose stride or count breaks EXT_meshopt_compression, that
+	// lies outside its buffers, that decodes to more than 256 MiB, whose bytes are fewer than
+	// meshoptimizer 1.3's codec needs for what it claims to decode to, or that does not decode,
+	// fallback buffers that decode to more than 1 GiB together, a view outside its buffer, an accessor
+	// with no view, that is sparse, lies outside its view or buffer, or is a type or component type
+	// glTF 2.0 (with KHR_mesh_quantization) does not allow its use, primitives that give the readers
+	// more than 22,369,621 vertices or 67,108,864 indices together (each counted once for every node
+	// naming its mesh, and once if none does; a primitive with no indices as many as its vertices),
+	// any index naming what the file lacks, nodes that are not trees, a primitive whose attributes
+	// differ in count, and levels that are empty, whose finest error is not 0, that have an error past
+	// a float's range or less than the finer level's, or do not cover their mesh's primitives. A file
+	// it returns can be read by fastgltf's accessor tools, as the type its use allows and at any index
+	// it holds, without reading outside its buffers.
 	static std::unique_ptr<GltfFile> Parse(
 	    std::span<const std::byte> bytes, std::string_view name,
 	    const std::filesystem::path &directory = {});
@@ -91,6 +97,12 @@ class GltfFile
 	std::vector<std::vector<MeshLevel>> m_levels;
 	std::string m_cookKey;
 };
+
+// Whether two primitives read the same accessors for every attribute, so a reader reads their vertices
+// once: a cooked file's levels of one source primitive, or a mesh split by material over one set of
+// vertices. A normal the renderer or the cook makes is summed over all such primitives' triangles, so
+// a cooked and an uncooked file shade alike across the split.
+bool SameVertices(const fastgltf::Primitive &a, const fastgltf::Primitive &b);
 
 // The file at relative within directory, by its weakly canonical path: relative is relative, with no
 // "..", and leads to a path within directory with symbolic links followed, since a link inside it can

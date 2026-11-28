@@ -377,3 +377,48 @@ TEST_CASE("Model: a file's missing normals are its faces' summed, as the cook ma
 		CHECK(glm::length(match->normal - vertex.normal) < 1e-4f);
 	}
 }
+
+
+TEST_CASE("Model: primitives sharing their vertices have normals made across them, cooked or not")
+{
+	// The tetrahedron split by material in two, its faces two each, over one POSITION accessor, so
+	// each corner's faces lie in both.
+	const std::string text = R"({"asset": {"version": "2.0"}, "nodes": [{"mesh": 0}],
+		"scenes": [{"nodes": [0]}], "scene": 0, "materials": [{}, {}],
+		"buffers": [{"byteLength": 72, "uri": "data:application/octet-stream;base64,)"
+	                         "AAAAAAAAAAAAAAAAAACAPwAAAAAAAAAAAAAAAAAAgD8AAAAAAAAAAAAAAAAA"
+	                         "AIA/AAACAAEAAAABAAMAAAADAAIAAQACAAMA"
+	                         R"("}],
+		"bufferViews": [{"buffer": 0, "byteLength": 48},
+			{"buffer": 0, "byteOffset": 48, "byteLength": 12},
+			{"buffer": 0, "byteOffset": 60, "byteLength": 12}],
+		"accessors": [
+			{"bufferView": 0, "componentType": 5126, "count": 4, "type": "VEC3",
+				"min": [0, 0, 0], "max": [1, 1, 1]},
+			{"bufferView": 1, "componentType": 5123, "count": 6, "type": "SCALAR"},
+			{"bufferView": 2, "componentType": 5123, "count": 6, "type": "SCALAR"}],
+		"meshes": [{"primitives": [{"attributes": {"POSITION": 0}, "indices": 1, "material": 0},
+			{"attributes": {"POSITION": 0}, "indices": 2, "material": 1}]}]})";
+	std::vector<std::byte> bytes(text.size());
+	std::memcpy(bytes.data(), text.data(), text.size());
+	const auto source = Geometry::GltfFile::Parse(bytes, "split.gltf");
+	const auto uncooked = Model::FromGltf(*source);
+	const auto cooked = Model::FromGltf(
+	    *Geometry::GltfFile::Parse(Geometry::CookModel(*source, {}, "key"), "split.glb"));
+	REQUIRE(uncooked->Vertices().size() == 4);
+
+	// The origin's normal is its three faces', two in one primitive and one in the other.
+	const auto origin = std::ranges::find(uncooked->Vertices(), glm::vec3{0.0f}, &Vertex::pos);
+	REQUIRE(origin != uncooked->Vertices().end());
+	CHECK(glm::length(origin->normal - glm::normalize(glm::vec3{-1.0f})) < 1e-6f);
+
+	// The cook keeps each primitive's vertices apart, and stores normals in 16 bits.
+	REQUIRE(cooked->Vertices().size() == 8);
+	for (const Vertex &vertex : cooked->Vertices())
+	{
+		CAPTURE(vertex.pos);
+		const auto match = std::ranges::find(uncooked->Vertices(), vertex.pos, &Vertex::pos);
+		REQUIRE(match != uncooked->Vertices().end());
+		CHECK(glm::length(match->normal - vertex.normal) < 1e-4f);
+	}
+}

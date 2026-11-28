@@ -3,6 +3,7 @@
 #include <fastgltf/core.hpp>
 #include <fastgltf/tools.hpp>
 #include <glm/glm.hpp>
+#include <ktx.h>
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include <stb_image_write.h>
 
@@ -10,17 +11,20 @@
 #include <atomic>
 #include <chrono>
 #include <cmath>
+#include <cstdlib>
 #include <cstring>
 #include <filesystem>
 #include <format>
 #include <fstream>
 #include <iterator>
+#include <memory>
 #include <span>
 #include <string>
 #include <thread>
 #include <vector>
 
 #include "CookTree.h"
+#include "Texture.h"
 #include "Watch.h"
 #include <jettison/geometry/GltfFile.h>
 #include <jettison/physics/CollisionFile.h>
@@ -681,6 +685,59 @@ TEST_CASE("A data image's colour primaries are unspecified, in a model and loose
 	    R"("normalTexture":{"index":0})");
 	REQUIRE(fixture.Run().refusals.empty());
 	CHECK(Primaries(ModelImage(fixture)) == 0);
+}
+
+
+TEST_CASE("A model's KTX 2 image is kept only as KHR_texture_basisu allows, and refused naming it")
+{
+	const Fixture fixture{"model-ktx2"};
+	const fs::path image = fixture.source / "models" / "textures" / "given-color.ktx2";
+	EditModel(fixture, "textures/terrain-color.png", "textures/given-color.ktx2");
+
+	// The cook's own UASTC, its primaries BT.709, kept as it is for a base colour.
+	const auto uastc = Cook::EncodeTexture(
+	    Read(fixture.source / "models" / "textures" / "terrain-color.png"), "given-color.ktx2",
+	    Cook::ColourSpace::Srgb, {});
+	Write(image, uastc.data(), uastc.size());
+	REQUIRE(fixture.Run().refusals.empty());
+	CHECK(ModelImage(fixture) == uastc);
+
+	// As a normal map, data, whose primaries the extension needs unspecified.
+	const std::string baseColour = R"("pbrMetallicRoughness":{"baseColorTexture":{"index":0}})";
+	const std::string normal = R"("normalTexture":{"index":0})";
+	EditModel(fixture, baseColour, normal);
+	CHECK(Mentions(
+	    fixture.Run().refusals,
+	    "models/terrain.gltf image 0: KHR_texture_basisu needs a data image in a model to have its "
+	    "colour primaries unspecified"));
+
+	// Plain RGBA8, uncompressed (tile.gltf's plain.ktx2), which was kept and named as Basis Universal.
+	EditModel(fixture, normal, baseColour);
+	ktxTextureCreateInfo info{};
+	info.vkFormat = 37;
+	info.baseWidth = 4;
+	info.baseHeight = 4;
+	info.baseDepth = 1;
+	info.numDimensions = 2;
+	info.numLevels = 1;
+	info.numLayers = 1;
+	info.numFaces = 1;
+	ktxTexture2 *pTexture = nullptr;
+	REQUIRE(ktxTexture2_Create(&info, KTX_TEXTURE_CREATE_ALLOC_STORAGE, &pTexture) == KTX_SUCCESS);
+	std::vector<ktx_uint8_t> pixels(std::size_t{4} * 4 * 4, 0x80);
+	REQUIRE(
+	    ktxTexture_SetImageFromMemory(ktxTexture(pTexture), 0, 0, 0, pixels.data(), pixels.size()) ==
+	    KTX_SUCCESS);
+	ktx_uint8_t *pBytes = nullptr;
+	ktx_size_t size = 0;
+	REQUIRE(ktxTexture_WriteToMemory(ktxTexture(pTexture), &pBytes, &size) == KTX_SUCCESS);
+	ktxTexture2_Destroy(pTexture);
+	const std::unique_ptr<ktx_uint8_t, decltype(&std::free)> pOwned{pBytes, &std::free};
+	Write(image, pOwned.get(), size);
+	CHECK(Mentions(
+	    fixture.Run().refusals,
+	    "models/terrain.gltf image 0: KHR_texture_basisu needs an image in a model to be Basis "
+	    "Universal"));
 }
 
 

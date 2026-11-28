@@ -14,6 +14,7 @@
 #include <initializer_list>
 #include <iterator>
 #include <limits>
+#include <map>
 #include <numeric>
 #include <span>
 #include <stdexcept>
@@ -38,6 +39,53 @@ constexpr std::size_t kAttributeStrideAlignment = 4;
 constexpr std::size_t kMaxAttributeStride = 256;
 
 constexpr std::size_t kTriangleCorners = 3;
+
+// The most one compressed view decodes to, one attribute or one level's indices of one primitive, so
+// a file cannot make the reader allocate more for it: 22 million float positions, or 22 million
+// triangles' 32-bit indices, about 540 times the largest view the test content cooks to (496,200
+// bytes, the large asteroid's 81,920 triangles, measured 2026-11-28).
+constexpr std::size_t kMaxDecodedViewBytes = std::size_t{256} * 1024 * 1024;
+
+// The most a file's fallback buffers decode to together, each to its furthest view's end, so neither
+// a view's offset nor many buffers can make the reader allocate more: four views at their limit, 470
+// times the large asteroid's buffer (2,275,520 bytes). A 2 KB file of four fallbacks at this size once
+// made the reader allocate 4 GiB.
+constexpr std::size_t kMaxDecodedFileBytes = 4 * kMaxDecodedViewBytes;
+
+// The most a .gltf's buffer files are read for together, as much as its fallbacks may decode to, so a
+// .gltf's buffers cost a reader no more than a .glb's. Sixteen buffers naming one 64 MiB file once
+// read it sixteen times, whole, for 2 GiB.
+constexpr std::size_t kMaxBufferFileBytes = kMaxDecodedFileBytes;
+
+// The most vertices, and indices, a file's primitives give its readers together, each primitive
+// counted as often as a reader reads it: once for each node naming its mesh, as the bake reads them,
+// and once for a mesh no node names, which the cook still cooks; a primitive with no indices is drawn
+// by as many as it has vertices. As many as one decoded view at its limit holds, so naming one
+// accessor from many primitives or nodes costs no more than one primitive of that view: a 500-byte
+// file of four primitives naming 22 million vertices each once made the cook take 5.8 GiB. A cooked
+// file's levels each name their source primitive's vertices, so a model of five levels is read back
+// from at most a fifth of this, 4.5 million vertices, 108 times the large asteroid's 41,350.
+constexpr std::size_t kMaxReadVertices = kMaxDecodedViewBytes / sizeof(std::array<float, 3>);
+
+constexpr std::size_t kMaxReadIndices = kMaxDecodedViewBytes / sizeof(std::uint32_t);
+
+// meshoptimizer 1.3's vertex codec (vertexcodec.cpp), whose decoder refuses a version past 1
+// (kDecodeVertexVersion, lines 126 and 1836): version 1 reads a control byte for each 4 bytes of a
+// vertex (decodeVertexBlock, 719 and 728) in every block of at most 256 vertices (kVertexBlockMaxSize,
+// 129), and a control byte can say its bytes are all zero (743), so a byte of a stream decodes to
+// 1,024 at the most; version 0's decodes to 64, a header byte for every 64 of a block's (648).
+constexpr std::size_t kMeshoptVertexBlock = 256;
+
+constexpr std::size_t kMeshoptBytesPerControl = 4;
+
+constexpr std::size_t kMostDecodedPerAttributeByte = kMeshoptVertexBlock * kMeshoptBytesPerControl;
+
+// The bytes meshoptimizer 1.3's index decoders need beside a byte for each triangle, or each index, of
+// a stream, their first checks (indexcodec.cpp, lines 392 and 652): a triangle stream's header and 16
+// bytes of its table, a sequence's header and 4 bytes of tail.
+constexpr std::size_t kTriangleStreamFixedBytes = 1 + 16;
+
+constexpr std::size_t kSequenceStreamFixedBytes = 1 + 4;
 
 
 bool IsGltf(std::string_view path)
@@ -145,26 +193,94 @@ std::span<const std::byte> BufferBytes(const fastgltf::Asset &asset, std::size_t
 }
 
 
-// A buffer's file, which must lie within directory, so a model's URI cannot read what is outside it.
+// The first length bytes of a buffer's file, which must hold that many.
 std::vector<std::byte> ReadBufferFile(
-    const std::filesystem::path &directory, const fastgltf::Buffer &buffer, const std::string &name)
+    const std::filesystem::path &path, std::size_t length, std::string_view uri,
+    const std::string &name)
 {
-	const auto &uri = *std::get<fastgltf::sources::URI>(buffer.data).uri;
-	const std::optional<std::filesystem::path> path =
-	    uri.isLocalPath() ? FileWithin(directory, uri.fspath()) : std::nullopt;
-	if (!path)
-		throw std::runtime_error(
-		    std::format("glTF model's buffer '{}' is outside its directory: {}", uri.string(), name));
-	std::ifstream stream{*path, std::ios::binary};
-	const std::vector<char> chars{
-	    std::istreambuf_iterator<char>{stream}, std::istreambuf_iterator<char>{}};
-	if (!stream || chars.size() < buffer.byteLength)
+	std::error_code error;
+	const std::uintmax_t size = std::filesystem::file_size(path, error);
+	std::ifstream stream{path, std::ios::binary};
+	std::vector<std::byte> bytes;
+	if (!error && size >= length)
+	{
+		bytes.resize(length);
+		stream.read(reinterpret_cast<char *>(bytes.data()), static_cast<std::streamsize>(length));
+	}
+	if (error || size < length || !stream)
 		throw std::runtime_error(
 		    std::format(
-		        "glTF model's buffer '{}' cannot be read, or is shorter than the buffer: {}",
-		        uri.string(), name));
-	const auto *pBytes = reinterpret_cast<const std::byte *>(chars.data());
-	return {pBytes, pBytes + chars.size()};
+		        "glTF model's buffer '{}' cannot be read, or is shorter than the buffer: {}", uri,
+		        name));
+	return bytes;
+}
+
+
+// Read here rather than by fastgltf's LoadExternalBuffers, which would follow a URI anywhere. Each
+// buffer's file must lie within directory, so a model's URI cannot read what is outside it, and a file
+// several buffers name is read once, as far as the longest of them.
+void ReadBufferFiles(
+    fastgltf::Asset &asset, const std::filesystem::path &directory, const std::string &name)
+{
+	struct File
+	{
+		std::string uri;
+		std::size_t length{};
+		std::size_t buffers{};
+		std::vector<std::byte> bytes;
+	};
+
+	std::map<std::filesystem::path, File> files;
+	std::vector<std::filesystem::path> paths(asset.buffers.size());
+	std::size_t declared = 0;
+	for (std::size_t index = 0; index < asset.buffers.size(); ++index)
+	{
+		const fastgltf::Buffer &buffer = asset.buffers[index];
+		const auto *pSource = std::get_if<fastgltf::sources::URI>(&buffer.data);
+		if (!pSource)
+			continue;
+		if (directory.empty())
+			throw std::runtime_error(
+			    "glTF model keeps a buffer in another file, which a resource cannot read: " + name +
+			    " (make it a .glb, or embed the buffer)");
+		const auto &uri = *pSource->uri;
+		const std::optional<std::filesystem::path> path =
+		    uri.isLocalPath() ? FileWithin(directory, uri.fspath()) : std::nullopt;
+		if (!path)
+			throw std::runtime_error(
+			    std::format(
+			        "glTF model's buffer '{}' is outside its directory: {}", uri.string(), name));
+		if (buffer.byteLength > kMaxBufferFileBytes - declared)
+			throw std::runtime_error(
+			    std::format(
+			        "glTF model's buffer files are declared longer than {} bytes together: {}",
+			        kMaxBufferFileBytes, name));
+		declared += buffer.byteLength;
+		paths[index] = *path;
+		File &file = files[*path];
+		if (file.buffers++ == 0 || buffer.byteLength > file.length)
+		{
+			file.uri = uri.string();
+			file.length = buffer.byteLength;
+		}
+	}
+	for (auto &[path, file] : files)
+		file.bytes = ReadBufferFile(path, file.length, file.uri, name);
+	for (std::size_t index = 0; index < asset.buffers.size(); ++index)
+	{
+		if (paths[index].empty())
+			continue;
+		File &file = files.at(paths[index]);
+		const std::size_t length = asset.buffers[index].byteLength;
+
+		// The last buffer to name a file takes its bytes, so a file named once is not copied.
+		const std::span<const std::byte> prefix = std::span{file.bytes}.first(length);
+		std::vector<std::byte> bytes = --file.buffers == 0
+		                                   ? std::move(file.bytes)
+		                                   : std::vector<std::byte>{prefix.begin(), prefix.end()};
+		bytes.resize(length);
+		asset.buffers[index].data = fastgltf::sources::Vector{std::move(bytes)};
+	}
 }
 
 
@@ -188,27 +304,30 @@ bool ValidCompression(const fastgltf::CompressedBufferView &compressed)
 }
 
 
+// The fewest bytes a valid stream holds for what the view claims it decodes to, which is within
+// kMaxDecodedViewBytes, so none of this wraps.
+std::size_t LeastCompressedBytes(const fastgltf::CompressedBufferView &compressed)
+{
+	switch (compressed.mode)
+	{
+		case fastgltf::MeshoptCompressionMode::Attributes:
+		{
+			const std::size_t decoded = compressed.count * compressed.byteStride;
+			return (decoded + kMostDecodedPerAttributeByte - 1) / kMostDecodedPerAttributeByte;
+		}
+		case fastgltf::MeshoptCompressionMode::Triangles:
+			return kTriangleStreamFixedBytes + (compressed.count / kTriangleCorners);
+		case fastgltf::MeshoptCompressionMode::Indices:
+			return kSequenceStreamFixedBytes + compressed.count;
+	}
+	return 0;
+}
+
+
 bool InRange(std::size_t offset, std::size_t length, std::size_t size)
 {
 	return offset <= size && length <= size - offset;
 }
-
-
-// The most one compressed view decodes to, one attribute or one level's indices of one primitive, so
-// a file cannot make the reader allocate more for it: 22 million float positions, or 22 million
-// triangles' 32-bit indices, about 540 times the largest view the test content cooks to (496,200
-// bytes, the large asteroid's 81,920 triangles, measured 2026-11-28).
-constexpr std::size_t kMaxDecodedViewBytes = std::size_t{256} * 1024 * 1024;
-
-// The most a file's fallback buffers decode to together, each to its furthest view's end, so neither
-// a view's offset nor many buffers can make the reader allocate more: four views at their limit, 470
-// times the large asteroid's buffer (2,275,520 bytes). A 2 KB file of four fallbacks at this size once
-// made the reader allocate 4 GiB.
-constexpr std::size_t kMaxDecodedFileBytes = 4 * kMaxDecodedViewBytes;
-
-// The most an accessor with no view, all zeros by glTF, reads as: a reader makes its elements as it
-// does a view's, so it is held to what one decoded view may hold.
-constexpr std::size_t kMaxZeroAccessorBytes = kMaxDecodedViewBytes;
 
 
 // Each compressed view decoded into its fallback buffer, which then holds the bytes the file's
@@ -246,6 +365,12 @@ void DecodeCompressedViews(fastgltf::Asset &asset, const std::string &name)
 			    std::format(
 			        "A compressed glTF view decodes to more than {} bytes: {}", kMaxDecodedViewBytes,
 			        name));
+		if (compressed.byteLength < LeastCompressedBytes(compressed))
+			throw std::runtime_error(
+			    std::format(
+			        "A compressed glTF view of {} bytes claims more than meshoptimizer's codec decodes "
+			        "them to: {}",
+			        compressed.byteLength, name));
 		if (compressed.count * compressed.byteStride != view.byteLength ||
 		    !InRange(view.byteOffset, view.byteLength, asset.buffers[view.bufferIndex].byteLength) ||
 		    !InRange(
@@ -332,9 +457,16 @@ void CheckIndices(const fastgltf::Asset &asset, const std::string &name)
 		if (view.meshoptCompression)
 			check("buffer view", at, view.meshoptCompression->bufferIndex, buffers, "buffer");
 	}
+
+	// An accessor with no view is all zeros, or a sparse one's base, and sparse accessors are refused,
+	// so none is of use to a reader, which would still make its elements.
 	for (std::size_t at = 0; at < accessors; ++at)
-		if (asset.accessors[at].bufferViewIndex)
-			check("accessor", at, *asset.accessors[at].bufferViewIndex, views, "buffer view");
+	{
+		if (!asset.accessors[at].bufferViewIndex)
+			throw std::runtime_error(
+			    std::format("glTF model's accessor {} has no buffer view: {}", at, name));
+		check("accessor", at, *asset.accessors[at].bufferViewIndex, views, "buffer view");
+	}
 	for (std::size_t at = 0; at < asset.images.size(); ++at)
 		if (const auto *pView = std::get_if<fastgltf::sources::BufferView>(&asset.images[at].data))
 			check("image", at, pView->bufferViewIndex, views, "buffer view");
@@ -446,6 +578,48 @@ void CheckHierarchy(const fastgltf::Asset &asset, const std::string &name)
 }
 
 
+// What a file's primitives give its readers to make, held to kMaxReadVertices and kMaxReadIndices by
+// their counts alone, before any bytes are read for them.
+void CheckReads(const fastgltf::Asset &asset, const std::string &name)
+{
+	std::vector<std::size_t> reads(asset.meshes.size());
+	for (const fastgltf::Node &node : asset.nodes)
+		if (node.meshIndex)
+			++reads[*node.meshIndex];
+	std::size_t vertices = 0;
+	std::size_t indices = 0;
+	const auto add = [&](std::size_t &total, std::size_t count, std::size_t times, std::size_t most,
+	                     std::string_view what)
+	{
+		if (count > (most - total) / times)
+			throw std::runtime_error(
+			    std::format(
+			        "glTF model's primitives give its readers more than {} {} together: {}", most, what,
+			        name));
+		total += count * times;
+	};
+	for (std::size_t mesh = 0; mesh < asset.meshes.size(); ++mesh)
+	{
+		std::size_t meshVertices = 0;
+		std::size_t meshIndices = 0;
+		for (const fastgltf::Primitive &primitive : asset.meshes[mesh].primitives)
+		{
+			const auto position = primitive.findAttribute("POSITION");
+			const std::size_t count = position == primitive.attributes.end()
+			                              ? 0
+			                              : asset.accessors[position->accessorIndex].count;
+			add(meshVertices, count, 1, kMaxReadVertices, "vertices");
+			add(meshIndices,
+			    primitive.indicesAccessor ? asset.accessors[*primitive.indicesAccessor].count : count,
+			    1, kMaxReadIndices, "indices");
+		}
+		const std::size_t times = std::max(reads[mesh], std::size_t{1});
+		add(vertices, meshVertices, times, kMaxReadVertices, "vertices");
+		add(indices, meshIndices, times, kMaxReadIndices, "indices");
+	}
+}
+
+
 // fastgltf's accessor tools and buffer adapter read wherever a view or accessor points, so every view
 // is held within its buffer and every accessor within its view, before a reader iterates them.
 void CheckBounds(const fastgltf::Asset &asset, const std::string &name)
@@ -468,13 +642,6 @@ void CheckBounds(const fastgltf::Asset &asset, const std::string &name)
 			throw std::runtime_error(
 			    std::format(
 			        "glTF model's accessor {} lies outside its view or buffer: {}", index, name));
-		const std::size_t elementBytes =
-		    fastgltf::getElementByteSize(accessor.type, accessor.componentType);
-		if (!accessor.bufferViewIndex && accessor.count > kMaxZeroAccessorBytes / elementBytes)
-			throw std::runtime_error(
-			    std::format(
-			        "glTF model's accessor {} has no view and reads as more than {} bytes: {}", index,
-			        kMaxZeroAccessorBytes, name));
 	}
 }
 
@@ -625,6 +792,15 @@ void CheckUses(const fastgltf::Asset &asset, const std::string &name)
 } // namespace
 
 
+bool SameVertices(const fastgltf::Primitive &a, const fastgltf::Primitive &b)
+{
+	return std::ranges::equal(
+	    a.attributes, b.attributes,
+	    [](const fastgltf::Attribute &left, const fastgltf::Attribute &right)
+	    { return left.name == right.name && left.accessorIndex == right.accessorIndex; });
+}
+
+
 std::optional<std::filesystem::path> FileWithin(
     const std::filesystem::path &directory, const std::filesystem::path &relative)
 {
@@ -667,21 +843,15 @@ std::unique_ptr<GltfFile> GltfFile::Parse(
 		        label));
 	auto &asset = parsed.get();
 
-	// Read here rather than by fastgltf's LoadExternalBuffers, which would follow a URI anywhere.
-	for (auto &buffer : asset.buffers)
-	{
-		if (!std::holds_alternative<fastgltf::sources::URI>(buffer.data))
-			continue;
-		if (directory.empty())
-			throw std::runtime_error(
-			    "glTF model keeps a buffer in another file, which a resource cannot read: " + label +
-			    " (make it a .glb, or embed the buffer)");
-		buffer.data = fastgltf::sources::Vector{ReadBufferFile(directory, buffer, label)};
-	}
 	if (extras.malformed)
 		throw std::runtime_error("glTF model's cook extras are malformed: " + label);
+
+	// Each check before the bytes it allows a reader to take: no buffer file is read, nor any view
+	// decoded, for a file whose JSON is refused.
 	CheckIndices(asset, label);
 	CheckHierarchy(asset, label);
+	CheckReads(asset, label);
+	ReadBufferFiles(asset, directory, label);
 	DecodeCompressedViews(asset, label);
 	CheckBounds(asset, label);
 	CheckUses(asset, label);

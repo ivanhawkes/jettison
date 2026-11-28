@@ -303,7 +303,10 @@ at build time below. As built:
   taken with green up, as the [content-file rule](coding-standards.md#content-files) says. A data
   image's colour primaries are unspecified, as KHR_texture_basisu requires in a model; a model's
   image whose sides are not multiples of 4, which the extension also requires, is refused, naming
-  the model and the image, for its source to be resized.
+  the model and the image, for its source to be resized. A model's image that is KTX 2 already is
+  kept as it is, and refused, naming the model and the image, unless it is what the extension
+  requires: Basis Universal (UASTC with no supercompression or zstd, or ETC1S in BasisLZ), with a
+  data image's primaries unspecified (`Cook::CheckModelImage`).
 - **The record** is `cook-record.yaml` in the output, each source's key a 64-bit FNV-1a
   (`Core::Fnv1a64`, `HashCombine`) of its bytes, its references' paths and bytes, its settings
   layers' names and text and `Cook::kCookVersion`. A copied file has no settings layers, so
@@ -317,7 +320,8 @@ at build time below. As built:
 - **Checked by** the `cook` suite (`source/tools/cook/tests`), over a tree it writes: layered and
   refused settings, the record, refused names and glTF, skipping, deletion, cooking again on a
   changed buffer, image or `cook.yaml`, the same bytes twice, copies and collision files, a hidden
-  reference and an image's sides refused, and data images' primaries.
+  reference and an image's sides refused, data images' primaries, and a model's KTX 2 that is not
+  Basis Universal, or a data image of BT.709, refused.
 
 **Built (J37d): the engine's content cooked by the build.** `source/test/CMakeLists.txt` stages
 `source/test/content` as the cook's source tree, `build/<preset>/source/test/content-source`;

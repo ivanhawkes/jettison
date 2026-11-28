@@ -737,7 +737,7 @@ class TreeCook
 			images.push_back(EncodeTexture(
 			    ImageBytes(asset, asset.images[index], m_source, source.path), name, spaces[index],
 			    settings.textures));
-			CheckModelImage(images.back(), name);
+			CheckModelImage(images.back(), name, spaces[index]);
 		}
 		const Bytes model = Geometry::CookModel(*pFile, settings.lod, key, images);
 

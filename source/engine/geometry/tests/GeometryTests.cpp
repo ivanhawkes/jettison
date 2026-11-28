@@ -702,6 +702,61 @@ TEST_CASE("A .gltf's buffer in a file of its own is read from its directory, and
 
 
 TEST_CASE(
+    "A .gltf's buffer file is read only as far as its buffers declare, and they are held to 1 GiB")
+{
+	const auto directory = std::filesystem::temp_directory_path() / "jettison-geometry-buffer-lengths";
+	std::filesystem::remove_all(directory);
+	std::filesystem::create_directories(directory);
+	std::vector<glm::vec3> positions{{0, 0, 0}, {1, 0, 0}, {0, 1, 0}};
+	positions.resize(1000, glm::vec3{7.0f});
+	{
+		std::ofstream stream{directory / "long.bin", std::ios::binary};
+		stream.write(
+		    reinterpret_cast<const char *>(positions.data()),
+		    static_cast<std::streamsize>(positions.size() * sizeof(glm::vec3)));
+	}
+	const auto withBuffers = [](const std::string &buffers)
+	{
+		return R"({"asset":{"version":"2.0"},"buffers":[)" + buffers +
+		       R"(],"bufferViews":[{"buffer":0,"byteLength":36}],)"
+		       R"("accessors":[{"bufferView":0,"componentType":5126,"count":3,"type":"VEC3"}],)" +
+		       OneMesh(R"({"POSITION":0})") + "}";
+	};
+
+	// Two buffers naming one file of 12,000 bytes (uri.gltf's 16 named one of 64 MiB, each read whole).
+	const auto file = Geometry::GltfFile::Parse(
+	    AsBytes(
+	        withBuffers(R"({"uri":"long.bin","byteLength":36},{"uri":"./long.bin","byteLength":24})")),
+	    "long.gltf", directory);
+	const auto &buffers = file->Asset().buffers;
+	REQUIRE(buffers.size() == 2);
+	for (std::size_t index = 0; index < 2; ++index)
+	{
+		const auto &bytes = std::get<fastgltf::sources::Vector>(buffers[index].data).bytes;
+		REQUIRE(bytes.size() == buffers[index].byteLength);
+		CHECK(std::memcmp(bytes.data(), positions.data(), bytes.size()) == 0);
+	}
+	CHECK(
+	    Positions(file->Asset(), file->Asset().meshes[0].primitives[0]) ==
+	    std::vector(positions.begin(), positions.begin() + 3));
+
+	CHECK_THROWS_WITH_AS(
+	    Geometry::GltfFile::Parse(
+	        AsBytes(withBuffers(
+	            R"({"uri":"long.bin","byteLength":600000000},)"
+	            R"({"uri":"long.bin","byteLength":600000000})")),
+	        "vast.gltf", directory),
+	    doctest::Contains("buffer files are declared longer than 1073741824 bytes together: vast.gltf"),
+	    std::runtime_error);
+	CHECK_THROWS_WITH_AS(
+	    Geometry::GltfFile::Parse(
+	        AsBytes(withBuffers(R"({"uri":"long.bin","byteLength":12004})")), "short.gltf", directory),
+	    doctest::Contains("shorter than the buffer: short.gltf"), std::runtime_error);
+	std::filesystem::remove_all(directory);
+}
+
+
+TEST_CASE(
     "An accessor outside its view or buffer, or a primitive's attributes of two counts, is refused")
 {
 	constexpr const char *kPositions =
@@ -763,6 +818,12 @@ TEST_CASE(
 	    {Compressed("INDICES", 1, 36), "breaks EXT_meshopt_compression"},
 	    // An offset that wraps past the end of memory to land within the buffer.
 	    {Compressed("ATTRIBUTES", 4, 9, "18446744073709551600"), "out of its buffers' range"},
+	    // More than the codec decodes 36 bytes to: 1,024 bytes each for attributes, and 37 bytes
+	    // needed for 20 triangles, or for 32 indices.
+	    {Compressed("ATTRIBUTES", 4, 9217), "claims more than meshoptimizer's codec decodes"},
+	    {Compressed("ATTRIBUTES", 4, 67108864), "claims more than meshoptimizer's codec decodes"},
+	    {Compressed("TRIANGLES", 2, 60), "claims more than meshoptimizer's codec decodes"},
+	    {Compressed("INDICES", 4, 32), "claims more than meshoptimizer's codec decodes"},
 	};
 	for (const auto &[gltf, reason] : cases)
 	{
@@ -843,10 +904,12 @@ TEST_CASE("A fallback buffer is made as long as its views reach, and one reachin
 	    doctest::Contains("fallback buffers decode to more than 1073741824 bytes: far.glb"),
 	    std::runtime_error);
 
-	// Four fallbacks of four views at the view's limit, each naming the same 16 bytes (bomb.gltf, 2
-	// KB): refused on the views alone, before 4 GiB is allocated for them.
+	// Four fallbacks of four views at the view's limit, each naming the same stream (bomb.gltf, 2 KB,
+	// once 16 bytes, now the 256 KiB the codec needs for the view): refused on the views alone, before
+	// 4 GiB is allocated for them.
 	std::string buffers =
-	    R"("buffers":[{"byteLength":16,"uri":"data:application/octet-stream;base64,AAAAAAAAAAAAAAAAAAAAAA=="})";
+	    R"("buffers":[{"byteLength":262146,"uri":"data:application/octet-stream;base64,)" +
+	    std::string(349528, 'A') + R"("})";
 	std::string views = R"("bufferViews":[)";
 	for (int buffer = 1; buffer <= 4; ++buffer)
 	{
@@ -857,7 +920,8 @@ TEST_CASE("A fallback buffer is made as long as its views reach, and one reachin
 			    std::string{buffer == 1 && view == 0 ? "" : ","} + R"({"buffer":)" +
 			    std::to_string(buffer) + R"(,"byteOffset":)" + std::to_string(view * 268435456) +
 			    R"(,"byteLength":268435456,"byteStride":4,"extensions":{"EXT_meshopt_compression":)"
-			    R"({"buffer":0,"byteLength":16,"byteStride":4,"count":67108864,"mode":"ATTRIBUTES"}}})";
+			    R"({"buffer":0,"byteLength":262146,"byteStride":4,"count":67108864,)"
+			    R"("mode":"ATTRIBUTES"}}})";
 	}
 	const std::string bomb =
 	    R"({"asset":{"version":"2.0"},"extensionsUsed":["EXT_meshopt_compression"],)"
@@ -1057,24 +1121,70 @@ TEST_CASE("An index naming what the file lacks, or nodes that are not trees, is 
 }
 
 
-TEST_CASE("An accessor with no view is held to a decoded view's bytes")
+TEST_CASE("An accessor with no view, all zeros, is refused, however few it reads as")
 {
-	const auto zeros = [](const char *count)
+	// zeros.gltf's 22,369,620 positions, which the bake made into 2.8 GiB, and zero-accessor-huge's
+	// count.
+	for (const char *count : {"3", "22369620", "18446744073709551615"})
 	{
-		return TriangleAccessors(
+		CAPTURE(count);
+		const std::string gltf = TriangleAccessors(
 		    std::string{R"([{"componentType":5126,"type":"VEC3","count":)"} + count + "}]",
 		    OneMesh(R"({"POSITION":0})"));
-	};
+		CHECK_THROWS_WITH_AS(
+		    Geometry::GltfFile::Parse(AsBytes(gltf), "zeros.gltf"),
+		    doctest::Contains("accessor 0 has no buffer view: zeros.gltf"), std::runtime_error);
+	}
+}
 
-	// zero-accessor-huge's count, which a reader would size its vertices by.
+
+TEST_CASE("What a file's primitives give its readers is held to a view's worth, each read counted")
+{
+	// The counts alone are checked, before any reader's bytes, so none needs to hold what it claims.
+	const auto file = [](const std::string &count, const std::string &meshes, const char *nodes,
+	                     const std::string &indices = "3")
+	{
+		return TriangleAccessors(
+		    R"([{"bufferView":0,"componentType":5126,"type":"VEC3","count":)" + count +
+		        R"(},{"bufferView":0,"componentType":5125,"type":"SCALAR","count":)" + indices + "}]",
+		    R"("meshes":[{"primitives":)" + meshes + R"(}],"nodes":)" + nodes +
+		        R"(,"scenes":[{"nodes":[0]}],"scene":0)");
+	};
+	const std::string one = R"([{"attributes":{"POSITION":0}}])";
+	const std::string two = R"([{"attributes":{"POSITION":0}},{"attributes":{"POSITION":0}}])";
+	const std::string half = "11184811";
+	const std::pair<std::string, const char *> refused[] = {
+	    // Two primitives naming one accessor (z2k2.gltf), which the bake and the cook read twice.
+	    {file(half, two, R"([{"mesh":0}])"), "more than 22369621 vertices"},
+	    // One mesh in two nodes, which the bake reads twice.
+	    {file(half, one, R"([{"mesh":0,"children":[1]},{"mesh":0}])"), "more than 22369621 vertices"},
+	    {file("22369622", one, R"([{"mesh":0}])"), "more than 22369621 vertices"},
+	    {file("3", R"([{"attributes":{"POSITION":0},"indices":1}])", R"([{"mesh":0}])", "67108865"),
+	     "more than 67108864 indices"},
+	    // A primitive with no indices is drawn by as many as its vertices.
+	    {TriangleAccessors(
+	         R"([{"bufferView":0,"componentType":5126,"type":"VEC3","count":22369618},)"
+	         R"({"bufferView":0,"componentType":5125,"type":"SCALAR","count":44739247},)"
+	         R"({"bufferView":0,"componentType":5126,"type":"VEC3","count":3}])",
+	         R"("meshes":[{"primitives":[{"attributes":{"POSITION":0}},)"
+	         R"({"attributes":{"POSITION":2},"indices":1}]}],"nodes":[{"mesh":0}],)"
+	         R"("scenes":[{"nodes":[0]}],"scene":0)"),
+	     "more than 67108864 indices"},
+	};
+	for (const auto &[gltf, reason] : refused)
+	{
+		CAPTURE(gltf);
+		CHECK_THROWS_WITH_AS(
+		    Geometry::GltfFile::Parse(AsBytes(gltf), "reads.gltf"),
+		    doctest::Contains(
+		        std::string{"primitives give its readers "} + reason + " together: reads.gltf"),
+		    std::runtime_error);
+	}
+
+	// Within the limit, it is the bounds that refuse these counts.
 	CHECK_THROWS_WITH_AS(
-	    Geometry::GltfFile::Parse(AsBytes(zeros("18446744073709551615")), "zeros.gltf"),
-	    doctest::Contains("has no view and reads as more than 268435456 bytes: zeros.gltf"),
-	    std::runtime_error);
-	CHECK_THROWS_WITH_AS(
-	    Geometry::GltfFile::Parse(AsBytes(zeros("22369622")), "zeros.gltf"),
-	    doctest::Contains("has no view"), std::runtime_error);
-	CHECK(Geometry::GltfFile::Parse(AsBytes(zeros("22369621")), "zeros.gltf"));
+	    Geometry::GltfFile::Parse(AsBytes(file(half, one, R"([{"mesh":0}])")), "reads.gltf"),
+	    doctest::Contains("outside its view or buffer"), std::runtime_error);
 }
 
 

@@ -436,13 +436,19 @@ the table, that a reload replaced waits in a queue for `kFramesInFlight` frames.
 The cook's model file (`Geometry::CookModel`, `geometry/Cook.h`), a binary glTF 2.0 that any
 glTF reader with these extensions opens, which `Geometry::GltfFile` reads, and the model and rig
 loaders with it ([models](#models-and-textures)). The reader refuses any glTF, cooked or not, that
-fastgltf's accessor tools would read outside its buffers from: an accessor outside its view or
-buffer, or sparse, or with no view and more than 256 MiB of zeros; an accessor of a type or
-component type its use does not allow (glTF 2.0's tables, with `KHR_mesh_quantization`'s); an
-index naming what the file lacks, or nodes that are not trees; a primitive's attributes of
-different counts; a compressed view outside its buffers, against the extension's limits on stride
-and count, or decoding to more than 256 MiB, or into fallbacks that reach past 1 GiB together, each
-made only as long as its views reach and none before every view is checked (`GltfFile.h` lists every refusal).
+fastgltf's accessor tools would read outside its buffers from, or that would make its readers
+allocate for what its bytes merely claim: an accessor outside its view or buffer, sparse, or with
+no view (all zeros, of no use to a reader); an accessor of a type or component type its use does
+not allow (glTF 2.0's tables, with `KHR_mesh_quantization`'s); an index naming what the file lacks,
+or nodes that are not trees; a primitive's attributes of different counts; primitives that give the
+readers more than 22,369,621 vertices or 67,108,864 indices together (a 256 MiB view's worth, each
+primitive counted for every node naming its mesh, so a cooked file's levels each count, and a
+five-level model is read back from at most 4.5 million vertices); a compressed view outside its
+buffers, against the extension's limits on stride and count, decoding to more than 256 MiB, or to
+more than meshoptimizer 1.3's codec can make of its bytes (1,024 times them for attributes), or into
+fallbacks that reach past 1 GiB together, each made only as long as its views reach and none before
+every view is checked; a `.gltf`'s buffer files declared longer than 1 GiB together, each read once
+and only as far as its buffers declare (`GltfFile.h` lists every refusal).
 
 - **Extensions.** `EXT_meshopt_compression` and `KHR_mesh_quantization`, used and required, beside
   the source's own ([decided](decisions.md#rendering)). `asset.generator` is `Jettison's cook
@@ -451,8 +457,8 @@ made only as long as its views reach and none before every view is checked (`Glt
   compressed, is the fallback: a length and no bytes, into which the compressed views decode. Views
   are aligned to 4 bytes in both.
 - **Vertices.** Each source primitive's vertices are stored once, every level reading them: normals
-  where it had none (each vertex's face normals summed, as the renderer makes them for an uncooked
-  file), tangents by MikkTSpace where it has normals and `TEXCOORD_0` and no tangents (which splits
+  where it had none (each vertex's face normals summed over the mesh's primitives that share its
+  vertices, `Geometry::SameVertices`, as the renderer makes them for an uncooked file), tangents by MikkTSpace where it has normals and `TEXCOORD_0` and no tangents (which splits
   vertices on seams), in vertex-cache order and then in the order they are first fetched. One view
   per attribute, in the codec's attribute mode, its stride padded to whole words:
 
