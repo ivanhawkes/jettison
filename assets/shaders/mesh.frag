@@ -33,6 +33,7 @@ layout(location = 3) in vec3 fragRenderPosition;
 layout(location = 4) in vec3 fragObjectPosition;
 layout(location = 5) in vec3 fragObjectNormal;
 #endif
+layout(location = 9) flat in vec4 fragEmissiveScale;
 
 layout(location = 0) out vec4 outColor;
 
@@ -48,7 +49,7 @@ vec4 SampleTriplanar(uint slot, vec3 position, vec3 weights)
 
 void main()
 {
-	vec4 emissive = MaterialParameter(kEmissive);
+	vec4 emissive = MaterialParameter(kEmissive) * fragEmissiveScale;
 	vec4 metallicRoughness = MaterialParameter(kMetallicRoughness);
 #ifdef TRIPLANAR
 	vec4 triplanar = MaterialParameter(kTriplanar);

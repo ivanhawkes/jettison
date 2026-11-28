@@ -385,6 +385,14 @@ What moves a frame's bodies and what pulls in it are under [Physics](#physics).
 
 ## Rendering
 
+- **A draw's glow is scaled per instance** (2026-11-28, `Scene::MeshComponent::emissiveScale`). The
+  scale multiplies the material's emissive parameter and travels in the instance buffer with the
+  draw's transform, so a glow a game moves each frame makes no material, no model and no batch of
+  its own. A material parameter set per draw was rejected: each value would be a block of its own,
+  and its draws a batch apart; so was a model per value, as a shape's colour makes one today. It is
+  a vec4, a tint with the scale, since the instance is padded to 16 bytes anyway; and authored,
+  written only when it is not one, so a scene file without it reads and saves as before.
+  [Rendering](rendering.md#a-draws-own-glow)
 - **Texture coordinate sets by role, fetched by vertex pulling** (2026-11-27, the user's). A mesh
   carries up to eight sets, each named by a role in its asset's cook settings, and a material's slot
   reads a role; the shaders fetch only the sets a material reads, from per-mesh streams, on the

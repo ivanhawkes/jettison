@@ -17,6 +17,7 @@ const float kCells = 4.0;
 
 layout(location = 0) in vec3 fragColor;
 layout(location = 1) in vec2 fragTexCoord;
+layout(location = 9) flat in vec4 fragEmissiveScale;
 
 layout(location = 0) out vec4 outColor;
 
@@ -28,6 +29,6 @@ void main()
 	vec4 texel = textureGrad(
 	    sampler2D(materialTextures[nonuniformEXT(MaterialTextureIndex(slot))], materialSampler),
 	    fract(grid), dFdx(grid), dFdy(grid));
-	vec4 color = MaterialParameter(kColor);
+	vec4 color = MaterialParameter(kColor) * fragEmissiveScale;
 	outColor = vec4(texel.rgb * fragColor * color.rgb * color.a, 1.0);
 }

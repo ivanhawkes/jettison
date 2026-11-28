@@ -20,6 +20,8 @@ struct Instance
 	// z: one more than its body's index in the frame's body list, 0 for none (frame.glsl), w: its
 	// object ID, which the depth prepass writes (post.glsl's ObjectOutline).
 	uvec4 skin;
+	// A scale on the material's glow, by channel: rgb a tint, a the intensity's scale.
+	vec4 emissiveScale;
 };
 
 layout(std430, set = 0, binding = 11) readonly buffer Instances

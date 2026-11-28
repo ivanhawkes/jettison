@@ -314,6 +314,18 @@ buffer: an index into the texture table for each slot, then the parameters, whic
 `material.glsl` reads from the draw's offset (`MaterialTexture`, `MaterialParameter`). A new
 program is therefore data plus GLSL, not a new code path.
 
+<a id="a-draws-own-glow"></a>**A draw's own glow.** A mesh's `emissiveScale`
+(`Scene::MeshComponent`; rgb a tint, a a scale on the intensity, all one by default) multiplies its
+material's `emissive` parameter, channel by channel, so a glow a game moves each frame, a nozzle's
+say, needs no material or model for each value. It travels with the instance, beside its transform
+in the frame's instance buffer (`GpuInstance`), not in the material's block, so draws that differ in
+it are still one instanced draw. `mesh.vert` hands it to the fragment stage at location 9, and every
+program drawn over it multiplies the parameter that is its glow: `mesh` and `mesh_triplanar` their
+`emissive`, `glass` its `emissive`, `planet` its cities' lights (`night`), and `unlit`, which is
+all glow, its `color`. A program of a game's over `mesh.vert` takes it there too, since the
+validation layer reports an output no stage reads. At the default the frame is unchanged to the
+byte.
+
 <a id="the-texture-table"></a>**The texture table** is descriptor set 1, bound with the frame's set:
 one array of `kTextureTableSize` (4096) sampled images, partially bound and updated after bind,
 and the material sampler. A texture takes an element when its upload finishes and gives it back,
@@ -659,7 +671,7 @@ committed images.
   textures already are); cube maps and texture arrays from files; normal mapping on meshes (the BRDF
   has it, the vertex has no tangents); a glTF model's own metallic-roughness factors (it reads its
   base-colour image only); a model file read once rather than for its mesh and again for its rig;
-  an emissive scale per draw; air over a mesh; the capture's planets and a gas giant's bands.
+  air over a mesh; the capture's planets and a gas giant's bands.
 - Levels of detail for model files, with hysteresis between them (a draw at a threshold can switch
   level frame to frame), are [J37](roadmap.md#j37).
 - No spot or point light shadows; ray-traced ones are [J45](roadmap.md#j45), on devices with ray

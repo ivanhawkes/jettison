@@ -210,6 +210,13 @@ struct MeshComponent
 	std::optional<Shape> shape;
 	glm::vec3 color{1.0f};
 
+	// The draw's own scale on the glow its material gives it, by channel: it multiplies the emissive
+	// parameter (rgb: colour, a: intensity), or the colour of a program that is all glow (unlit). rgb
+	// is a tint and a a scale on the intensity; the default leaves the material's glow as it is. It
+	// is carried with the instance, so a game may move it each frame, smoothly, with no material or
+	// model made for each value, and draws that differ in it are still one instanced draw.
+	glm::vec4 emissiveScale{1.0f};
+
 	// A ring's inner radius, against its outer radius of one.
 	float innerRadius{0.5f};
 	std::string material;

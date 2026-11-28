@@ -29,6 +29,7 @@ layout(location = 0) in vec3 fragColor;
 layout(location = 1) in vec2 fragTexCoord;
 layout(location = 2) in vec3 fragNormal;
 layout(location = 3) in vec3 fragRenderPosition;
+layout(location = 9) flat in vec4 fragEmissiveScale;
 
 layout(location = 0, index = 0) out vec4 outColor;
 layout(location = 0, index = 1) out vec4 outThrough;
@@ -43,7 +44,7 @@ void main()
 	vec3 reflected = ShadeTransparentSurface(surface, normal, fragRenderPosition);
 	vec3 reflectance = SpecularReflectance(surface, normal, fragRenderPosition);
 	vec3 tint = MaterialParameter(kTint).rgb * MaterialTexture(kTintTexture, fragTexCoord).rgb;
-	vec4 emissive = MaterialParameter(kEmissive);
+	vec4 emissive = MaterialParameter(kEmissive) * fragEmissiveScale;
 	outColor = vec4(reflected + emissive.rgb * emissive.a, 0.0);
 	outThrough = vec4(tint * (vec3(1.0) - reflectance), 1.0);
 }

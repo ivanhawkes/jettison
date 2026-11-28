@@ -1750,12 +1750,9 @@ void Renderer::WriteInstances(
 	for (std::size_t instance = 0; instance < m_instanceDraws.size(); ++instance)
 	{
 		const std::uint32_t drawIndex = m_instanceDraws[instance];
-		const SceneDrawCommand &draw = draws[drawIndex];
-		m_instanceScratch[instance] = {
-		    draw.renderTransform,
-		    glm::uvec4{
-		        jointOffsets[drawIndex], draw.Skinned() ? 1u : 0u, m_drawBodies[drawIndex],
-		        ObjectId(drawIndex, m_drawOutlines[drawIndex])}};
+		m_instanceScratch[instance] = PackInstance(
+		    draws[drawIndex], jointOffsets[drawIndex], m_drawBodies[drawIndex],
+		    ObjectId(drawIndex, m_drawOutlines[drawIndex]));
 	}
 	const VkDeviceSize bytes = m_instanceScratch.size() * sizeof(GpuInstance);
 	EnsureCapacity(frame, frame.instances, bytes, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, "instances");

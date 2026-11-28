@@ -54,6 +54,7 @@ layout(location = 3) in vec3 fragRenderPosition;
 layout(location = 4) in vec3 fragBodyDirection;
 layout(location = 5) flat in mat3 fragBodyToRender;
 layout(location = 8) flat in uint fragBody;
+layout(location = 9) flat in vec4 fragEmissiveScale;
 
 layout(location = 0) out vec4 outColor;
 
@@ -229,7 +230,7 @@ void main()
 
 	// The cities' lights: clusters on the land, on the side turned from the sun, coming on over the
 	// terminator's last few degrees and dimmed by the cloud over them.
-	vec4 night = MaterialParameter(kNight);
+	vec4 night = MaterialParameter(kNight) * fragEmissiveScale;
 	if (night.a > 0.0)
 	{
 		vec4 cities = MaterialParameter(kCities);

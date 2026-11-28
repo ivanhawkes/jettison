@@ -78,6 +78,7 @@ entities:
       color: [0.5, 0.5, 0.5]
       innerRadius: 0.6
       material: materials/panels.material.yaml
+      emissiveScale: [1, 0.5, 0.25, 2]
   - id: spinner
     parent: root
     transform:
@@ -109,6 +110,13 @@ TEST_CASE("Scene: a saved scene loads back to the same file, with the frame loop
 	CHECK(first.find("rotation: [0, 0.3, 0]") != std::string::npos);
 	CHECK(first.find("shape: ring") != std::string::npos);
 	CHECK(first.find("innerRadius: 0.6") != std::string::npos);
+
+	// A glow's scale is written where it is set, and nowhere it is left at its default.
+	CHECK(first.find("emissiveScale: [1, 0.5, 0.25, 2]") != std::string::npos);
+	CHECK(first.find("emissiveScale") == first.rfind("emissiveScale"));
+	const entt::entity ring = FindById(scene.Registry(), "ring");
+	CHECK(
+	    scene.Registry().get<MeshComponent>(ring).emissiveScale == glm::vec4{1.0f, 0.5f, 0.25f, 2.0f});
 	const auto skies = scene.Registry().view<const SkyComponent>();
 	REQUIRE(skies.size() == 1);
 	const auto &sky = skies.get<const SkyComponent>(skies.front());
@@ -317,6 +325,9 @@ TEST_CASE("Scene: references, paths, cameras and meshes are checked as the file 
 	CheckRefused(scene, "  - id: m\n    mesh:\n      model: ../models/arm.glb\n", "not a virtual path");
 	CheckRefused(
 	    scene, "  - id: m\n    mesh:\n      shape: box\n      innerRadius: 0.5\n", "for a ring");
+	CheckRefused(
+	    scene, "  - id: m\n    mesh:\n      shape: box\n      emissiveScale: [1, 1, 1, -1]\n",
+	    "emissiveScale is not negative");
 	CheckRefused(
 	    scene, "  - id: m\n    mesh:\n      model: models/arm.glb\n      color: [1, 0, 0]\n",
 	    "color is for a shape");

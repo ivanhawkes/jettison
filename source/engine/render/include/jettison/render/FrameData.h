@@ -153,8 +153,13 @@ struct GpuInstance
 	// one more than the index of the body in the frame's list of them, 0 for none, w: its object ID
 	// (render/PostProcess.h).
 	glm::uvec4 skin{0u};
+
+	// A scale on the material's glow, by channel (Scene::MeshComponent::emissiveScale).
+	glm::vec4 emissiveScale{1.0f};
 };
-static_assert(sizeof(GpuInstance) == 80);
+static_assert(sizeof(GpuInstance) == 96);
+static_assert(offsetof(GpuInstance, skin) == 64);
+static_assert(offsetof(GpuInstance, emissiveScale) == 80);
 
 // A slot of the particle pool, std430: particles.glsl's Particle. Device-local, shared by the frames
 // in flight, and stepped in place once a frame (docs/rendering-effects.md, "Particles").

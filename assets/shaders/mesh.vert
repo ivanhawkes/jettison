@@ -53,6 +53,11 @@ layout(location = 5) flat out mat3 fragBodyToRender;
 // air nor rings.
 layout(location = 8) flat out uint fragBody;
 #endif
+#ifndef DEPTH_ONLY
+// The instance's scale on its material's glow, which every program drawn with this stage takes at
+// this location and multiplies its emissive parameter by.
+layout(location = 9) flat out vec4 fragEmissiveScale;
+#endif
 
 void main()
 {
@@ -88,6 +93,9 @@ void main()
 	fragNormal = normalize(mat3(transpose(inverse(instance.model))) * localNormal);
 #endif
 	fragRenderPosition = renderPosition.xyz;
+#endif
+#ifndef DEPTH_ONLY
+	fragEmissiveScale = instance.emissiveScale;
 #endif
 #ifdef DEPTH_PREPASS
 	fragViewNormal = mat3(frame.view) * (mat3(transpose(inverse(instance.model))) * localNormal);

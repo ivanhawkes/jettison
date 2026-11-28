@@ -57,7 +57,7 @@ A file is a list of entities. Each entity is a record with an `id` and any of th
 | `camera` | `CameraComponent`, and `OrbitCameraComponent` if it has an `orbit` | [Camera rigs](#camera-rigs) |
 | `light` | `LightComponent`: a point or spot light with a range, optionally animated | [rendering](rendering.md) |
 | `sun`, `sky` | `SunComponent`, `SkyComponent`: the scene's one directional light and its environment | [rendering](rendering.md) |
-| `mesh` | `MeshComponent` (a model or a shape, and a material), and `RigComponent` for a model | [rendering](rendering.md) |
+| `mesh` | `MeshComponent` (a model or a shape, a material, and a scale on its glow, `emissiveScale`), and `RigComponent` for a model | [rendering](rendering.md) |
 | `body`, `atmosphere`, `rings` | `BodyComponent`, `AtmosphereComponent`, `RingsComponent` | [rendering](rendering.md) |
 | `particles`, `outline`, `mask`, `grade` | `ParticleEmitterComponent`, `OutlineComponent`, `MaskComponent`, `ColourGradeComponent` | [effects](rendering-effects.md) |
 | `transformAnimation`, `animation`, `clip` | a rotation, a model's clip player, a clip file's player (`ClipPlayerComponent`) | [animation](animation.md) |
@@ -72,7 +72,7 @@ among others:
   names no entity;
 - more than one active camera, sun, sky or colour grade;
 - a mesh with both a model and a shape, or neither; a `color` on a model; an `innerRadius` on
-  anything but a ring;
+  anything but a ring; a negative `emissiveScale`;
 - a path that is not a virtual path (`../models/arm.glb`);
 - an atmosphere or rings without a mesh of a shape, or a body without a name;
 - a light with no positive range, or cone angles on a point light.

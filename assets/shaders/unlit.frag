@@ -16,12 +16,14 @@ const uint kColor = 0u;
 
 layout(location = 0) in vec3 fragColor;
 layout(location = 1) in vec2 fragTexCoord;
+layout(location = 9) flat in vec4 fragEmissiveScale;
 
 layout(location = 0) out vec4 outColor;
 
 void main()
 {
-	vec4 color = MaterialParameter(kColor);
+	// All of it is glow, so the instance's scale on its glow is on the whole colour.
+	vec4 color = MaterialParameter(kColor) * fragEmissiveScale;
 	vec4 texel = MaterialTexture(kColorTexture, fragTexCoord);
 	outColor = vec4(texel.rgb * fragColor * color.rgb * color.a, texel.a);
 }

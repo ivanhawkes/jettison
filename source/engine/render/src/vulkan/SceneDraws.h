@@ -9,6 +9,7 @@
 
 #include <jettison/animation/Components.h>
 #include <jettison/render/Culling.h>
+#include <jettison/render/FrameData.h>
 
 namespace Jettison::Scene
 {
@@ -58,6 +59,10 @@ struct SceneDrawCommand
 	// capture draws its sphere with.
 	glm::vec3 color{1.0f};
 
+	// The mesh's scale on its material's glow (Scene::MeshComponent::emissiveScale), which goes with
+	// the instance rather than the batch.
+	glm::vec4 emissiveScale{1.0f};
+
 	// The outline the mesh is drawn inside, its own or its nearest ancestor's, and the entity that
 	// has it, which the frame's outlines are told apart by; and the stencil bits it lays down
 	// (render/PostProcess.h), from that outline and from the nearest mask.
@@ -77,4 +82,10 @@ struct SceneDrawCommand
 // within its file.
 std::vector<SceneDrawCommand> CollectDraws(
     const entt::registry &registry, const glm::dvec3 &camera, ModelCache &models);
+
+// The draw's entry in the frame's instance buffer: its transform and glow, where its joints start in
+// the skin palette, its body's place in the frame's list of them (0 for none) and its object ID.
+GpuInstance PackInstance(
+    const SceneDrawCommand &draw, std::uint32_t jointOffset, std::uint32_t body,
+    std::uint32_t objectId);
 } // namespace Jettison::Render

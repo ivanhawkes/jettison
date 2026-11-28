@@ -10,6 +10,8 @@
 
 #include <jettison/render/DrawBatches.h>
 
+#include "vulkan/SceneDraws.h"
+
 using namespace Jettison::Render;
 
 namespace
@@ -131,4 +133,24 @@ TEST_CASE("Draw batches: the transparent draws go back to front, neighbours of o
 	batches.clear();
 	BuildBackToFront(split, batches, instances);
 	CHECK(batches.size() == 3);
+}
+
+
+TEST_CASE("Draw batches: draws of one model at different glows are one draw, each instance its own")
+{
+	const BatchKey nozzle{ModelAt(1), 0, &kMaterial};
+	const std::vector<BatchInput> inputs{{nozzle, 0, 10.0, true}, {nozzle, 1, 20.0, true}};
+	std::vector<DrawBatch> batches;
+	std::vector<std::uint32_t> instances;
+	BuildBatches(inputs, batches, instances);
+	REQUIRE(batches.size() == 1);
+	CHECK(batches[0].instanceCount == 2);
+
+	std::array<SceneDrawCommand, 2> draws{};
+	draws[1].emissiveScale = {1.0f, 0.5f, 0.25f, 0.1f};
+	const GpuInstance near = PackInstance(draws[instances[0]], 0, 0, 7);
+	const GpuInstance far = PackInstance(draws[instances[1]], 0, 0, 8);
+	CHECK(near.emissiveScale == glm::vec4{1.0f});
+	CHECK(far.emissiveScale == glm::vec4{1.0f, 0.5f, 0.25f, 0.1f});
+	CHECK(far.skin.w == 8u);
 }

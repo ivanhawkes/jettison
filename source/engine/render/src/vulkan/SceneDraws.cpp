@@ -86,6 +86,7 @@ std::vector<SceneDrawCommand> CollectDraws(
 			draw.color = mesh.color;
 		}
 		const auto [owner, outline] = Nearest<Scene::OutlineComponent>(registry, entity);
+		draw.emissiveScale = mesh.emissiveScale;
 		draw.outline = outline;
 		draw.outlineOwner = owner;
 		draw.stencil =
@@ -93,5 +94,14 @@ std::vector<SceneDrawCommand> CollectDraws(
 		drawCommands.push_back(draw);
 	}
 	return drawCommands;
+}
+
+
+GpuInstance PackInstance(
+    const SceneDrawCommand &draw, std::uint32_t jointOffset, std::uint32_t body, std::uint32_t objectId)
+{
+	return {
+	    draw.renderTransform, glm::uvec4{jointOffset, draw.Skinned() ? 1u : 0u, body, objectId},
+	    draw.emissiveScale};
 }
 } // namespace Jettison::Render

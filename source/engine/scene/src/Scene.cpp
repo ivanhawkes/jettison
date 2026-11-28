@@ -103,6 +103,7 @@ struct MeshRecord
 	std::optional<glm::vec3> color;
 	std::optional<float> innerRadius;
 	std::optional<std::string> material;
+	std::optional<glm::vec4> emissiveScale;
 };
 
 struct TransformAnimationRecord
@@ -300,7 +301,8 @@ void RegisterTypes()
 		    .Field<&MeshRecord::shape>("shape", kSaved)
 		    .Field<&MeshRecord::color>("color", kSaved)
 		    .Field<&MeshRecord::innerRadius>("innerRadius", kSaved)
-		    .Field<&MeshRecord::material>("material", kSaved);
+		    .Field<&MeshRecord::material>("material", kSaved)
+		    .Field<&MeshRecord::emissiveScale>("emissiveScale", kSaved);
 		RegisterType<ParticlesRecord>("Scene.Particles")
 		    .Field<&ParticlesRecord::rate>("rate", kSaved)
 		    .Field<&ParticlesRecord::burst>("burst", kSaved)
@@ -499,6 +501,9 @@ void CheckMesh(const MeshRecord &mesh, const std::string &id)
 	}
 	if (mesh.material)
 		CheckVirtualPath(*mesh.material, "a material", id);
+	if (const auto &scale = mesh.emissiveScale;
+	    scale && !(scale->r >= 0.0f && scale->g >= 0.0f && scale->b >= 0.0f && scale->a >= 0.0f))
+		Refuse("Entity mesh emissiveScale is not negative: " + id);
 }
 
 
@@ -720,6 +725,7 @@ MeshComponent ToComponent(const MeshRecord &record)
 	mesh.color = record.color.value_or(mesh.color);
 	mesh.innerRadius = record.innerRadius.value_or(mesh.innerRadius);
 	mesh.material = record.material.value_or("");
+	mesh.emissiveScale = record.emissiveScale.value_or(mesh.emissiveScale);
 	return mesh;
 }
 
@@ -738,6 +744,8 @@ MeshRecord ToRecord(const MeshComponent &mesh)
 		record.model = mesh.model;
 	if (!mesh.material.empty())
 		record.material = mesh.material;
+	if (mesh.emissiveScale != MeshComponent{}.emissiveScale)
+		record.emissiveScale = mesh.emissiveScale;
 	return record;
 }
 
