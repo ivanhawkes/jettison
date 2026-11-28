@@ -129,13 +129,17 @@
     # findable, not just buildable: a Nix shell puts package libraries nowhere unless they
     # are named here. Wayland and libxkbcommon serve the default Wayland-only build; the
     # clang-headless preset builds GLFW X11-only (JETTISON_GLFW_X11=ON), and without the
-    # xorg list below the smoke test dies at "X11: Failed to load Xlib".
+    # xorg list below the smoke test dies at "X11: Failed to load Xlib". miniaudio loads its
+    # sound libraries at runtime too: without libpulse and libasound here it falls through to
+    # the system's PipeWire JACK library, whose clients leak at exit (34 allocations each).
     export LD_LIBRARY_PATH="${
       pkgs.lib.makeLibraryPath (
         [
           pkgs.wayland
           pkgs.libxkbcommon
           pkgs.gcc.cc.lib
+          pkgs.libpulseaudio
+          pkgs.alsa-lib
         ]
         ++ (with pkgs; [
           libX11
