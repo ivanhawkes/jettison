@@ -109,6 +109,42 @@ start-up, in code (`PhysicsWorld::DefineShape`) or from the
 into a Jolt shape as it is defined, so a shape Jolt refuses throws there, naming it. Bodies and
 saves name shapes, so a world a save is loaded into has to define the same ones.
 
+### A model's collision shape
+
+A body drawn from a model collides as a shape baked from the model into a file of its own, its
+**collision file** (`physics/CollisionFile.h`). Physics is the server's, and a server reads no
+model, so the shape cannot be read from the glTF at run time. The file is world content, under
+`collision/` (`Host::kWorldDirectories`), so it is in the server's pack and in the digest a client
+checks its own against ([files, packs and mods](files-and-mods.md#the-servers-world-content)), and
+the client and the server collide with the same bytes. A model's is by convention at its path with
+`collision/` for `models/` and `.collision` for its extension (`models/rover.glb`'s at
+`collision/rover.collision`); what uses one names its path, as a dock's vehicle does
+([docks](docks.md)).
+
+The shape is a `Compound` whose parts are each a `ConvexHull` or a `Mesh`, in the model's axes and
+metres, written by the binary archive as a `Physics.Shape` of version 1 (`kCollisionFileVersion`),
+so the same shape is the same bytes. `ReadCollisionFile` reads one through the file system and
+refuses one of another kind or version, naming the path, and the game defines it as it defines any
+shape (`DefineShape`). A mesh among its parts makes it a mesh, for static and kinematic bodies only.
+
+`jettison_bake_collision <model> <collision file>` (`source/tools/collision`) bakes one from a glTF
+or GLB model, through the library function `Bake::CollisionShape`, which the cook
+([J37](roadmap.md#j37)) is to call for every model it cooks:
+
+| The model's mesh nodes | Their parts |
+| --- | --- |
+| `collision-<name>` | A convex hull of each one's vertices, kept whole within Jolt's limit of 256 points |
+| `collision-mesh-<name>` | A mesh of each one's triangles |
+| None named either way | A convex hull of each mesh node, simplified to at most 32 points (`Bake::kDrawnConvexHullPoints`) |
+
+A model with `collision-` nodes collides as them alone, its drawn nodes left out. Each part is moved
+by its node's transform, in the scene's order, a mirroring transform's triangles turned back to face
+out. The simplification is Jolt's convex hull builder (`Physics::ConvexHullPoints`), which keeps the
+points of those given that shape the hull most, none moved; a flat node makes a flat hull. A drawn
+part with a hollow or a notch collides as its convex hull: an author who wants it closer splits it
+into `collision-` nodes. The baker is compiled with `-ffp-contract=off`, as the simulation is, so a
+debug and a release build bake the same bytes.
+
 ### Frames and local frames
 
 [Coordinate frames and units](coordinates.md) defines frames and the engine's units; this section
@@ -625,21 +661,21 @@ scripts/capture.sh --ground bodies.png --run "bodies on"
 
 - Jolt's job system on more threads, tuned capacities:
   [J07](roadmap.md#j07).
-- A model's collision shape, baked beside it as world content the server reads (`Mesh` and
-  `ConvexHull` shapes exist; nothing bakes them from a model): [J12](roadmap.md#j12).
+- A drawn mesh node collides as one convex hull: the baker makes no convex decomposition, so a
+  concave part needs `collision-` nodes ([a model's collision shape](#a-models-collision-shape)).
 
 ## Decisions
 
 The settled choices (Jolt in the simulation, a Jolt world per local frame, gravity from the game's
 frame model, contacts from Jolt's cache, picking as a command, Jolt's state kept across saves,
-layers as definitions) are
-in [decisions](decisions.md#physics). How the module was built is in [history](history.md).
+layers as definitions, a model's collision file) are in [decisions](decisions.md#physics). How the
+module was built is in [history](history.md).
 
 ## Source
 
-The module is `source/engine/physics` (`jettison_physics`), depending on `core`, `math`,
-`profile`, `reflect`, `serialise` and `sim`. It links Jolt privately, so Jolt's headers and its
-AVX2 flags stay inside it.
+The module is `source/engine/physics` (`jettison_physics`), depending on `core`, `math`, `profile`,
+`reflect`, `serialise`, `sim` and `vfs`. It links Jolt privately, so Jolt's headers and its AVX2
+flags stay inside it.
 
 | Header | Holds |
 | --- | --- |
@@ -647,11 +683,16 @@ AVX2 flags stay inside it.
 | `source/engine/physics/include/jettison/physics/SnapshotPicker.h` | `SnapshotPicker`, `PickOptions`: picks against the snapshots, and draws their bodies as Jolt has their shapes (`DrawBodies`, `BodyLine`) |
 | `source/engine/physics/include/jettison/physics/Components.h` | `Body`, `BodyKind`, `Velocity`, `OnRails`, `LocalFrame`, `RegisterTypes` |
 | `source/engine/physics/include/jettison/physics/Shape.h` | `ShapeDefinition`, `ShapeKind` |
+| `source/engine/physics/include/jettison/physics/CollisionFile.h` | A model's collision file: `WriteCollisionFile`, `ReadCollisionFile`, `CheckCollisionShape`; `ConvexHullPoints`, Jolt's convex hull builder |
 | `source/engine/physics/include/jettison/physics/Layer.h` | `LayerDefinition`: a collision layer and what it meets; `LayersMeet`, the rule over them |
 | `source/engine/physics/include/jettison/physics/Flight.h` | `Handling`, `FlightControls`, `SetFlightControls`, `Thrust`, `Reason`, `StepFlight` |
 
 Tests: `source/engine/physics/tests/PhysicsTests.cpp` (bodies, shapes, offsets and compounds,
-layers and groups, capacities, the bodies drawn),
-`RoomTests.cpp` (a frame model's rails, local frames, gravity and quiet steps) and
+layers and groups, capacities, the bodies drawn), `CollisionFileTests.cpp` (collision files written
+and read, refused, simplified convex hulls, and bodies colliding as a file's shape where its box
+would not), `RoomTests.cpp` (a frame model's rails, local frames, gravity and quiet steps) and
 `ReplayTests.cpp` (a recorded run pinned to a state hash, saves, and the rebuild across Jolt
-versions). Run them with `ctest --test-dir build/clang-debug -R '^physics$'`.
+versions). Run them with `ctest --test-dir build/clang-debug -R '^physics$'`. The baker's suites are
+`bake_collision` (`source/tools/collision/tests/BakeTests.cpp`: a model with `collision-` nodes and
+one without, baked the same twice and collided with) and `bake_collision_cli`, the tool run twice
+over one model to the same file.

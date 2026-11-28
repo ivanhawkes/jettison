@@ -38,7 +38,7 @@ a world a save is loaded into must be given the same ones.
 | Kind | Directory | Type | Fields (as the YAML names them) |
 | --- | --- | --- | --- |
 | Berth class | `defs/berths` | `Dock::BerthClassDefinition` | `rank`; `largestVehicle` (length, beam, height in metres); `berthSize` (width across the heading, length along it) |
-| Vehicle | `defs/vehicles` | `Dock::VehicleDefinition` | `displayName`; `length`, `beam`, `height`; `berth` (its berth class); `model` (a glTF path, presentation's alone) |
+| Vehicle | `defs/vehicles` | `Dock::VehicleDefinition` | `displayName`; `length`, `beam`, `height`; `berth` (its berth class); `model` (a glTF path, presentation's alone); `collision` (a collision file's path, optional: what it collides as in place of the box of its size) |
 | Layout | `defs/platforms` | `Dock::PlatformLayout` | `displayName`; `decks` and `piers` (boxes: `centre`, `size`); `berths`; `reservationSeconds` (default 60: the seconds a vehicle may come no nearer before it loses its berth) |
 
 Each berth of a layout has a `class`, a `position` (the middle of its face on the deck), a `normal`
@@ -64,7 +64,10 @@ A clear column over a berth lets a vehicle come straight down onto it from outsi
 covered berth is flown to among the decks and piers ([below](#a-covered-berth)).
 
 Defining a vehicle also defines its physics shape, `vehicles/<name>`: a box of its size, whatever it
-is drawn as. Defining a layout defines `platforms/<name>`, a mesh of its decks and piers
+is drawn as, or the collision file its definition names (`collision`, baked from its model:
+[physics](physics.md#a-models-collision-shape)), read through the registry's files. A vehicle flies
+as a dynamic body, so a file holding a mesh is refused. Its size still says which berths it fits and
+where it rests on one. Defining a layout defines `platforms/<name>`, a mesh of its decks and piers
 (`Dock::DeckShape`). Their bodies name these shapes (`Docks::VehicleShape`, `Docks::PlatformShape`).
 
 ### Which berth a vehicle fits

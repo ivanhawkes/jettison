@@ -161,7 +161,8 @@ has a test preset; for another tree, use `ctest --test-dir build/<preset>`.
 - **The test content** (`source/test/content`) is staged and packed the same way
   (`jettison_test_content`, `jettison_test_content_pack`), under `build/<preset>/source/test`.
 - **Executables**: `render_test` (the shell with no game, `source/test`), `ground` (the ground
-  sample, `source/samples/ground`), `flotsam` and `jettison_pack` (`source/tools`). Their
+  sample, `source/samples/ground`), `flotsam`, `jettison_pack` and `jettison_bake_collision`
+(`source/tools`). Their
   command-line arguments are in [the app shell](app-shell.md).
 
 The render harness is `render_test`, not `test`: CMake reserves `test` once testing is enabled, and

@@ -135,12 +135,13 @@ is the project's version in the top `CMakeLists.txt` (`Core::EngineVersion`). Th
 stricter than a mod: content for a newer engine stops the start-up, since a game cannot run without
 it, and content may require only `engine`, the one mount below it.
 
-A package's world is what a server reads, under `defs/` and `scripts/` (`Host::kWorldDirectories`);
-the rest (models, textures, scenes, UI, sounds and string tables) is presentation
-([decisions](decisions.md#files-packs-and-mods)). A package for the client alone may hold no world, so
-one that does is refused: left out as a mod, a start-up failure as content. A server's session
-(`Host::Options::server`) leaves the client's packages out, logged, before its content phase checks the
-rest, so a world package that requires a cosmetic one fails there.
+A package's world is what a server reads, under `defs/`, `scripts/` and `collision/`, the collision
+files baked from its models ([physics](physics.md#a-models-collision-shape))
+(`Host::kWorldDirectories`); the rest (models, textures, scenes, UI, sounds and string tables) is
+presentation ([decisions](decisions.md#files-packs-and-mods)). A package for the client alone may
+hold no world, so one that does is refused: left out as a mod, a start-up failure as content. A
+server's session (`Host::Options::server`) leaves the client's packages out, logged, before its
+content phase checks the rest, so a world package that requires a cosmetic one fails there.
 
 ### The server's world content
 

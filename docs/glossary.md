@@ -757,8 +757,8 @@ A craft a pilot or an agent flies. In physics, a dynamic body with `Physics::Han
 controls](#flight-controls), such as the ground sample's rover
 ([Physics](physics.md#the-flight-model)). In the docks, an entity with `Dock::Vehicle`, naming its
 definition (`Dock::VehicleDefinition`, in `defs/vehicles/<name>.yaml`): its size and its [berth
-class](#berth-class). Such a vehicle collides as the box of its size, whatever its model
-([Docks](docks.md)).
+class](#berth-class). Such a vehicle collides as the box of its size, whatever its model, or as the
+collision file baked from its model that its definition names ([Docks](docks.md)).
 
 ### Virtual path
 

@@ -77,6 +77,7 @@ jettison/
     │   └── app/                the shell: Application, arguments, mounts, smoke sequence, and
     │                           the game a program composes into it (App::Game, app/Game.h)
     ├── tools/
+    │   ├── collision/          jettison_bake_collision: a model's collision file, and its library
     │   ├── flotsam/            the editor's entry point (today the shell with no game)
     │   └── pack/               jettison_pack: a directory into a pack file
     ├── samples/

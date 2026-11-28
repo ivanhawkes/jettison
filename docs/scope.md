@@ -211,7 +211,7 @@ How: [rendering](rendering.md), and
 | Procedural geometry | In | Spheres, cubes and cube-spheres at levels of detail |
 | Debug draw | In | Lines, boxes and spheres in world space, for any system |
 | Fonts | In | TrueType through FreeType, for the game UI and the dev tools |
-| Collision-only meshes | Open | With a glTF model's collision mesh ([J12](roadmap.md#j12)) |
+| Collision-only meshes | In | A model's `collision-` nodes, baked into its collision file ([physics](physics.md#a-models-collision-shape)) |
 | Multiple texture coordinate sets | Open | Up to eight a mesh, named by role and fetched by vertex pulling ([J64](roadmap.md#j64)) |
 | Surface types (sounds, decals) | Out | No consumer needs footsteps or decals |
 | Terrain, water | Out | No consumer has a walkable surface |
@@ -308,6 +308,7 @@ How: [the app shell and tools](app-shell.md).
 | --- | --- | --- |
 | The [shell](glossary.md#shell) | In | The `app` library, which the ground sample, the editor and the render test link: a game's hooks composed over the engine, with console commands and arguments |
 | The packer | In | `jettison_pack` writes a directory as a pack |
+| The collision baker | In | `jettison_bake_collision` bakes a model's collision file, until the cook does ([physics](physics.md#a-models-collision-shape)) |
 | The asset cook | Open | `jettison_cook` cooks models and textures from a source tree into a game's asset folder, once or watching ([J37](roadmap.md#j37), [J38](roadmap.md#j38)) |
 | Editor (Flotsam) | In, minimal | The shell with no game composed; an inspector and scene editing are not built. How much a game needs Flotsam is to be looked at later (the user, 2026-11-25); until then an editor is assumed needed, though each game may better ship its own over common functionality the engine provides |
 | Logging in the shell | In | The run's log in the state directory ([runtime](runtime.md#logging)) |

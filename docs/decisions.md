@@ -136,6 +136,22 @@ What moves a frame's bodies and what pulls in it are under [Physics](#physics).
   presentation, draw the newest step rather than the frame shown between two, and its positions are
   each local frame's, not the scene's. The shapes are the picker's, built from the same definitions
   by the same code, so the lines are what Jolt has and what a pick hits. [Physics](physics.md)
+- **A model's collision shape is baked into a collision file, world content under `collision/`**
+  (2026-11-28). The server reads no model, so the shape is baked from it by a tool
+  (`jettison_bake_collision`, whose library the cook is to call) into a file physics reads as it is.
+  The format is the binary archive's `Physics.Shape`, a compound of convex hulls and meshes at
+  version 1: the engine's own archive, so the version, the field names and the errors are the
+  saves', its floats exact and a mesh compact, where YAML would carry each float through text; a mod
+  replaces a file whole, as it does a model. The placement is a third world directory, `collision/`,
+  mirroring the model's path (`models/rover.glb`'s at `collision/rover.collision`), rather than the
+  file beside the model in `models/`: the server's pack and the world's digest take directories, and
+  they hold no models; the data that uses a file names its path. A node named `collision-<name>` is
+  a convex hull and `collision-mesh-<name>` a mesh: a convex hull is the shape a dynamic body can
+  collide as, so it takes the plain name, and a mesh is asked for by name. A model without them
+  collides as a convex hull of each mesh node, at most 32 points, from Jolt's own builder, with no
+  convex decomposition and no new dependency. A dock's vehicle names its file
+  (`VehicleDefinition::collision`), and one holding a mesh is refused, a vehicle being dynamic.
+  [Physics](physics.md#a-models-collision-shape)
 
 ## Transit
 
