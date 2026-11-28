@@ -136,13 +136,10 @@ proxy (`dock/Definitions.h`).
 
 **What remains.**
 
-- A stylesheet or document reloaded when its file changes. RmlUi keeps a stylesheet for the run.
 - A document's images decoded on the I/O worker. They are decoded on the main thread as the document
   lays out, which is fine for a screen's icons.
-- RmlUi's debugger in the dev tools.
 
-**Why.** A UI author iterates with reload and the debugger; decoding off the main thread matters
-once a screen shows large images.
+**Why.** Decoding off the main thread matters once a screen shows large images.
 
 **Feature doc:** [UI, input and localisation](ui.md).
 
