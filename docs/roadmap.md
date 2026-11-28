@@ -72,16 +72,17 @@ each is cheaper before a game builds a workaround.
 
 | Feature | Why |
 | --- | --- |
-| A shape offset in its body, and compound shapes | Most objects are not one primitive centred on their body. |
 | Collision filtering beyond static against moving | A game's own layers and groups: what may touch what. |
 | Jolt's debug renderer drawn through debug draw | Seeing the shapes Jolt actually has. |
 | Jolt's job system on more than one thread | Once a profile asks for it. The result is deterministic either way. |
 | Capacities tuned against real traffic | The defaults are guesses. |
 
-**What exists.** Shapes are Box, Sphere, Capsule, Cylinder, ConvexHull and Mesh; a mesh is for
-static and kinematic bodies only (`source/engine/physics/include/jettison/physics/Shape.h`).
+**What exists.** Shapes are Box, Sphere, Capsule, Cylinder, ConvexHull, Mesh and Compound, each
+placed in its body by an offset and a turn; a mesh, or a compound with one, is for static and
+kinematic bodies only (`source/engine/physics/include/jettison/physics/Shape.h`).
 `PhysicsWorld::CastRay` and `CastShape` return the first hit, `CastRayAll` and `CastShapeAll` every
-body, and `Overlap` and `OverlapSphere` every body a shape overlaps. Jolt runs on
+body, and `Overlap` and `OverlapSphere` every body a shape overlaps; a cast's hit names the part of
+a compound it met (`CastHit::part`). Jolt runs on
 `JPH::JobSystemSingleThreaded` (`physics/src/PhysicsWorld.cpp`). The capacities are `maxBodies`
 8192, `maxBodyPairs` 32768 and `maxContactConstraints` 16384 (`PhysicsWorld.h`).
 
