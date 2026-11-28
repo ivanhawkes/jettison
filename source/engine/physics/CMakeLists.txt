@@ -12,6 +12,7 @@ jettison_add_module(physics
 	HEADERS
 		include/jettison/physics/Components.h
 		include/jettison/physics/Flight.h
+		include/jettison/physics/Layer.h
 		include/jettison/physics/PhysicsWorld.h
 		include/jettison/physics/Shape.h
 		include/jettison/physics/SnapshotPicker.h

@@ -116,6 +116,19 @@ What moves a frame's bodies and what pulls in it are under [Physics](#physics).
   is a pair of bodies read from Jolt's cache, which keeps no sub-shape, and `ContactEvent` is saved,
   so a part there would be a contact per pair of parts and a new save layout. An overlap answers
   bodies, each once, so it names none either. [Physics](physics.md)
+- **A game's collision layers are definitions, and a body in none meets every body** (2026-11-28).
+  A layer is a `Physics::LayerDefinition` naming the layers it meets, loaded by the definition
+  registry as shapes are and defined all at once, before any body (`PhysicsWorld::DefineLayers`),
+  since Jolt's layer tables are fixed when a world is made. Two layers meet if either names the
+  other, so a mod's layer meets the base game's without editing theirs. A body in no layer meets
+  every body, so the bodies the engine's modules make in none (a dock's platform, a transit's
+  sensor) are met by whatever layers a game names. A body names its layer and its group in its
+  `Body`, as it names its shape, both `std::optional`, because a save leaves an empty optional
+  out: a world whose game names none saves the same bytes, and no hash moved. A group is a number of
+  the game's whose bodies never meet one another (Jolt's `GroupFilterTable`), for a vehicle and the
+  parts it carries; a cast is cast as a layer (`CastOptions::layer`), hitting what a body of that
+  layer would meet, rather than given a list of layers to hit, so one table says what meets what.
+  [Physics](physics.md)
 
 ## Transit
 

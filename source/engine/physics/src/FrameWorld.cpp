@@ -6,13 +6,35 @@
 
 namespace Jettison::Physics::Detail
 {
-Layers::Layers()
+namespace
 {
-	pairs.EnableCollision(kMoving, kStatic);
-	pairs.EnableCollision(kMoving, kMoving);
-	broadPhase.MapObjectToBroadPhaseLayer(kStatic, JPH::BroadPhaseLayer{0});
-	broadPhase.MapObjectToBroadPhaseLayer(kMoving, JPH::BroadPhaseLayer{1});
-	objectVsBroadPhase.emplace(broadPhase, 2, pairs, 2);
+// Jolt's broadphase keeps static bodies apart from moving ones, which is what lets it skip the static
+// tree for pairs, whatever layers they are in.
+constexpr JPH::BroadPhaseLayer kStaticBroadPhase{0};
+constexpr JPH::BroadPhaseLayer kMovingBroadPhase{1};
+constexpr JPH::uint kBroadPhaseLayers = 2;
+} // namespace
+
+
+Layers::Layers(std::uint32_t count, std::span<const std::pair<std::uint32_t, std::uint32_t>> meetings)
+    : pairs{kPerLayer * count}, broadPhase{kPerLayer * count, kBroadPhaseLayers}
+{
+	// Jolt's table is symmetric: enabling one way enables both.
+	const auto meet = [this](std::uint32_t first, std::uint32_t second)
+	{
+		pairs.EnableCollision(Moving(first), Static(second));
+		pairs.EnableCollision(Moving(second), Static(first));
+		pairs.EnableCollision(Moving(first), Moving(second));
+	};
+	for (std::uint32_t layer = 0; layer < count; ++layer)
+	{
+		meet(kNone, layer);
+		broadPhase.MapObjectToBroadPhaseLayer(Static(layer), kStaticBroadPhase);
+		broadPhase.MapObjectToBroadPhaseLayer(Moving(layer), kMovingBroadPhase);
+	}
+	for (const auto &[first, second] : meetings)
+		meet(first, second);
+	objectVsBroadPhase.emplace(broadPhase, kBroadPhaseLayers, pairs, kPerLayer * count);
 }
 
 

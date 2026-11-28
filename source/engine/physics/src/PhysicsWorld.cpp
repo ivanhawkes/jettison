@@ -11,7 +11,9 @@
 #include <Jolt/Physics/Collision/CollideShape.h>
 #include <Jolt/Physics/Collision/CollisionCollectorImpl.h>
 #include <Jolt/Physics/Collision/ContactListener.h>
+#include <Jolt/Physics/Collision/GroupFilterTable.h>
 #include <Jolt/Physics/Collision/NarrowPhaseQuery.h>
+#include <Jolt/Physics/Collision/ObjectLayer.h>
 #include <Jolt/Physics/Collision/RayCast.h>
 #include <Jolt/Physics/Collision/Shape/SphereShape.h>
 #include <Jolt/Physics/Collision/ShapeCast.h>
@@ -162,6 +164,10 @@ struct FrameMotion
 };
 
 
+// The game's layers by name, numbered from 1 in name order (Detail::Layers): definitions, not state.
+using LayerNumbers = std::map<std::string, std::uint32_t, std::less<>>;
+
+
 std::string Describe(entt::entity entity)
 {
 	return std::format("entity {:#x}", entt::to_integral(entity));
@@ -169,10 +175,15 @@ std::string Describe(entt::entity entity)
 
 
 // Why a body of this description cannot be made, or nothing.
-std::optional<std::string> Unmakeable(const Body &body, const ShapeEntry *shape, const WorldKey &key)
+std::optional<std::string> Unmakeable(
+    const Body &body, const ShapeEntry *shape, const WorldKey &key, const LayerNumbers &layers)
 {
 	if (!shape)
 		return std::format("names shape '{}', which is not defined", body.shape);
+	if (body.layer && !layers.contains(*body.layer))
+		return std::format("is in layer '{}', which is not defined", *body.layer);
+	if (body.group == JPH::CollisionGroup::cInvalidGroup)
+		return std::format("is in group {}, which Jolt keeps for none", *body.group);
 
 	// Also what keeps a body from being made again every step: a NaN is unequal to itself, so a
 	// Body holding one would never match the one its body was made from.
@@ -204,7 +215,8 @@ std::optional<std::string> Unmakeable(const Body &body, const ShapeEntry *shape,
 
 JPH::BodyCreationSettings MakeSettings(
     entt::entity entity, const Body &body, const ShapeEntry &shape, const Sim::Transform &transform,
-    const glm::dvec3 &origin, const Velocity &velocity, const PhysicsSettings &settings)
+    const glm::dvec3 &origin, const Velocity &velocity, const PhysicsSettings &settings,
+    std::uint32_t layer, const JPH::GroupFilter &groups)
 {
 	// A static sensor is kinematic to Jolt, never moved but by placing it: a static sensor sees only
 	// bodies that are awake, and a vehicle come to rest in a docking zone would leave it as it slept.
@@ -216,7 +228,9 @@ JPH::BodyCreationSettings MakeSettings(
 	    Detail::ToJolt(transform.orientation).Normalized(),
 	    body.sensor && body.kind == BodyKind::Static ? JPH::EMotionType::Kinematic
 	                                                 : kMotion[static_cast<std::size_t>(body.kind)],
-	    joltStatic ? Detail::Layers::kStatic : Detail::Layers::kMoving};
+	    joltStatic ? Detail::Layers::Static(layer) : Detail::Layers::Moving(layer)};
+	if (body.group)
+		creation.mCollisionGroup = JPH::CollisionGroup{&groups, *body.group, 0};
 	creation.mIsSensor = body.sensor;
 	creation.mAllowSleeping = !body.sensor;
 	creation.mFriction = body.friction;
@@ -562,7 +576,7 @@ struct PhysicsWorld::Impl
 
 	std::unique_ptr<Detail::FrameWorld> NewWorld() const
 	{
-		auto world = std::make_unique<Detail::FrameWorld>(layers, settings);
+		auto world = std::make_unique<Detail::FrameWorld>(*layers, settings);
 		world->System().SetContactListener(&recorder);
 		return world;
 	}
@@ -586,6 +600,7 @@ struct PhysicsWorld::Impl
 	    std::uint64_t frame, const JPH::Shape &shape, const Sim::Transform &at,
 	    const CastOptions &options) const
 	{
+		const JPH::DefaultObjectLayerFilter layer = CastLayer(options);
 		const CastBodies filter{options};
 		std::vector<entt::entity> overlapped;
 		ForEachFrame(
@@ -598,7 +613,7 @@ struct PhysicsWorld::Impl
 			        &shape, JPH::Vec3::sOne(),
 			        JPH::RMat44::sRotationTranslation(Detail::ToJolt(at.orientation).Normalized(), base)
 			            .PreTranslated(shape.GetCenterOfMass()),
-			        JPH::CollideShapeSettings{}, base, collector, {}, {}, filter);
+			        JPH::CollideShapeSettings{}, base, collector, {}, layer, filter);
 			    for (const JPH::CollideShapeResult &hit : collector.mHits)
 			    {
 				    const JPH::BodyLockRead lock{
@@ -638,7 +653,8 @@ struct PhysicsWorld::Impl
 	    const ShapeEntry &shape, bool asleep = false) const
 	{
 		const JPH::BodyCreationSettings creation = MakeSettings(
-		    entity, record.body, shape, record.placed, world.frameOrigin, record.velocity, settings);
+		    entity, record.body, shape, record.placed, world.frameOrigin, record.velocity, settings,
+		    LayerNumber(record.body.layer), *groups);
 		const JPH::Body *made = world.Bodies().CreateBodyWithID(id, creation);
 
 		// Capacity was checked, and the identifier is one the world holds free for it.
@@ -649,8 +665,34 @@ struct PhysicsWorld::Impl
 		            : JPH::EActivation::Activate);
 	}
 
+	// The number of a layer the body or cast is in, checked to be defined (Unmakeable, CastLayer).
+	std::uint32_t LayerNumber(const std::optional<std::string> &layer) const
+	{
+		return layer ? layerNumbers.find(*layer)->second : Detail::Layers::kNone;
+	}
+
+
+	// What a cast as the options' layer may hit: what a moving body of that layer meets, which for
+	// none is every body. Throws std::invalid_argument for a layer not defined.
+	JPH::DefaultObjectLayerFilter CastLayer(const CastOptions &options) const
+	{
+		if (options.layer && !layerNumbers.contains(*options.layer))
+			throw std::invalid_argument{
+			    std::format("Physics: a cast as layer '{}', which is not defined", *options.layer)};
+		return JPH::DefaultObjectLayerFilter{
+		    layers->pairs, Detail::Layers::Moving(LayerNumber(options.layer))};
+	}
+
 	PhysicsSettings settings;
-	Detail::Layers layers;
+
+	// Replaced by DefineLayers only while no Jolt world is made: each world keeps references to it.
+	std::unique_ptr<Detail::Layers> layers = std::make_unique<Detail::Layers>();
+	LayerNumbers layerNumbers;
+
+	// What keeps a group's bodies apart (Body::group): Jolt's table, under which bodies of one group
+	// and one subgroup never meet, every grouped body being in subgroup 0.
+	JPH::Ref<JPH::GroupFilterTable> groups{new JPH::GroupFilterTable};
+
 	JPH::TempAllocatorImplWithMallocFallback scratch{kTempAllocatorBytes};
 
 	// The simulation's one thread, as the threading rules have it (docs/architecture.md).
@@ -695,6 +737,7 @@ struct PhysicsWorld::Impl
 	    const CastOptions &options) const
 	{
 		const glm::dvec3 along = CastDirection(origin, direction, maxDistance);
+		const JPH::DefaultObjectLayerFilter layer = CastLayer(options);
 		const CastBodies filter{options};
 		std::vector<CastHit> hits;
 		ForEachFrame(
@@ -706,7 +749,7 @@ struct PhysicsWorld::Impl
 			        Detail::ToJolt(glm::vec3{along * maxDistance})};
 			    Collector collector;
 			    world.System().GetNarrowPhaseQueryNoLock().CastRay(
-			        ray, JPH::RayCastSettings{}, collector, {}, {}, filter);
+			        ray, JPH::RayCastSettings{}, collector, {}, layer, filter);
 			    for (const JPH::RayCastResult &hit : collector.mHits)
 				    hits.push_back(RayHit(world, ray, hit, frameOrigin, maxDistance));
 		    });
@@ -730,6 +773,7 @@ struct PhysicsWorld::Impl
 		if (entry->mesh)
 			throw std::invalid_argument{
 			    std::format("Physics: shape '{}' is a mesh, which has no inside to sweep", shape)};
+		const JPH::DefaultObjectLayerFilter layer = CastLayer(options);
 		const CastBodies filter{options};
 		std::vector<CastHit> hits;
 		ForEachFrame(
@@ -744,7 +788,7 @@ struct PhysicsWorld::Impl
 			        Detail::ToJolt(glm::vec3{along * maxDistance}));
 			    Collector collector;
 			    world.System().GetNarrowPhaseQueryNoLock().CastShape(
-			        cast, JPH::ShapeCastSettings{}, at, collector, {}, {}, filter);
+			        cast, JPH::ShapeCastSettings{}, at, collector, {}, layer, filter);
 			    for (const JPH::ShapeCastResult &hit : collector.mHits)
 				    hits.push_back(ShapeHit(world, hit, at, frameOrigin, along, maxDistance));
 		    });
@@ -870,6 +914,47 @@ void PhysicsWorld::DefineShapes(const Sim::DefinitionRegistry &definitions)
 {
 	for (const std::string &name : definitions.Names<ShapeDefinition>())
 		DefineShape(name, *definitions.Find<ShapeDefinition>(name));
+}
+
+
+void PhysicsWorld::DefineLayers(const std::map<std::string, LayerDefinition, std::less<>> &layers)
+{
+	Impl &impl = *m_pImpl;
+	if (!impl.layerNumbers.empty())
+		throw std::logic_error{"Physics: the layers are already defined"};
+	if (!impl.worlds.empty())
+		throw std::logic_error{"Physics: layers are defined before any body is made"};
+	LayerNumbers numbers;
+	for (const auto &[name, layer] : layers)
+	{
+		if (name.empty())
+			throw std::invalid_argument{"Physics: a layer needs a name"};
+		numbers.emplace(name, static_cast<std::uint32_t>(numbers.size() + 1));
+	}
+	std::vector<std::pair<std::uint32_t, std::uint32_t>> meetings;
+	for (const auto &[name, layer] : layers)
+	{
+		for (const std::string &other : layer.meets)
+		{
+			const auto found = numbers.find(other);
+			if (found == numbers.end())
+				throw std::invalid_argument{
+				    std::format("Physics: layer '{}' meets '{}', which is not defined", name, other)};
+			meetings.emplace_back(numbers.at(name), found->second);
+		}
+	}
+	impl.layers =
+	    std::make_unique<Detail::Layers>(static_cast<std::uint32_t>(numbers.size() + 1), meetings);
+	impl.layerNumbers = std::move(numbers);
+}
+
+
+void PhysicsWorld::DefineLayers(const Sim::DefinitionRegistry &definitions)
+{
+	std::map<std::string, LayerDefinition, std::less<>> layers;
+	for (const std::string &name : definitions.Names<LayerDefinition>())
+		layers.emplace(name, *definitions.Find<LayerDefinition>(name));
+	DefineLayers(layers);
 }
 
 
@@ -1157,7 +1242,7 @@ void PhysicsWorld::Step(entt::registry &registry, double simSeconds, double fixe
 		    (impl.records.contains(entity) && !std::ranges::binary_search(removals, entity)))
 			continue;
 		const ShapeEntry *shape = impl.FindShape(body.shape);
-		std::optional<std::string> problem = Unmakeable(body, shape, key);
+		std::optional<std::string> problem = Unmakeable(body, shape, key, impl.layerNumbers);
 		if (!problem)
 			problem = impl.UnknownFrame(key);
 		if (problem)
@@ -1676,7 +1761,8 @@ std::function<void()> PhysicsWorld::Load(
 				reader.Fail(
 				    std::format("{} has body index {}, which is not free", Describe(entity), index));
 			const ShapeEntry *shape = impl.FindShape(record.body.shape);
-			if (const std::optional<std::string> problem = Unmakeable(record.body, shape, key))
+			if (const std::optional<std::string> problem =
+			        Unmakeable(record.body, shape, key, impl.layerNumbers))
 				reader.Fail(std::format("{} cannot be a body: it {}", Describe(entity), *problem));
 			record.key = key;
 			record.id = JPH::BodyID{index, sequences[index]};

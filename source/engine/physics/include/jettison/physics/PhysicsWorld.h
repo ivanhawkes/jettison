@@ -6,6 +6,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <functional>
+#include <map>
 #include <memory>
 #include <optional>
 #include <span>
@@ -14,6 +15,7 @@
 #include <vector>
 
 #include <jettison/physics/Components.h>
+#include <jettison/physics/Layer.h>
 #include <jettison/physics/Shape.h>
 #include <jettison/sim/Controller.h>
 #include <jettison/sim/SimWorld.h>
@@ -93,7 +95,11 @@ struct CastOptions
 	// bodies where they are in it. Presentation shows the world between the last two steps
 	// (Sim::Stepper), and a platform's frame may move 500 m a step, so a ray drawn from
 	// what is shown is cast at the time shown, or it misses the platform by the distance between them.
-	std::optional<double> framesAt;
+	std::optional<double> framesAt{};
+
+	// The layer the cast is cast as (LayerDefinition): it hits only what a moving body of that layer
+	// would meet. None hits every layer.
+	std::optional<std::string> layer{};
 };
 
 // The command that picks what is under the mouse (docs/physics.md): a ray, drawn by
@@ -261,6 +267,16 @@ class PhysicsWorld final : public Sim::WorldService
 	// The largest ShapeRadius of any shape defined: how far beyond a point a body's shape can reach,
 	// which a query for what is near widens itself by. None while no shape is defined.
 	double LargestShapeRadius() const;
+
+	// The game's collision layers, by name, all at once, since each names those it meets: before any
+	// body is made, as every world's collisions are set up from them. A body's layer and a cast's
+	// have to be one of them. Throws std::invalid_argument for a layer of no name or one meeting a
+	// layer not among them, and std::logic_error once layers are defined or a body is made. Definitions
+	// are the game's start-up, the same every run: a save names layers, as it names shapes.
+	void DefineLayers(const std::map<std::string, LayerDefinition, std::less<>> &layers);
+
+	// Every LayerDefinition the registry has loaded, under its definition name.
+	void DefineLayers(const Sim::DefinitionRegistry &definitions);
 
 	// The model of the frame of that identifier (Sim::InFrame). Throws std::invalid_argument for no
 	// model, or a frame already defined.

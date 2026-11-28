@@ -10,9 +10,12 @@
 #include <glm/geometric.hpp>
 #include <glm/gtc/quaternion.hpp>
 
+#include <algorithm>
 #include <cmath>
+#include <cstdint>
 #include <filesystem>
 #include <fstream>
+#include <limits>
 #include <stdexcept>
 #include <string>
 #include <unistd.h>
@@ -672,4 +675,259 @@ TEST_CASE("Physics: a system full of bodies refuses the next")
 	registry.destroy(second);
 	world.Step();
 	CHECK(physics.BodyCount() == 2);
+}
+
+
+namespace
+{
+// Two layers: a ghost meets no layer of the game's, not even its own, and a ship meets ships.
+void DefineGhostsAndShips(Physics::PhysicsWorld &physics)
+{
+	physics.DefineLayers({{"ghost", {}}, {"ship", {{"ship"}}}});
+}
+
+
+Body InLayer(Body body, std::string layer)
+{
+	body.layer = std::move(layer);
+	return body;
+}
+
+
+Body InGroup(Body body, std::uint32_t group)
+{
+	body.group = group;
+	return body;
+}
+
+
+// Whether any contact the step began or ended names the entity.
+bool InContacts(const Physics::PhysicsWorld &physics, entt::entity entity)
+{
+	return std::ranges::any_of(
+	    physics.Contacts(), [entity](const Physics::ContactEvent &contact)
+	    { return contact.first == entity || contact.second == entity; });
+}
+} // namespace
+
+
+TEST_CASE("Physics: a game's layers decide what meets what, and a body in none meets every layer")
+{
+	Fixture fixture;
+	DefineGhostsAndShips(fixture.physics);
+	Body ball = Dynamic("ball");
+	ball.restitution = 1.0f;
+	const entt::entity ghostLeft =
+	    fixture.Add(InLayer(ball, "ghost"), {-5.0, 0.0, 0.0}, {10.0f, 0.0f, 0.0f});
+	const entt::entity ghostRight =
+	    fixture.Add(InLayer(ball, "ghost"), {5.0, 0.0, 0.0}, {-10.0f, 0.0f, 0.0f});
+	const entt::entity shipLeft =
+	    fixture.Add(InLayer(ball, "ship"), {-5.0, 50.0, 0.0}, {10.0f, 0.0f, 0.0f});
+	const entt::entity shipRight =
+	    fixture.Add(InLayer(ball, "ship"), {5.0, 50.0, 0.0}, {-10.0f, 0.0f, 0.0f});
+
+	// A ghost meets a static wall in no layer as any body does.
+	Body wall;
+	wall.kind = BodyKind::Static;
+	wall.shape = "wall";
+	const entt::entity barrier = fixture.Add(wall, {0.0, 100.0, 0.0});
+	const entt::entity thrown =
+	    fixture.Add(InLayer(Dynamic("crate"), "ghost"), {0.0, 100.0, 0.0}, {20.0f, 0.0f, 0.0f});
+
+	bool ghostsMet = false;
+	for (int step = 0; step < 90; ++step)
+	{
+		fixture.world.Step();
+		ghostsMet = ghostsMet || InContacts(fixture.physics, ghostLeft) ||
+		            InContacts(fixture.physics, ghostRight);
+	}
+
+	// The ghosts pass through each other untouched; the ships meet and swap their velocities.
+	CHECK_FALSE(ghostsMet);
+	CHECK(fixture.Linear(ghostLeft).x == doctest::Approx(10.0));
+	CHECK(fixture.Position(ghostLeft).x > 5.0);
+	CHECK(fixture.Linear(shipLeft).x == doctest::Approx(-10.0).epsilon(0.02));
+	CHECK(fixture.Linear(shipRight).x == doctest::Approx(10.0).epsilon(0.02));
+	CHECK(std::abs(fixture.Linear(thrown).x) < 0.5f);
+	CHECK(fixture.Position(thrown).x < 9.0);
+	CHECK(fixture.physics.Touching(thrown) == std::vector{barrier});
+}
+
+
+TEST_CASE("Physics: a cast or an overlap as a layer hits only what a body of that layer would meet")
+{
+	Fixture fixture;
+	DefineGhostsAndShips(fixture.physics);
+	Physics::PhysicsWorld &physics = fixture.physics;
+	Body wall;
+	wall.kind = BodyKind::Static;
+	wall.shape = "wall";
+	const entt::entity barrier = fixture.Add(wall, {0.0, 0.0, 0.0});
+	const entt::entity ghost = fixture.Add(InLayer(Dynamic("ball"), "ghost"), {0.0, 0.0, 0.0});
+	const entt::entity ship = fixture.Add(InLayer(Dynamic("ball"), "ship"), {4.0, 0.0, 0.0});
+	fixture.world.Step();
+
+	const glm::dvec3 from{-20.0, 0.0, 0.0};
+	const glm::dvec3 along{1.0, 0.0, 0.0};
+	const auto entities = [](const std::vector<Physics::CastHit> &hits)
+	{
+		std::vector<entt::entity> found;
+		for (const Physics::CastHit &hit : hits)
+			found.push_back(hit.entity);
+		return found;
+	};
+	CHECK(
+	    entities(physics.CastRayAll(kHalcyon, from, along, 50.0)) == std::vector{ghost, ship, barrier});
+	CHECK(
+	    entities(physics.CastRayAll(kHalcyon, from, along, 50.0, {.layer = "ship"})) ==
+	    std::vector{ship, barrier});
+	CHECK(
+	    entities(physics.CastRayAll(kHalcyon, from, along, 50.0, {.layer = "ghost"})) ==
+	    std::vector{barrier});
+	CHECK(physics.CastRay(kHalcyon, from, along, 50.0, {.layer = "ship"})->entity == ship);
+	CHECK(
+	    physics
+	        .CastShape(
+	            kHalcyon, "crate", {from, glm::dquat{1.0, 0.0, 0.0, 0.0}}, along, 50.0,
+	            {.layer = "ghost"})
+	        ->entity == barrier);
+	CHECK(physics.OverlapSphere(kHalcyon, {2.0, 0.0, 0.0}, 3.0) == std::vector{ghost, ship});
+	CHECK(
+	    physics.OverlapSphere(kHalcyon, {2.0, 0.0, 0.0}, 3.0, {.layer = "ship"}) == std::vector{ship});
+
+	// The hull reaches the wall in no layer, which every layer meets.
+	CHECK(
+	    physics.Overlap(
+	        kHalcyon, "hull", {{2.0, 0.0, 0.0}, glm::dquat{1.0, 0.0, 0.0, 0.0}}, {.layer = "ghost"}) ==
+	    std::vector{barrier});
+	CHECK_THROWS_WITH_AS(
+	    (void)physics.CastRay(kHalcyon, from, along, 50.0, {.layer = "phantom"}),
+	    doctest::Contains("a cast as layer 'phantom', which is not defined"), std::invalid_argument);
+	CHECK_THROWS_AS(
+	    (void)physics.OverlapSphere(kHalcyon, {}, 1.0, {.layer = "phantom"}), std::invalid_argument);
+}
+
+
+TEST_CASE("Physics: bodies of one group never meet, and meet those of another")
+{
+	Fixture fixture;
+	Body ball = Dynamic("ball");
+	ball.restitution = 1.0f;
+	const entt::entity left = fixture.Add(InGroup(ball, 7), {-5.0, 0.0, 0.0}, {10.0f, 0.0f, 0.0f});
+	const entt::entity right = fixture.Add(InGroup(ball, 7), {5.0, 0.0, 0.0}, {-10.0f, 0.0f, 0.0f});
+	const entt::entity seventh = fixture.Add(InGroup(ball, 7), {-5.0, 50.0, 0.0}, {10.0f, 0.0f, 0.0f});
+	const entt::entity eighth = fixture.Add(InGroup(ball, 8), {5.0, 50.0, 0.0}, {-10.0f, 0.0f, 0.0f});
+	const entt::entity loner = fixture.Add(ball, {5.0, 100.0, 0.0}, {-10.0f, 0.0f, 0.0f});
+	const entt::entity grouped = fixture.Add(InGroup(ball, 7), {-5.0, 100.0, 0.0}, {10.0f, 0.0f, 0.0f});
+	fixture.Run(1.0);
+	CHECK(fixture.Linear(left).x == doctest::Approx(10.0));
+	CHECK(fixture.Linear(right).x == doctest::Approx(-10.0));
+	CHECK(fixture.Linear(seventh).x == doctest::Approx(-10.0).epsilon(0.02));
+	CHECK(fixture.Linear(eighth).x == doctest::Approx(10.0).epsilon(0.02));
+	CHECK(fixture.Linear(grouped).x == doctest::Approx(-10.0).epsilon(0.02));
+	CHECK(fixture.Linear(loner).x == doctest::Approx(10.0).epsilon(0.02));
+
+	fixture.Add(InGroup(ball, std::numeric_limits<std::uint32_t>::max()), {0.0, -50.0, 0.0});
+	CHECK_THROWS_WITH_AS(
+	    fixture.world.Step(), doctest::Contains("which Jolt keeps for none"), std::invalid_argument);
+}
+
+
+TEST_CASE("Physics: layers are defined once, before any body, and each names only layers defined")
+{
+	Fixture fixture;
+	Physics::PhysicsWorld &physics = fixture.physics;
+	CHECK_THROWS_WITH_AS(
+	    physics.DefineLayers({{"ship", {{"ship", "drone"}}}}),
+	    doctest::Contains("layer 'ship' meets 'drone', which is not defined"), std::invalid_argument);
+	CHECK_THROWS_WITH_AS(
+	    physics.DefineLayers({{"", {}}}), doctest::Contains("a layer needs a name"),
+	    std::invalid_argument);
+
+	const entt::entity stray = fixture.Add(InLayer(Dynamic("ball"), "ship"), {0.0, 0.0, 0.0});
+	CHECK_THROWS_WITH_AS(
+	    fixture.world.Step(), doctest::Contains("is in layer 'ship', which is not defined"),
+	    std::invalid_argument);
+	DefineGhostsAndShips(physics);
+	CHECK_THROWS_AS(DefineGhostsAndShips(physics), std::logic_error);
+	fixture.world.Step();
+	CHECK(physics.BodyCount() == 1);
+
+	// A change of layer makes the body again, in its new layer.
+	fixture.world.Registry().get<Body>(stray).layer = "ghost";
+	fixture.world.Step();
+	CHECK(physics.OverlapSphere(kHalcyon, {0.0, 0.0, 0.0}, 1.0, {.layer = "ship"}).empty());
+
+	Fixture late;
+	late.Add(Dynamic("ball"), {0.0, 0.0, 0.0});
+	late.world.Step();
+	CHECK_THROWS_WITH_AS(
+	    DefineGhostsAndShips(late.physics), doctest::Contains("before any body is made"),
+	    std::logic_error);
+}
+
+
+TEST_CASE("Physics: layers are definitions, and a mod's layer meets the base game's by naming it")
+{
+	const std::filesystem::path directory = std::filesystem::temp_directory_path() /
+	                                        ("jettison-physics-layers-" + std::to_string(getpid()));
+	std::filesystem::remove_all(directory);
+	std::filesystem::create_directories(directory / "base/layers");
+	std::filesystem::create_directories(directory / "mod/layers");
+	std::ofstream{directory / "base/layers/ship.yaml"} << "version: 1\nmeets: [ship]\n";
+	std::ofstream{directory / "mod/layers/drone.yaml"} << "version: 1\nmeets: [ship]\n";
+
+	Vfs::FileSystem fileSystem;
+	fileSystem.AddMount({"base", directory / "base", false});
+	fileSystem.AddMount({"mod", directory / "mod", false});
+	Physics::RegisterTypes();
+	Sim::DefinitionRegistry definitions{fileSystem};
+	definitions.Load<Physics::LayerDefinition>("layers", Serialise::FormatVersion{1});
+	REQUIRE(definitions.Find<Physics::LayerDefinition>("drone"));
+
+	Fixture fixture;
+	fixture.physics.DefineLayers(definitions);
+	const entt::entity ship = fixture.Add(InLayer(Dynamic("ball"), "ship"), {0.0, 0.0, 0.0});
+	const entt::entity drone = fixture.Add(InLayer(Dynamic("ball"), "drone"), {10.0, 0.0, 0.0});
+	fixture.world.Step();
+
+	// The drone names the ship, so they meet both ways; it does not name itself.
+	CHECK(
+	    fixture.physics.OverlapSphere(kHalcyon, {0.0, 0.0, 0.0}, 1.0, {.layer = "drone"}) ==
+	    std::vector{ship});
+	CHECK(
+	    fixture.physics.OverlapSphere(kHalcyon, {10.0, 0.0, 0.0}, 1.0, {.layer = "ship"}) ==
+	    std::vector{drone});
+	CHECK(fixture.physics.OverlapSphere(kHalcyon, {10.0, 0.0, 0.0}, 1.0, {.layer = "drone"}).empty());
+	std::filesystem::remove_all(directory);
+}
+
+
+TEST_CASE("Physics: layered and grouped bodies are saved, and a world without the layers refuses them")
+{
+	const auto populate = [](Fixture &fixture)
+	{
+		DefineGhostsAndShips(fixture.physics);
+		fixture.Add(InLayer(Dynamic("ball"), "ghost"), {-5.0, 0.0, 0.0}, {10.0f, 0.0f, 0.0f});
+		fixture.Add(InLayer(Dynamic("ball"), "ghost"), {5.0, 0.0, 0.0}, {-10.0f, 0.0f, 0.0f});
+		fixture.Add(InGroup(Dynamic("ball"), 3), {-5.0, 50.0, 0.0}, {10.0f, 0.0f, 0.0f});
+		fixture.Add(InGroup(Dynamic("ball"), 3), {5.0, 50.0, 0.0}, {-10.0f, 0.0f, 0.0f});
+	};
+	Fixture original;
+	populate(original);
+	original.Run(0.3);
+	const std::vector<std::byte> save = original.world.Save();
+
+	Fixture loaded;
+	DefineGhostsAndShips(loaded.physics);
+	loaded.world.Load(save);
+	CHECK(loaded.world.StateHash() == original.world.StateHash());
+	original.Run(0.5);
+	loaded.Run(0.5);
+	CHECK(loaded.world.StateHash() == original.world.StateHash());
+
+	Fixture bare;
+	CHECK_THROWS_WITH_AS(
+	    bare.world.Load(save), doctest::Contains("is in layer 'ghost', which is not defined"),
+	    Serialise::FormatError);
 }

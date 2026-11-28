@@ -1,6 +1,7 @@
 #include <jettison/physics/Components.h>
 
 #include <jettison/physics/Flight.h>
+#include <jettison/physics/Layer.h>
 #include <jettison/physics/PhysicsWorld.h>
 #include <jettison/physics/Shape.h>
 #include <jettison/reflect/Reflect.h>
@@ -40,7 +41,9 @@ void RegisterTypes()
 		    .Field<&Body::linearDamping>("linearDamping", Attribute::Saved)
 		    .Field<&Body::angularDamping>("angularDamping", Attribute::Saved)
 		    .Field<&Body::continuous>("continuous", Attribute::Saved)
-		    .Field<&Body::sensor>("sensor", Attribute::Saved);
+		    .Field<&Body::sensor>("sensor", Attribute::Saved)
+		    .Field<&Body::layer>("layer", Attribute::Saved)
+		    .Field<&Body::group>("group", Attribute::Saved);
 		RegisterType<Velocity>("Physics.Velocity")
 		    .Field<&Velocity::linear>("linear", Attribute::Saved)
 		    .Field<&Velocity::angular>("angular", Attribute::Saved);
@@ -122,6 +125,8 @@ void RegisterTypes()
 		    .Field<&ShapeDefinition::vertices>("vertices", kDefined)
 		    .Field<&ShapeDefinition::indices>("indices", kDefined)
 		    .Field<&ShapeDefinition::parts>("parts", kDefined);
+		RegisterType<LayerDefinition>("Physics.Layer", Attribute::Moddable)
+		    .Field<&LayerDefinition::meets>("meets", kDefined);
 		return true;
 	}();
 	(void)registered;

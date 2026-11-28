@@ -19,7 +19,7 @@ A body is an entity with three [components](glossary.md#component):
 
 | Component | Holds |
 | --- | --- |
-| `Physics::Body` | Its kind, its shape by name, mass, friction, restitution, damping, and two flags: `continuous` and `sensor` |
+| `Physics::Body` | Its kind, its shape by name, mass, friction, restitution, damping, two flags (`continuous` and `sensor`), and optionally its [layer and group](#layers-and-groups) |
 | `Sim::Transform` | Its position (double precision) and orientation in its frame |
 | `Sim::InFrame` | The [frame](glossary.md#frame-coordinates) it is in. An entity in no frame (`Sim::kNoFrame`, one passing through a [portal](glossary.md#portal)) has no body |
 
@@ -44,6 +44,38 @@ keeping its velocity. The fields are floats, as Jolt keeps them; only positions 
   enter and leave it as [contacts](#contacts). It never sleeps, so it still sees a vehicle come to
   rest inside it. It is placed, not swept, so it does not see a body that crosses it entirely
   between two steps. A sensor cannot also be continuous.
+
+### Layers and groups
+
+What may touch what is the game's. A **layer** is a `Physics::LayerDefinition` (`physics/Layer.h`)
+naming the layers it meets; a body is in one by its `Body::layer`. Two layers meet if either names
+the other, and a layer meets itself only if it names itself. A body in no layer meets every body, as
+every body does when a game names no layers, so a game's layers narrow only what its own layered
+bodies meet, and what an engine module makes in none (a dock's platform) is met by all of them. A
+**group** (`Body::group`) is a number of the game's choosing: bodies of one group never meet one
+another, whatever their layers, as a vehicle and the parts it carries should not. A group is any
+number but the largest, which Jolt keeps for none.
+
+Bodies of two layers that do not meet, or of one group, pass through each other: no push, no
+contact, and a sensor does not report them. Static bodies still never meet each other. Changing a
+body's layer or group makes it again at the next step, as any change to its `Body` does.
+
+Layers are definitions: the registry type `Physics.Layer`, marked moddable, one file a layer, its
+name the definition's. The game defines them all at once, before any body is made
+(`PhysicsWorld::DefineLayers`, from a map in code or from the registry), since each world's
+collision tables are made from them; a second definition, or one after a body, throws
+`std::logic_error`, and a layer meeting one not defined throws `std::invalid_argument`. A body in a
+layer not defined cannot be made, and a save naming one is refused, as one naming an unknown shape
+is. A body in no layer and no group saves no field for either, so a world whose game names none
+saves and hashes as it did before layers existed. A file of the suite's layer test:
+
+```yaml
+version: 1
+meets: [ship]
+```
+
+A cast or an overlap is cast as a layer with `CastOptions::layer`: it hits only what a moving body
+of that layer would meet, and with none, everything ([casts and picking](#casts-and-picking)).
 
 ### Shapes
 
@@ -197,8 +229,9 @@ search every local frame of one frame, and both return a `CastHit` (entity, dist
 normal, and the part of a compound it hit, by its index in `parts`, 0 for a shape not one) or
 nothing: the first of what `CastRayAll` or `CastShapeAll` returns, so of two hits as near,
 the lower entity's, within a local frame or across two, and of two parts of a body as near, the
-lower part. `CastOptions` leaves out the caster's own body (`ignore`) and, unless
-asked for, sensors. Casts read the world as the last step left it, and are for the simulation's
+lower part. `CastOptions` leaves out the caster's own body (`ignore`), unless
+asked for, sensors, and, cast as a `layer`, what a body of that layer would not meet (a layer
+not defined throws `std::invalid_argument`). Casts read the world as the last step left it, and are for the simulation's
 systems to call. Steering sweeps a vehicle's shape with `CastShape` ([AI](ai.md)).
 
 Four queries return more than one body. `CastRayAll` and `CastShapeAll` return every body the cast
@@ -207,7 +240,7 @@ first is what `CastRay` or `CastShape` returns; they are for "everything along t
 returns every body a defined shape, placed at a `Sim::Transform`, overlaps, and `OverlapSphere` the same
 for a sphere of a radius, with no shape defined; both answer in entity order, each body once, across
 every local frame, for a trigger's volume or what is near a point. `CastOptions` (`ignore`,
-`sensors`, `framesAt`) applies to all four. A cast meets a compound body once, at its nearest part;
+`sensors`, `framesAt`, `layer`) applies to all four. A cast meets a compound body once, at its nearest part;
 an overlap names bodies, not parts, as a contact does ([decisions](decisions.md#physics)). A
 compound is cast and overlapped as any shape is. A mesh shape, or a compound with one, is refused as `CastShape` refuses it, Jolt
 colliding convex shapes against others, and a bad direction, distance, radius or place throws
@@ -560,15 +593,19 @@ game whose `PickSpace` sets `statics` false picks and hovers only what moves.
 
 ## Limits and open work
 
-- Collision filtering beyond static against moving, Jolt's debug renderer, Jolt's job system on
-  more threads, tuned capacities: [J07](roadmap.md#j07).
+- Jolt's debug renderer, Jolt's job system on more threads, tuned capacities:
+  [J07](roadmap.md#j07).
+- What a snapshot pick (`PickOptions`) and steering's own clearance test against neighbours leave
+  out by layer: neither reads layers yet, so a vehicle steers clear of what its layer would pass
+  through.
 - A model's collision shape, baked beside it as world content the server reads (`Mesh` and
   `ConvexHull` shapes exist; nothing bakes them from a model): [J12](roadmap.md#j12).
 
 ## Decisions
 
 The settled choices (Jolt in the simulation, a Jolt world per local frame, gravity from the game's
-frame model, contacts from Jolt's cache, picking as a command, Jolt's state kept across saves) are
+frame model, contacts from Jolt's cache, picking as a command, Jolt's state kept across saves,
+layers as definitions) are
 in [decisions](decisions.md#physics). How the module was built is in [history](history.md).
 
 ## Source
@@ -583,10 +620,11 @@ AVX2 flags stay inside it.
 | `source/engine/physics/include/jettison/physics/SnapshotPicker.h` | `SnapshotPicker`, `PickOptions`: picks against the snapshots |
 | `source/engine/physics/include/jettison/physics/Components.h` | `Body`, `BodyKind`, `Velocity`, `OnRails`, `LocalFrame`, `RegisterTypes` |
 | `source/engine/physics/include/jettison/physics/Shape.h` | `ShapeDefinition`, `ShapeKind` |
+| `source/engine/physics/include/jettison/physics/Layer.h` | `LayerDefinition`: a collision layer and what it meets |
 | `source/engine/physics/include/jettison/physics/Flight.h` | `Handling`, `FlightControls`, `SetFlightControls`, `Thrust`, `Reason`, `StepFlight` |
 
 Tests: `source/engine/physics/tests/PhysicsTests.cpp` (bodies, shapes, offsets and compounds,
-capacities),
+layers and groups, capacities),
 `RoomTests.cpp` (a frame model's rails, local frames, gravity and quiet steps) and
 `ReplayTests.cpp` (a recorded run pinned to a state hash, saves, and the rebuild across Jolt
 versions). Run them with `ctest --test-dir build/clang-debug -R '^physics$'`.

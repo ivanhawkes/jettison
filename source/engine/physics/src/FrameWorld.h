@@ -15,29 +15,52 @@
 #include <cstdint>
 #include <optional>
 #include <set>
+#include <span>
+#include <utility>
 #include <vector>
 
 #include <jettison/physics/PhysicsWorld.h>
 
 namespace Jettison::Physics::Detail
 {
-// The layers every frame's world shares: static bodies, which never meet each other, and moving
-// ones, kinematic and dynamic, which meet everything. Jolt keeps references to them, so they
-// outlive every world made with them.
+// The object layers every frame's world shares: for each of the game's layers (LayerDefinition),
+// numbered from 1, and for no layer, 0, one for its static bodies and one for its moving ones,
+// kinematic and dynamic. Static bodies never meet each other; a moving body meets the static and
+// moving bodies of each layer its own meets, and no layer meets every layer. Jolt keeps references to
+// them, so they outlive every world made with them.
 class Layers
 {
   public:
-	static constexpr JPH::ObjectLayer kStatic = 0;
-	static constexpr JPH::ObjectLayer kMoving = 1;
+	// Each layer's static and moving object layers.
+	static constexpr JPH::ObjectLayer kPerLayer = 2;
 
-	Layers();
+	// What a body of no layer is in.
+	static constexpr std::uint32_t kNone = 0;
+
+	// The game's layers number count less one, and each pair meets either way.
+	Layers(std::uint32_t count, std::span<const std::pair<std::uint32_t, std::uint32_t>> meetings);
+
+	// No layers of the game's.
+	Layers() : Layers(kNone + 1, {})
+	{
+	}
 
 	Layers(const Layers &) = delete;
 
 	Layers &operator=(const Layers &) = delete;
 
-	JPH::ObjectLayerPairFilterTable pairs{2};
-	JPH::BroadPhaseLayerInterfaceTable broadPhase{2, 2};
+	static JPH::ObjectLayer Static(std::uint32_t layer)
+	{
+		return static_cast<JPH::ObjectLayer>(kPerLayer * layer);
+	}
+
+	static JPH::ObjectLayer Moving(std::uint32_t layer)
+	{
+		return static_cast<JPH::ObjectLayer>(kPerLayer * layer + 1);
+	}
+
+	JPH::ObjectLayerPairFilterTable pairs;
+	JPH::BroadPhaseLayerInterfaceTable broadPhase;
 
 	// Made from the two above once they are filled in: it tabulates them when it is constructed.
 	std::optional<JPH::ObjectVsBroadPhaseLayerFilterTable> objectVsBroadPhase;

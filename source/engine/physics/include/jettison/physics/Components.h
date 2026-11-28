@@ -4,6 +4,7 @@
 #include <glm/vec3.hpp>
 
 #include <cstdint>
+#include <optional>
 #include <string>
 
 #include <jettison/serialise/Migration.h>
@@ -60,6 +61,16 @@ struct Body
 	// it is placed rather than swept, so it is not continuous, and a body fast enough to cross it
 	// between two steps is not seen.
 	bool sensor{false};
+
+	// The layer the body is in (LayerDefinition), which decides what it meets, or none, which meets
+	// every body. Optional, as group is, so that a body in none saves no field: a save leaves an empty
+	// optional out, and a world whose game names no layers saves and hashes as one without them.
+	std::optional<std::string> layer{};
+
+	// Bodies of one group never meet one another, whatever their layers: a vehicle and the parts it
+	// carries, which the game gives one number of its choosing. Any but the largest, which Jolt
+	// keeps for none.
+	std::optional<std::uint32_t> group{};
 
 	bool operator==(const Body &) const = default;
 
