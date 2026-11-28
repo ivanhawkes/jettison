@@ -377,14 +377,22 @@ of its primitives.
 `MeshComponent` names a model file by virtual path (`models/crate.glb`), so a
 [mod](glossary.md#mod) can shadow it, or a procedural shape sized by the transform's scale.
 `ModelCache` resolves either. A glTF file is read and parsed once, through fastgltf on the I/O
-worker, for both its geometry and its [rig](animation.md#a-gltf-models-rig): the parse is the
-animation module's `Animation::ModelFile`, which render depends on, and the model and the rig are
-each a resource made from it (`Resource::DerivedLoader`, [resources](files-and-mods.md#resources)).
+worker, for both its geometry and its [rig](animation.md#a-gltf-models-rig): the parse is
+`Geometry::GltfFile`, cooked or not ([the cooked model](#the-cooked-model)), registered by the
+animation module as `Animation::ModelFile`, and the model and the rig are each a resource made
+from it (`Resource::DerivedLoader`, [resources](files-and-mods.md#resources)).
 One read on a change makes both again. The model is uploaded by its loader's `finish` on the main
 thread. The scene asks for a model's rig as it loads, and the renderer for the model straight after
 (below), while the rig's read is in flight, so the model is made from that read once it lands, an
 `Update` after the rig. The parse is dropped once the two have it, so the file is not held in
 memory beside them; a model first asked for after that reads the file again.
+
+A model's levels of detail are its file's (`GltfFile::Levels`), chosen by `SelectLod`
+(`render/Culling.h`); a cooked file's levels share their source primitive's vertices, read once,
+and their materials are the finest level's. A file that was not cooked is one level, exact, and is
+logged as a warning naming `jettison_cook`. A model's own base-colour image is a KTX 2 file where
+its texture names it through `KHR_texture_basisu`, as a cooked file's does, and otherwise decoded
+by stb_image (below).
 
 A procedural shape (`render/Procedural.h`: UV, ico and cube spheres, rings, cylinders, boxes) is
 made on first use, each with five levels of detail but the box, which has one.
@@ -413,8 +421,8 @@ the table, that a reload replaced waits in a queue for `kFramesInFlight` frames.
 ### The cooked model
 
 The cook's model file (`Geometry::CookModel`, `geometry/Cook.h`), a binary glTF 2.0 that any
-glTF reader with these extensions opens, which `Geometry::GltfFile` reads. The model and rig
-loaders move to that reader in [J37](roadmap.md#j37); until then they read only uncooked files.
+glTF reader with these extensions opens, which `Geometry::GltfFile` reads, and the model and rig
+loaders with it ([models](#models-and-textures)).
 
 - **Extensions.** `EXT_meshopt_compression` and `KHR_mesh_quantization`, used and required, beside
   the source's own ([decided](decisions.md#rendering)). `asset.generator` is `Jettison's cook

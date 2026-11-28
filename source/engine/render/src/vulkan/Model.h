@@ -10,16 +10,13 @@
 #include <vector>
 
 #include <jettison/render/Mesh.h>
+#include <jettison/render/Texture.h>
 
 #include "vulkan/DeviceContext.h"
 
-namespace fastgltf
+namespace Jettison::Geometry
 {
-class Asset;
-}
-namespace Jettison::Animation
-{
-class ModelFile;
+class GltfFile;
 }
 
 namespace Jettison::Render
@@ -35,8 +32,13 @@ struct ModelPrimitive
 	uint32_t indexCount{};
 
 	// The primitive's own base colour image, encoded as the file had it, until the material cache
-	// makes the primitive's material from it.
+	// makes the primitive's material from it: a KTX 2 file where its texture names one through
+	// KHR_texture_basisu, as a cooked file's does.
 	std::vector<std::byte> baseColorImageData;
+	bool baseColorKtx2{false};
+
+	// The image decoded, sRGB as glTF says a base colour is, unless a KTX 2 file says otherwise.
+	TextureData DecodeBaseColor(TranscodeTarget target, std::string_view name) const;
 };
 
 // Geometry on the device: one vertex and one index buffer, a primitive per material, and the levels
@@ -55,10 +57,12 @@ class Model
 	Model &operator=(const Model &) = delete;
 
 	// The geometry in a parsed glTF file: its one mesh node's triangle primitives, each with the base
-	// colour image its material names, embedded, since the file's bytes are all there is. The node
-	// hierarchy, skin and clips are the animation module's to read from the same parse
-	// (Animation::ReadGltfRig), so the file is read once for both. Throws naming the file.
-	static std::unique_ptr<Model> FromGltf(const Animation::ModelFile &file);
+	// colour image its material names, embedded, since the file's bytes are all there is, and the
+	// mesh's levels of detail as the file has them (one, exact, for a file that was not cooked, which
+	// is logged as a warning). The node hierarchy, skin and clips are the animation module's to read
+	// from the same parse (Animation::ReadGltfRig), so the file is read once for both. Throws naming
+	// the file.
+	static std::unique_ptr<Model> FromGltf(const Geometry::GltfFile &file);
 
 	// A model from geometry made in code: a primitive per level of detail, finest first, untextured.
 	// Each level's indices are into its own vertices.
@@ -89,14 +93,14 @@ class Model
 
 	std::vector<ModelPrimitive> m_primitives{};
 
-	// Finest first; a model file has the one level, of every primitive.
+	// Finest first.
 	std::vector<ModelLod> m_lods{};
 	ModelBounds m_bounds{};
 	Buffer m_vertexBuffer{};
 	Buffer m_indexBuffer{};
 
   private:
-	void ReadGltf(const fastgltf::Asset &asset, const std::string &name);
+	void ReadGltf(const Geometry::GltfFile &file);
 
 	void ComputeBounds();
 

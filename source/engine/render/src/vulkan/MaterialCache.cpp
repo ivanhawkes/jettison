@@ -407,11 +407,10 @@ void MaterialCache::EnsureModel(const Model &model, std::vector<glm::vec4> &para
 		const std::size_t primitive = materials.primitives.size();
 		const std::string name = ModelKey(&model) + "-p" + std::to_string(primitive);
 		ModelMaterial material;
-		const auto &imageData = model.m_primitives[primitive].baseColorImageData;
-		if (!imageData.empty())
+		const ModelPrimitive &source = model.m_primitives[primitive];
+		if (!source.baseColorImageData.empty())
 		{
-			// glTF says a base-colour image is sRGB.
-			const TextureData texture = DecodeImage(imageData, true, name);
+			const TextureData texture = source.DecodeBaseColor(m_transcodeTarget, name);
 			material.texture = Upload(texture, "texture-" + name, material.image, material.view);
 		}
 		materials.primitives.push_back(material);

@@ -7,7 +7,7 @@
 #include <string>
 #include <utility>
 
-#include <jettison/animation/ModelFile.h>
+#include <jettison/geometry/GltfFile.h>
 
 namespace Jettison::Render
 {
@@ -35,10 +35,17 @@ std::vector<VkVertexInputAttributeDescription> VertexAttributeDescriptions()
 }
 
 
-std::unique_ptr<Model> Model::FromGltf(const Animation::ModelFile &file)
+TextureData ModelPrimitive::DecodeBaseColor(TranscodeTarget target, std::string_view name) const
+{
+	return baseColorKtx2 ? DecodeKtx2(baseColorImageData, target, name)
+	                     : DecodeImage(baseColorImageData, true, name);
+}
+
+
+std::unique_ptr<Model> Model::FromGltf(const Geometry::GltfFile &file)
 {
 	auto pModel = std::make_unique<Model>();
-	pModel->ReadGltf(file.Asset(), file.Name());
+	pModel->ReadGltf(file);
 	return pModel;
 }
 

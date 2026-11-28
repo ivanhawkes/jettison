@@ -73,7 +73,8 @@ its last after its last key. It slerps rotations the shorter way and normalises 
 
 A model's file carries its rig: the node hierarchy, the skin on its one mesh node, and its clips.
 `Animation::ReadGltfRig` (`animation/RigLoader.h`) reads it through the resource manager, on the
-I/O worker, from the file's one parse (`Animation::ModelFile`), which the renderer's geometry is
+I/O worker, from the file's one parse (`Animation::ModelFile`, `geometry`'s reader, which reads a
+[cooked](rendering.md#the-cooked-model) file too), which the renderer's geometry is
 made from too, so the file is read once for both ([models](rendering.md#models-and-textures)).
 Posing a rig on the CPU waits on no GPU device and needs no module that has one.
 

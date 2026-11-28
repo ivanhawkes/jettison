@@ -5,6 +5,7 @@
 jettison_add_module(render
 	DEPENDS
 		animation
+		geometry
 		math
 		profile
 		reflect

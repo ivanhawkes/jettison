@@ -7,11 +7,16 @@
 #include <glm/gtc/quaternion.hpp>
 
 #include <cstddef>
+#include <cstring>
+#include <filesystem>
+#include <fstream>
+#include <iterator>
 #include <limits>
 #include <stdexcept>
 #include <string>
 #include <vector>
 
+#include <jettison/geometry/Cook.h>
 #include <jettison/jobs/IoWorker.h>
 #include <jettison/resource/ResourceManager.h>
 #include <jettison/serialise/Archive.h>
@@ -356,4 +361,66 @@ TEST_CASE("Rig loader: a glTF file's hierarchy, skin and clips, through the reso
 	resources.Release(arm);
 	resources.Release(crate);
 	resources.Release(missing);
+}
+
+
+TEST_CASE("Rig loader: a cooked model's rig is the file's it was cooked from")
+{
+	std::ifstream stream{
+	    std::filesystem::path{JETTISON_TEST_CONTENT_DIR} / "models" / "arm.glb", std::ios::binary};
+	REQUIRE(stream);
+	const std::vector<char> chars{
+	    std::istreambuf_iterator<char>{stream}, std::istreambuf_iterator<char>{}};
+	std::vector<std::byte> bytes(chars.size());
+	std::memcpy(bytes.data(), chars.data(), chars.size());
+
+	const auto source = ModelFile::Parse(bytes, "models/arm.glb");
+	const auto cooked = ModelFile::Parse(Jettison::Geometry::CookModel(*source, {}, "key"), "arm.glb");
+	REQUIRE(cooked->CookKey() == "key");
+	const Rig before = ReadGltfRig(*source);
+	const Rig after = ReadGltfRig(*cooked);
+
+	// The cook copies nodes, skins and clips as float accessors, so they are the same to the bit.
+	REQUIRE(after.nodes.size() == before.nodes.size());
+	for (std::size_t index = 0; index < before.nodes.size(); ++index)
+	{
+		CHECK(after.nodes[index].parent == before.nodes[index].parent);
+		CHECK(after.nodes[index].translation == before.nodes[index].translation);
+		CHECK(after.nodes[index].rotation == before.nodes[index].rotation);
+		CHECK(after.nodes[index].scale == before.nodes[index].scale);
+	}
+	CHECK(after.meshNodeIndex == before.meshNodeIndex);
+	REQUIRE(after.joints.size() == before.joints.size());
+	for (std::size_t index = 0; index < before.joints.size(); ++index)
+	{
+		CHECK(after.joints[index].nodeIndex == before.joints[index].nodeIndex);
+		CHECK(after.joints[index].inverseBindMatrix == before.joints[index].inverseBindMatrix);
+	}
+	REQUIRE(after.clips.size() == before.clips.size());
+	for (std::size_t clip = 0; clip < before.clips.size(); ++clip)
+	{
+		CHECK(after.clips[clip].name == before.clips[clip].name);
+		CHECK(after.clips[clip].duration == before.clips[clip].duration);
+		REQUIRE(after.clips[clip].tracks.size() == before.clips[clip].tracks.size());
+		for (std::size_t track = 0; track < before.clips[clip].tracks.size(); ++track)
+		{
+			CHECK(after.clips[clip].tracks[track].times == before.clips[clip].tracks[track].times);
+			CHECK(after.clips[clip].tracks[track].values == before.clips[clip].tracks[track].values);
+		}
+	}
+
+	const float duration = before.AnimationDuration("Swing");
+	REQUIRE(duration > 0.0f);
+	for (const float share : {0.0f, 0.3f, 0.75f})
+	{
+		CAPTURE(share);
+		std::vector<glm::mat4> beforeJoints;
+		std::vector<glm::mat4> afterJoints;
+		glm::mat4 beforeMesh{1.0f};
+		glm::mat4 afterMesh{1.0f};
+		before.EvaluateSkin("Swing", share * duration, beforeJoints, beforeMesh);
+		after.EvaluateSkin("Swing", share * duration, afterJoints, afterMesh);
+		CHECK(afterJoints == beforeJoints);
+		CHECK(afterMesh == beforeMesh);
+	}
 }

@@ -1,9 +1,10 @@
 # The clip player and its rig, with the rig's loader: a glTF file's hierarchy, skin and clips, read
-# through the resource manager from the model file's one parse (ModelFile), which render's geometry
-# is made from too; and clip files, keyframed tracks on named scene nodes with their events. Nothing
-# here knows the device, so the scene's systems sample clips without the renderer.
+# through the resource manager from the model file's one parse (ModelFile, geometry's reader), which
+# render's geometry is made from too; and clip files, keyframed tracks on named scene nodes with their
+# events. Nothing here knows the device, so the scene's systems sample clips without the renderer.
 jettison_add_module(animation
 	DEPENDS
+		geometry
 		reflect
 		resource
 		serialise
@@ -18,7 +19,6 @@ jettison_add_module(animation
 	SOURCES
 		src/Clip.cpp
 		src/ClipFile.cpp
-		src/ModelFile.cpp
 		src/Playback.cpp
 		src/Rig.cpp
 		src/RigLoader.cpp

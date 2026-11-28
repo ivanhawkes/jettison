@@ -68,8 +68,8 @@ devices before it was used ([what was checked](#facts-checked)).
 | Area | Today | What this plan changes |
 | --- | --- | --- |
 | Level-of-detail metric | `SelectLod` (`render/Culling.h`): a level is chosen when its error, projected, is within `m_lodThreshold` pixels (`kDefaultLodThreshold = 1.0`); the same rule Nanite applies per cluster | The same rule and threshold, per meshlet, on the GPU |
-| Levels of detail | Procedural shapes have five; a glTF model has one, of error 0 (`ModelGltf.cpp`) | The cook makes levels for every model ([J37](roadmap.md#j37)) and a meshlet hierarchy ([J39](roadmap.md#j39)) |
-| Model loading | glTF read and parsed once at run time on the I/O worker by fastgltf (`animation`'s `ModelFile`), and `render`'s geometry and `animation`'s rig made from that parse | A cooked GLB, read the same way; the meshlet page file beside it |
+| Levels of detail | Procedural shapes have five; a glTF model has its file's: a cooked file's levels, or one of error 0, with a warning naming the cook, for a file that was not cooked (`ModelGltf.cpp`) | The cook makes levels for every model ([J37](roadmap.md#j37)) and a meshlet hierarchy ([J39](roadmap.md#j39)) |
+| Model loading | glTF, cooked or not, read and parsed once at run time on the I/O worker by `geometry`'s `GltfFile` (`animation`'s `ModelFile`), and `render`'s geometry and `animation`'s rig made from that parse | The meshlet page file read beside the cooked GLB |
 | Vertex | One 108-byte `Vertex` for every mesh, with two joint and weight sets | Meshlet vertices in a compact static layout; skinned meshes keep the current vertex |
 | Culling | CPU, per draw, in double precision: frustum, horizon, `TooSmallToSee`, `CastsInto` per cascade | GPU culling per instance and per meshlet, camera-relative in float, which render space already is |
 | Drawing | `vkCmdDrawIndexed` per batch and primitive, front to back | Task and mesh shaders for meshlet models; the indexed path stays |

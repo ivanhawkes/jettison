@@ -196,6 +196,7 @@ flowchart TB
     dock --> ai
     script --> sim
     script --> platform
+    animation --> geometry
     animation --> resource
     animation --> serialise
     sim --> math
