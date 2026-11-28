@@ -711,12 +711,13 @@ TEST_CASE(
 }
 
 
-TEST_CASE("Levels that are empty, or whose errors are negative, past a float or shrinking, are refused")
+TEST_CASE(
+    "Levels that are empty, whose finest error is not 0, or whose errors are negative, past a float or "
+    "shrinking, are refused")
 {
 	constexpr const char *kPositions =
 	    R"([{"bufferView":0,"componentType":5126,"count":3,"type":"VEC3"}])";
-	for (const char *levels :
-	     {"[]", R"([{"primitives":1,"error":-1}])", R"([{"primitives":1,"error":1e300}])"})
+	for (const char *levels : {"[]", R"([{"primitives":1,"error":1}])"})
 	{
 		CAPTURE(levels);
 		const std::string gltf = TriangleAccessors(
@@ -727,19 +728,27 @@ TEST_CASE("Levels that are empty, or whose errors are negative, past a float or 
 		    doctest::Contains("extras are malformed: levels.gltf"), std::runtime_error);
 	}
 
-	const auto twoLevels = [&](const char *second)
+	const auto twoLevels = [&](const char *finest, const char *second)
 	{
 		return TriangleAccessors(
 		    kPositions,
 		    std::string{
 		        R"("meshes":[{"primitives":[{"attributes":{"POSITION":0}},{"attributes":{"POSITION":0}}],)"} +
-		        R"("extras":{"jettison":{"levels":[{"primitives":1,"error":0.5},{"primitives":1,"error":)" +
-		        second + R"(}]}}}],"nodes":[{"mesh":0}],"scenes":[{"nodes":[0]}],"scene":0)");
+		        R"("extras":{"jettison":{"levels":[{"primitives":1,"error":)" + finest +
+		        R"(},{"primitives":1,"error":)" + second +
+		        R"(}]}}}],"nodes":[{"mesh":0}],"scenes":[{"nodes":[0]}],"scene":0)");
 	};
-	CHECK_THROWS_WITH_AS(
-	    Geometry::GltfFile::Parse(AsBytes(twoLevels("0.25")), "levels.gltf"),
-	    doctest::Contains("extras are malformed"), std::runtime_error);
-	const auto file = Geometry::GltfFile::Parse(AsBytes(twoLevels("0.5")), "levels.gltf");
+
+	// The finest level's error, which the format makes 0, given as 1 to both (finest-error.gltf).
+	for (const auto &[finest, second] : {std::pair{"1", "1"}, {"0", "-0.25"}, {"0", "1e300"}})
+	{
+		CAPTURE(finest);
+		CAPTURE(second);
+		CHECK_THROWS_WITH_AS(
+		    Geometry::GltfFile::Parse(AsBytes(twoLevels(finest, second)), "levels.gltf"),
+		    doctest::Contains("extras are malformed"), std::runtime_error);
+	}
+	const auto file = Geometry::GltfFile::Parse(AsBytes(twoLevels("0", "0.5")), "levels.gltf");
 	REQUIRE(file->Levels(0).size() == 2);
 	CHECK(file->Levels(0)[1].error == 0.5f);
 }
@@ -775,4 +784,204 @@ TEST_CASE("A fallback buffer is made as long as its views reach, and one reachin
 	CHECK_THROWS_WITH_AS(
 	    Geometry::GltfFile::Parse(AsBytes(Compressed("ATTRIBUTES", 256, 1048577)), "large.gltf"),
 	    doctest::Contains("decodes to more than 268435456 bytes: large.gltf"), std::runtime_error);
+}
+
+
+TEST_CASE("An accessor of a type or component type its use does not allow is refused")
+{
+	constexpr const char *kPositions =
+	    R"({"bufferView":0,"componentType":5126,"count":3,"type":"VEC3"})";
+	const auto withSecond = [&](const std::string &second, const std::string &rest)
+	{ return TriangleAccessors("[" + std::string{kPositions} + "," + second + "]", rest); };
+	const std::string times = R"({"bufferView":0,"componentType":5126,"count":3,"type":"SCALAR"})";
+	const auto clip = [](const char *path)
+	{
+		return OneMesh(R"({"POSITION":0})") +
+		       R"(,"animations":[{"samplers":[{"input":1,"output":0}],)"
+		       R"("channels":[{"sampler":0,"target":{"node":0,"path":")" +
+		       std::string{path} + R"("}}]}])";
+	};
+	const std::pair<std::string, const char *> cases[] = {
+	    // A heap overflow, and fastgltf's assertion, when position-vec2 and position-scalar-read were
+	    // read as positions.
+	    {TriangleAccessors(
+	         R"([{"bufferView":0,"componentType":5126,"count":3,"type":"VEC2"}])",
+	         OneMesh(R"({"POSITION":0})")),
+	     "accessor 0 is not a type or component type glTF allows for POSITION"},
+	    {TriangleAccessors(
+	         R"([{"bufferView":0,"componentType":5126,"count":3,"type":"SCALAR"}])",
+	         OneMesh(R"({"POSITION":0})")),
+	     "allows for POSITION"},
+	    {withSecond(
+	         R"({"bufferView":0,"componentType":5121,"normalized":true,"count":3,"type":"VEC3"})",
+	         OneMesh(R"({"POSITION":0,"NORMAL":1})")),
+	     "allows for NORMAL"},
+	    {withSecond(
+	         R"({"bufferView":0,"componentType":5121,"normalized":true,"count":3,"type":"VEC4"})",
+	         OneMesh(R"({"POSITION":0,"JOINTS_0":1})")),
+	     "allows for JOINTS_0"},
+	    {withSecond(
+	         R"({"bufferView":0,"componentType":5126,"count":3,"type":"VEC3"})",
+	         OneMesh(R"({"POSITION":0,"TEXCOORD_0":1})")),
+	     "allows for TEXCOORD_0"},
+	    {withSecond(
+	         times, R"("meshes":[{"primitives":[{"attributes":{"POSITION":0},"indices":1}]}],)"
+	                R"("nodes":[{"mesh":0}],"scenes":[{"nodes":[0]}],"scene":0)"),
+	     "allows for indices"},
+	    {withSecond(
+	         R"({"bufferView":0,"componentType":5123,"normalized":true,"count":3,"type":"SCALAR"})",
+	         R"("meshes":[{"primitives":[{"attributes":{"POSITION":0},"indices":1}]}],)"
+	         R"("nodes":[{"mesh":0}],"scenes":[{"nodes":[0]}],"scene":0)"),
+	     "allows for indices"},
+	    {withSecond(
+	         times,
+	         OneMesh(R"({"POSITION":0})") + R"(,"skins":[{"joints":[0],"inverseBindMatrices":0}])"),
+	     "allows for inverse-bind matrices"},
+	    {withSecond(times, clip("rotation")), "allows for a clip's rotations"},
+	    {withSecond(times, clip("weights")), "allows for a clip's weights"},
+	    {TriangleAccessors(
+	         "[" + std::string{kPositions} + "]",
+	         OneMesh(R"({"POSITION":0})") +
+	             R"(,"animations":[{"samplers":[{"input":0,"output":0}],)"
+	             R"("channels":[{"sampler":0,"target":{"node":0,"path":"translation"}}]}])"),
+	     "allows for a clip's times"},
+	};
+	for (const auto &[gltf, reason] : cases)
+	{
+		CAPTURE(gltf);
+		CHECK_THROWS_WITH_AS(
+		    Geometry::GltfFile::Parse(AsBytes(gltf), "typed.gltf"),
+		    doctest::Contains(std::string{reason} + ": typed.gltf"), std::runtime_error);
+	}
+
+	// Quantised positions, as KHR_mesh_quantization allows, an application's own attribute of any
+	// type, and a clip's translations.
+	for (const std::string &gltf :
+	     {TriangleAccessors(
+	          R"([{"bufferView":0,"componentType":5122,"normalized":true,"count":3,"type":"VEC3"}])",
+	          OneMesh(R"({"POSITION":0})")),
+	      withSecond(
+	          R"({"bufferView":0,"componentType":5125,"count":3,"type":"SCALAR"})",
+	          OneMesh(R"({"POSITION":0,"_HEAT":1})")),
+	      withSecond(times, clip("translation"))})
+	{
+		CAPTURE(gltf);
+		CHECK(Geometry::GltfFile::Parse(AsBytes(gltf), "typed.gltf"));
+	}
+}
+
+
+TEST_CASE("An index naming what the file lacks, or nodes that are not trees, is refused")
+{
+	const std::string positions = R"([{"bufferView":0,"componentType":5126,"count":3,"type":"VEC3"}])";
+	const std::string position = OneMesh(R"({"POSITION":0})");
+	const auto withNodes = [&](const std::string &nodes)
+	{
+		return TriangleAccessors(
+		    positions, R"("meshes":[{"primitives":[{"attributes":{"POSITION":0}}]}],"nodes":)" + nodes +
+		                   R"(,"scenes":[{"nodes":[0]}],"scene":0)");
+	};
+	const std::pair<std::string, const char *> cases[] = {
+	    // A read through a wild pointer when image-view's image was read.
+	    {TriangleAccessors(
+	         positions, position + R"(,"images":[{"bufferView":999,"mimeType":"image/png"}])"),
+	     "image 0 names buffer view 999"},
+	    {WithTriangleData(
+	         R"(],"bufferViews":[{"buffer":5,"byteLength":36}],"accessors":)" + positions + "," +
+	         position),
+	     "buffer view 0 names buffer 5"},
+	    {TriangleAccessors(
+	         R"([{"bufferView":4,"componentType":5126,"count":3,"type":"VEC3"}])", position),
+	     "accessor 0 names buffer view 4"},
+	    {TriangleAccessors(positions, position + R"(,"textures":[{"source":3}])"),
+	     "texture 0 names image 3"},
+	    {TriangleAccessors(
+	         positions,
+	         position + R"(,"textures":[{"extensions":{"KHR_texture_basisu":{"source":3}}}])"),
+	     "texture 0 names image 3"},
+	    {TriangleAccessors(
+	         positions,
+	         position + R"(,"images":[{"uri":"a.png"}],"textures":[{"source":0,"sampler":2}])"),
+	     "texture 0 names sampler 2"},
+	    {TriangleAccessors(
+	         positions,
+	         position + R"(,"materials":[{"pbrMetallicRoughness":{"baseColorTexture":{"index":3}}}])"),
+	     "material 0 names texture 3"},
+	    {TriangleAccessors(positions, position + R"(,"materials":[{"emissiveTexture":{"index":3}}])"),
+	     "material 0 names texture 3"},
+	    {TriangleAccessors(
+	         positions, R"("meshes":[{"primitives":[{"attributes":{"POSITION":0},"material":2}]}],)"
+	                    R"("nodes":[{"mesh":0}],"scenes":[{"nodes":[0]}],"scene":0)"),
+	     "mesh 0 names material 2"},
+	    {withNodes(R"([{"mesh":3}])"), "node 0 names mesh 3"},
+	    {withNodes(R"([{"mesh":0,"skin":3}])"), "node 0 names skin 3"},
+	    {withNodes(R"([{"mesh":0,"camera":3}])"), "node 0 names camera 3"},
+	    {withNodes(R"([{"mesh":0,"children":[3]}])"), "node 0 names node 3"},
+	    {TriangleAccessors(positions, position + R"(,"skins":[{"joints":[3]}])"),
+	     "skin 0 names node 3"},
+	    {TriangleAccessors(positions, position + R"(,"skins":[{"joints":[0],"skeleton":3}])"),
+	     "skin 0 names node 3"},
+	    {TriangleAccessors(
+	         positions, R"("meshes":[{"primitives":[{"attributes":{"POSITION":0}}]}],)"
+	                    R"("nodes":[{"mesh":0}],"scenes":[{"nodes":[3]}],"scene":0)"),
+	     "scene 0 names node 3"},
+	    {TriangleAccessors(
+	         positions, R"("meshes":[{"primitives":[{"attributes":{"POSITION":0}}]}],)"
+	                    R"("nodes":[{"mesh":0}],"scenes":[{"nodes":[0]}],"scene":3)"),
+	     "default scene is scene 3"},
+	    {TriangleAccessors(
+	         positions, position +
+	                        R"(,"animations":[{"samplers":[{"input":0,"output":0}],)"
+	                        R"("channels":[{"sampler":3,"target":{"node":0,"path":"scale"}}]}])"),
+	     "animation 0 names sampler 3"},
+	    {TriangleAccessors(
+	         positions, position +
+	                        R"(,"animations":[{"samplers":[{"input":0,"output":0}],)"
+	                        R"("channels":[{"sampler":0,"target":{"node":3,"path":"scale"}}]}])"),
+	     "animation 0 names node 3"},
+	    {TriangleAccessors(
+	         positions, position +
+	                        R"(,"animations":[{"samplers":[{"input":0,"output":3}],)"
+	                        R"("channels":[{"sampler":0,"target":{"node":0,"path":"scale"}}]}])"),
+	     "animation 0 names accessor 3"},
+	    {withNodes(R"([{"mesh":0,"children":[0]}])"), "a node that is its own ancestor"},
+	    {withNodes(R"([{"mesh":0},{"children":[2]},{"children":[1]}])"),
+	     "a node that is its own ancestor"},
+	    {withNodes(R"([{"mesh":0,"children":[2]},{"children":[2]},{}])"), "node 2 has two parents"},
+	};
+	for (const auto &[gltf, reason] : cases)
+	{
+		CAPTURE(gltf);
+		CHECK_THROWS_WITH_AS(
+		    Geometry::GltfFile::Parse(AsBytes(gltf), "indexed.gltf"), doctest::Contains(reason),
+		    std::runtime_error);
+		CHECK_THROWS_WITH_AS(
+		    Geometry::GltfFile::Parse(AsBytes(gltf), "indexed.gltf"), doctest::Contains("indexed.gltf"),
+		    std::runtime_error);
+	}
+	CHECK(
+	    Geometry::GltfFile::Parse(
+	        AsBytes(withNodes(R"([{"children":[1,2]},{"mesh":0},{"children":[3]},{}])")),
+	        "trees.gltf"));
+}
+
+
+TEST_CASE("An accessor with no view is held to a decoded view's bytes")
+{
+	const auto zeros = [](const char *count)
+	{
+		return TriangleAccessors(
+		    std::string{R"([{"componentType":5126,"type":"VEC3","count":)"} + count + "}]",
+		    OneMesh(R"({"POSITION":0})"));
+	};
+
+	// zero-accessor-huge's count, which a reader would size its vertices by.
+	CHECK_THROWS_WITH_AS(
+	    Geometry::GltfFile::Parse(AsBytes(zeros("18446744073709551615")), "zeros.gltf"),
+	    doctest::Contains("has no view and reads as more than 268435456 bytes: zeros.gltf"),
+	    std::runtime_error);
+	CHECK_THROWS_WITH_AS(
+	    Geometry::GltfFile::Parse(AsBytes(zeros("22369622")), "zeros.gltf"),
+	    doctest::Contains("has no view"), std::runtime_error);
+	CHECK(Geometry::GltfFile::Parse(AsBytes(zeros("22369621")), "zeros.gltf"));
 }

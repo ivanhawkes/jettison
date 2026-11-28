@@ -7,11 +7,14 @@
 #include <simdjson.h>
 
 #include <algorithm>
+#include <array>
 #include <cctype>
 #include <format>
 #include <fstream>
+#include <initializer_list>
 #include <iterator>
 #include <limits>
+#include <span>
 #include <stdexcept>
 #include <system_error>
 #include <utility>
@@ -21,7 +24,8 @@ namespace Jettison::Geometry
 {
 namespace
 {
-// What a cooked file uses (Cook.h); a file that does not use them parses the same.
+// What a cooked file uses (Cook.h); a file that does not use them parses the same. The parser fills
+// only these extensions' fields, so one added here whose indices it fills needs them in CheckIndices.
 constexpr auto kExtensions = fastgltf::Extensions::EXT_meshopt_compression |
                              fastgltf::Extensions::KHR_mesh_quantization |
                              fastgltf::Extensions::KHR_texture_basisu;
@@ -102,13 +106,13 @@ void ReadExtras(
 		simdjson::dom::element errorElement;
 		double error{};
 
-		// An error is a float, never negative, and none is less than the finer level's, as the cook
-		// writes them.
-		const double finer = read.empty() ? 0.0 : double{read.back().error};
+		// The finest level's error is 0 and none is less than the finer level's, so none is negative,
+		// as the cook writes them; each is a float.
 		if (level[kPrimitivesName].get(count) != simdjson::SUCCESS ||
 		    level[kErrorName].get(errorElement) != simdjson::SUCCESS ||
 		    !ReadNumber(errorElement, error) || count == 0 ||
-		    count > std::numeric_limits<std::uint32_t>::max() || error < finer ||
+		    count > std::numeric_limits<std::uint32_t>::max() ||
+		    (read.empty() ? error != 0.0 : error < double{read.back().error}) ||
 		    error > std::numeric_limits<float>::max())
 		{
 			parsed.malformed = true;
@@ -200,6 +204,10 @@ constexpr std::size_t kMaxDecodedViewBytes = std::size_t{256} * 1024 * 1024;
 // (2,275,520 bytes).
 constexpr std::size_t kMaxDecodedBufferBytes = 4 * kMaxDecodedViewBytes;
 
+// The most an accessor with no view, all zeros by glTF, reads as: a reader makes its elements as it
+// does a view's, so it is held to what one decoded view may hold.
+constexpr std::size_t kMaxZeroAccessorBytes = kMaxDecodedViewBytes;
+
 
 // Each compressed view decoded into its fallback buffer, which then holds the bytes the file's
 // accessors read, as an uncompressed file's buffer does. A fallback is made only as long as its views
@@ -289,47 +297,280 @@ void DecodeCompressedViews(fastgltf::Asset &asset, const std::string &name)
 }
 
 
+// Every index the file holds names something it has, so a reader can follow one unchecked; only
+// what the parser fills is checked, the indices of the extensions in kExtensions with the core's.
+void CheckIndices(const fastgltf::Asset &asset, const std::string &name)
+{
+	const auto check = [&](std::string_view holder, std::size_t at, std::size_t index,
+	                       std::size_t count, std::string_view target)
+	{
+		if (index >= count)
+			throw std::runtime_error(
+			    std::format(
+			        "glTF model's {} {} names {} {}, which the model lacks: {}", holder, at, target,
+			        index, name));
+	};
+	const std::size_t accessors = asset.accessors.size();
+	const std::size_t buffers = asset.buffers.size();
+	const std::size_t views = asset.bufferViews.size();
+	const std::size_t nodes = asset.nodes.size();
+	for (std::size_t at = 0; at < views; ++at)
+	{
+		const fastgltf::BufferView &view = asset.bufferViews[at];
+		check("buffer view", at, view.bufferIndex, buffers, "buffer");
+		if (view.meshoptCompression)
+			check("buffer view", at, view.meshoptCompression->bufferIndex, buffers, "buffer");
+	}
+	for (std::size_t at = 0; at < accessors; ++at)
+		if (asset.accessors[at].bufferViewIndex)
+			check("accessor", at, *asset.accessors[at].bufferViewIndex, views, "buffer view");
+	for (std::size_t at = 0; at < asset.images.size(); ++at)
+		if (const auto *pView = std::get_if<fastgltf::sources::BufferView>(&asset.images[at].data))
+			check("image", at, pView->bufferViewIndex, views, "buffer view");
+	for (std::size_t at = 0; at < asset.textures.size(); ++at)
+	{
+		const fastgltf::Texture &texture = asset.textures[at];
+		if (texture.samplerIndex)
+			check("texture", at, *texture.samplerIndex, asset.samplers.size(), "sampler");
+		if (texture.imageIndex)
+			check("texture", at, *texture.imageIndex, asset.images.size(), "image");
+		if (texture.basisuImageIndex)
+			check("texture", at, *texture.basisuImageIndex, asset.images.size(), "image");
+	}
+	for (std::size_t at = 0; at < asset.materials.size(); ++at)
+	{
+		const fastgltf::Material &material = asset.materials[at];
+		const auto slot = [&](const auto &texture)
+		{
+			if (texture)
+				check("material", at, texture->textureIndex, asset.textures.size(), "texture");
+		};
+		slot(material.pbrData.baseColorTexture);
+		slot(material.pbrData.metallicRoughnessTexture);
+		slot(material.normalTexture);
+		slot(material.occlusionTexture);
+		slot(material.emissiveTexture);
+	}
+	for (std::size_t at = 0; at < asset.meshes.size(); ++at)
+		for (const fastgltf::Primitive &primitive : asset.meshes[at].primitives)
+		{
+			for (const fastgltf::Attribute &attribute : primitive.attributes)
+				check("mesh", at, attribute.accessorIndex, accessors, "accessor");
+			if (primitive.indicesAccessor)
+				check("mesh", at, *primitive.indicesAccessor, accessors, "accessor");
+			if (primitive.materialIndex)
+				check("mesh", at, *primitive.materialIndex, asset.materials.size(), "material");
+		}
+	for (std::size_t at = 0; at < nodes; ++at)
+	{
+		const fastgltf::Node &node = asset.nodes[at];
+		if (node.meshIndex)
+			check("node", at, *node.meshIndex, asset.meshes.size(), "mesh");
+		if (node.skinIndex)
+			check("node", at, *node.skinIndex, asset.skins.size(), "skin");
+		if (node.cameraIndex)
+			check("node", at, *node.cameraIndex, asset.cameras.size(), "camera");
+		for (const std::size_t child : node.children)
+			check("node", at, child, nodes, "node");
+	}
+	for (std::size_t at = 0; at < asset.skins.size(); ++at)
+	{
+		const fastgltf::Skin &skin = asset.skins[at];
+		for (const std::size_t joint : skin.joints)
+			check("skin", at, joint, nodes, "node");
+		if (skin.skeleton)
+			check("skin", at, *skin.skeleton, nodes, "node");
+		if (skin.inverseBindMatrices)
+			check("skin", at, *skin.inverseBindMatrices, accessors, "accessor");
+	}
+	for (std::size_t at = 0; at < asset.scenes.size(); ++at)
+		for (const std::size_t node : asset.scenes[at].nodeIndices)
+			check("scene", at, node, nodes, "node");
+	if (asset.defaultScene && *asset.defaultScene >= asset.scenes.size())
+		throw std::runtime_error(
+		    std::format(
+		        "glTF model's default scene is scene {}, which the model lacks: {}",
+		        *asset.defaultScene, name));
+	for (std::size_t at = 0; at < asset.animations.size(); ++at)
+	{
+		const fastgltf::Animation &animation = asset.animations[at];
+		for (const fastgltf::AnimationSampler &sampler : animation.samplers)
+		{
+			check("animation", at, sampler.inputAccessor, accessors, "accessor");
+			check("animation", at, sampler.outputAccessor, accessors, "accessor");
+		}
+		for (const fastgltf::AnimationChannel &channel : animation.channels)
+		{
+			check("animation", at, channel.samplerIndex, animation.samplers.size(), "sampler");
+			if (channel.nodeIndex)
+				check("animation", at, *channel.nodeIndex, nodes, "node");
+		}
+	}
+}
+
+
+// glTF's nodes are trees: a node with two parents, or that is its own ancestor, would send a reader
+// walking the hierarchy round for ever.
+void CheckHierarchy(const fastgltf::Asset &asset, const std::string &name)
+{
+	std::vector<bool> parented(asset.nodes.size());
+	for (const fastgltf::Node &node : asset.nodes)
+		for (const std::size_t child : node.children)
+		{
+			if (parented[child])
+				throw std::runtime_error(
+				    std::format("glTF model's node {} has two parents: {}", child, name));
+			parented[child] = true;
+		}
+
+	// With a parent at most, a node no root reaches is in a cycle, or below one.
+	std::vector<std::size_t> reached;
+	for (std::size_t node = 0; node < asset.nodes.size(); ++node)
+		if (!parented[node])
+			reached.push_back(node);
+	for (std::size_t next = 0; next < reached.size(); ++next)
+		std::ranges::copy(asset.nodes[reached[next]].children, std::back_inserter(reached));
+	if (reached.size() != asset.nodes.size())
+		throw std::runtime_error("glTF model has a node that is its own ancestor: " + name);
+}
+
+
 // fastgltf's accessor tools and buffer adapter read wherever a view or accessor points, so every view
-// is held within its buffer, every accessor within its view, and every index naming one to the
-// file's, before a reader iterates them. glTF gives a primitive's attributes one count, which a
-// reader sizes its vertices by.
-void CheckAccessors(const fastgltf::Asset &asset, const std::string &name)
+// is held within its buffer and every accessor within its view, before a reader iterates them.
+void CheckBounds(const fastgltf::Asset &asset, const std::string &name)
 {
 	for (std::size_t index = 0; index < asset.bufferViews.size(); ++index)
 	{
 		const fastgltf::BufferView &view = asset.bufferViews[index];
-		if (view.bufferIndex >= asset.buffers.size() ||
-		    !InRange(view.byteOffset, view.byteLength, BufferBytes(asset, view.bufferIndex).size()))
+		if (!InRange(view.byteOffset, view.byteLength, BufferBytes(asset, view.bufferIndex).size()))
 			throw std::runtime_error(
 			    std::format("glTF model's buffer view {} lies outside its buffer: {}", index, name));
 	}
 
-	const auto &accessors = asset.accessors;
-	for (std::size_t index = 0; index < accessors.size(); ++index)
+	for (std::size_t index = 0; index < asset.accessors.size(); ++index)
 	{
-		if (accessors[index].sparse)
+		const fastgltf::Accessor &accessor = asset.accessors[index];
+		if (accessor.sparse)
 			throw std::runtime_error(
 			    std::format("glTF model's accessor {} is sparse, which is not read: {}", index, name));
-		if (fastgltf::validateAccessorBounds(asset, accessors[index]) != fastgltf::Error::None)
+		if (fastgltf::validateAccessorBounds(asset, accessor) != fastgltf::Error::None)
 			throw std::runtime_error(
 			    std::format(
 			        "glTF model's accessor {} lies outside its view or buffer: {}", index, name));
+		const std::size_t elementBytes =
+		    fastgltf::getElementByteSize(accessor.type, accessor.componentType);
+		if (!accessor.bufferViewIndex && accessor.count > kMaxZeroAccessorBytes / elementBytes)
+			throw std::runtime_error(
+			    std::format(
+			        "glTF model's accessor {} has no view and reads as more than {} bytes: {}", index,
+			        kMaxZeroAccessorBytes, name));
 	}
+}
 
-	const auto lacks = [&](std::size_t accessor) { return accessor >= accessors.size(); };
+
+// An accessor's component type for a use, and whether it is normalised.
+struct Component
+{
+	fastgltf::ComponentType type;
+	bool normalized{false};
+};
+
+constexpr Component kFloat{fastgltf::ComponentType::Float};
+constexpr Component kByte{fastgltf::ComponentType::Byte};
+constexpr Component kByteNormalised{fastgltf::ComponentType::Byte, true};
+constexpr Component kUnsignedByte{fastgltf::ComponentType::UnsignedByte};
+constexpr Component kUnsignedByteNormalised{fastgltf::ComponentType::UnsignedByte, true};
+constexpr Component kShort{fastgltf::ComponentType::Short};
+constexpr Component kShortNormalised{fastgltf::ComponentType::Short, true};
+constexpr Component kUnsignedShort{fastgltf::ComponentType::UnsignedShort};
+constexpr Component kUnsignedShortNormalised{fastgltf::ComponentType::UnsignedShort, true};
+constexpr Component kUnsignedInt{fastgltf::ComponentType::UnsignedInt};
+
+// The component types glTF 2.0 allows each use, with KHR_mesh_quantization's for attributes:
+// POSITION and TEXCOORD_n are quantised, NORMAL and TANGENT directions, COLOR_n and WEIGHTS_n unit
+// values, and a clip's rotations and weights animated.
+constexpr std::array kFloats{kFloat};
+constexpr std::array kQuantised{
+    kFloat,
+    kByte,
+    kByteNormalised,
+    kUnsignedByte,
+    kUnsignedByteNormalised,
+    kShort,
+    kShortNormalised,
+    kUnsignedShort,
+    kUnsignedShortNormalised};
+constexpr std::array kDirections{kFloat, kByteNormalised, kShortNormalised};
+constexpr std::array kUnitValues{kFloat, kUnsignedByteNormalised, kUnsignedShortNormalised};
+constexpr std::array kJoints{kUnsignedByte, kUnsignedShort};
+constexpr std::array kIndices{kUnsignedByte, kUnsignedShort, kUnsignedInt};
+constexpr std::array kAnimated{
+    kFloat, kByteNormalised, kUnsignedByteNormalised, kShortNormalised, kUnsignedShortNormalised};
+
+
+void CheckUse(
+    const fastgltf::Asset &asset, std::size_t index, std::string_view use,
+    std::initializer_list<fastgltf::AccessorType> types, std::span<const Component> components,
+    const std::string &name)
+{
+	const fastgltf::Accessor &accessor = asset.accessors[index];
+	const bool allowed = std::ranges::find(types, accessor.type) != types.end() &&
+	                     std::ranges::any_of(
+	                         components,
+	                         [&](Component component)
+	                         {
+		                         return component.type == accessor.componentType &&
+		                                component.normalized == accessor.normalized;
+	                         });
+	if (!allowed)
+		throw std::runtime_error(
+		    std::format(
+		        "glTF model's accessor {} is not a type or component type glTF allows for {}: {}",
+		        index, use, name));
+}
+
+
+// An attribute the engine does not know, as an application's own (_NAME), is any type.
+void CheckAttribute(
+    const fastgltf::Asset &asset, const fastgltf::Attribute &attribute, const std::string &name)
+{
+	using enum fastgltf::AccessorType;
+	const std::string_view semantic = attribute.name;
+	const auto check =
+	    [&](std::initializer_list<fastgltf::AccessorType> types, std::span<const Component> components)
+	{ CheckUse(asset, attribute.accessorIndex, semantic, types, components, name); };
+	if (semantic == "POSITION")
+		check({Vec3}, kQuantised);
+	else if (semantic == "NORMAL")
+		check({Vec3}, kDirections);
+	else if (semantic == "TANGENT")
+		check({Vec4}, kDirections);
+	else if (semantic.starts_with("TEXCOORD_"))
+		check({Vec2}, kQuantised);
+	else if (semantic.starts_with("COLOR_"))
+		check({Vec3, Vec4}, kUnitValues);
+	else if (semantic.starts_with("JOINTS_"))
+		check({Vec4}, kJoints);
+	else if (semantic.starts_with("WEIGHTS_"))
+		check({Vec4}, kUnitValues);
+}
+
+
+// fastgltf's accessor tools read an element of the type a reader asks for, whatever an accessor holds,
+// so each accessor is held to what its use allows. glTF gives a primitive's attributes one count,
+// which a reader sizes its vertices by.
+void CheckUses(const fastgltf::Asset &asset, const std::string &name)
+{
+	using enum fastgltf::AccessorType;
+	const auto &accessors = asset.accessors;
 	for (std::size_t mesh = 0; mesh < asset.meshes.size(); ++mesh)
 		for (std::size_t primitive = 0; primitive < asset.meshes[mesh].primitives.size(); ++primitive)
 		{
 			const fastgltf::Primitive &read = asset.meshes[mesh].primitives[primitive];
-			const bool missing = std::ranges::any_of(
-			                         read.attributes, [&](const auto &attribute)
-			                         { return lacks(attribute.accessorIndex); }) ||
-			                     (read.indicesAccessor && lacks(*read.indicesAccessor));
-			if (missing)
-				throw std::runtime_error(
-				    std::format(
-				        "glTF mesh {}'s primitive {} names an accessor the model lacks: {}", mesh,
-				        primitive, name));
+			for (const fastgltf::Attribute &attribute : read.attributes)
+				CheckAttribute(asset, attribute, name);
+			if (read.indicesAccessor)
+				CheckUse(asset, *read.indicesAccessor, "indices", {Scalar}, kIndices, name);
 			const bool even = std::ranges::all_of(
 			    read.attributes,
 			    [&](const auto &attribute)
@@ -344,20 +585,31 @@ void CheckAccessors(const fastgltf::Asset &asset, const std::string &name)
 				        primitive, name));
 		}
 
-	const bool skinsRead = std::ranges::none_of(
-	    asset.skins, [&](const fastgltf::Skin &skin)
-	    { return skin.inverseBindMatrices && lacks(*skin.inverseBindMatrices); });
-	const bool clipsRead = std::ranges::none_of(
-	    asset.animations,
-	    [&](const fastgltf::Animation &animation)
-	    {
-		    return std::ranges::any_of(
-		        animation.samplers, [&](const fastgltf::AnimationSampler &sampler)
-		        { return lacks(sampler.inputAccessor) || lacks(sampler.outputAccessor); });
-	    });
-	if (!skinsRead || !clipsRead)
-		throw std::runtime_error(
-		    "glTF model's skin or clip names an accessor the model lacks: " + name);
+	for (const fastgltf::Skin &skin : asset.skins)
+		if (skin.inverseBindMatrices)
+			CheckUse(asset, *skin.inverseBindMatrices, "inverse-bind matrices", {Mat4}, kFloats, name);
+	for (const fastgltf::Animation &animation : asset.animations)
+	{
+		for (const fastgltf::AnimationSampler &sampler : animation.samplers)
+			CheckUse(asset, sampler.inputAccessor, "a clip's times", {Scalar}, kFloats, name);
+		for (const fastgltf::AnimationChannel &channel : animation.channels)
+		{
+			const std::size_t output = animation.samplers[channel.samplerIndex].outputAccessor;
+			switch (channel.path)
+			{
+				case fastgltf::AnimationPath::Translation:
+				case fastgltf::AnimationPath::Scale:
+					CheckUse(asset, output, "a clip's translations or scales", {Vec3}, kFloats, name);
+					break;
+				case fastgltf::AnimationPath::Rotation:
+					CheckUse(asset, output, "a clip's rotations", {Vec4}, kAnimated, name);
+					break;
+				case fastgltf::AnimationPath::Weights:
+					CheckUse(asset, output, "a clip's weights", {Scalar}, kAnimated, name);
+					break;
+			}
+		}
+	}
 }
 } // namespace
 
@@ -417,8 +669,11 @@ std::unique_ptr<GltfFile> GltfFile::Parse(
 	}
 	if (extras.malformed)
 		throw std::runtime_error("glTF model's cook extras are malformed: " + label);
+	CheckIndices(asset, label);
+	CheckHierarchy(asset, label);
 	DecodeCompressedViews(asset, label);
-	CheckAccessors(asset, label);
+	CheckBounds(asset, label);
+	CheckUses(asset, label);
 
 	// A .glb's binary chunk is copied into the asset, so it outlives the data buffer.
 	std::unique_ptr<GltfFile> pFile{
