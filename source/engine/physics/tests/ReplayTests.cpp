@@ -10,7 +10,9 @@
 
 #include <algorithm>
 #include <array>
+#include <bit>
 #include <cstdint>
+#include <cstring>
 #include <span>
 #include <string>
 #include <tuple>
@@ -456,6 +458,124 @@ TEST_CASE("Physics replay: a save naming a shape this world does not define is r
 		CAPTURE(size);
 		CHECK_THROWS_AS(loaded.Load(std::span{save}.first(size)), Serialise::FormatError);
 		CHECK(loaded.StateHash() == ran);
+	}
+}
+
+
+TEST_CASE("Physics replay: a Jolt state cut short or corrupted is refused, or loads and steps on")
+{
+	// Saved at step 180, as three pairs touch, so Halcyon's state holds a contact cache as well as
+	// its bodies. A save may come from another player, so Jolt reads its state as untrusted bytes.
+	Sim::SimWorld original{kStep, kSeed};
+	Populate(original);
+	Run(original, 180);
+	const std::vector<std::byte> save = original.Save();
+
+	// Each world's Jolt state is a vector of bytes after its count, and begins with Jolt's flags for
+	// a whole state and the length of the last step as a float.
+	struct State
+	{
+		std::size_t at;
+		std::uint32_t size;
+	};
+	const auto step = static_cast<float>(kStep);
+	std::array<std::byte, 1 + sizeof step> head{std::byte{0x0f}};
+	std::memcpy(&head[1], &step, sizeof step);
+	std::vector<State> states;
+	for (std::size_t at = sizeof(std::uint32_t); at + head.size() <= save.size(); ++at)
+	{
+		std::uint32_t size = 0;
+		std::memcpy(&size, &save[at - sizeof size], sizeof size);
+		if (std::equal(head.begin(), head.end(), save.begin() + static_cast<std::ptrdiff_t>(at)) &&
+		    size >= head.size() && size <= save.size() - at)
+			states.push_back({at, size});
+	}
+	REQUIRE(states.size() == 2);
+
+	// The save with a world's state replaced, its count with it.
+	const auto with = [&save](const State &state, std::span<const std::byte> bytes)
+	{
+		const auto begin = save.begin() + static_cast<std::ptrdiff_t>(state.at - sizeof state.size);
+		std::vector<std::byte> changed(save.begin(), begin);
+		const auto size = static_cast<std::uint32_t>(bytes.size());
+		const auto *count = reinterpret_cast<const std::byte *>(&size);
+		changed.insert(changed.end(), count, count + sizeof size);
+		changed.insert(changed.end(), bytes.begin(), bytes.end());
+		changed.insert(
+		    changed.end(), save.begin() + static_cast<std::ptrdiff_t>(state.at + state.size),
+		    save.end());
+		return changed;
+	};
+
+	// One world loads every save in turn: a refused load leaves it as it was, and an accepted one is
+	// stepped on, which a state Jolt should have refused would fail by asserting.
+	Sim::SimWorld loaded{kStep, 1};
+	Populate(loaded);
+	const auto load = [&loaded](const std::vector<std::byte> &bytes)
+	{
+		try
+		{
+			loaded.Load(bytes);
+		}
+		catch (const Serialise::FormatError &)
+		{
+			return false;
+		}
+		Run(loaded, 190);
+		return true;
+	};
+	const auto set = [](std::vector<std::byte> &bytes, std::size_t at, std::uint32_t value)
+	{ std::memcpy(&bytes[at], &value, std::min(sizeof value, bytes.size() - at)); };
+
+	for (const State &state : states)
+	{
+		CAPTURE(state.at);
+		const std::span<const std::byte> bytes{&save[state.at], state.size};
+		REQUIRE(load(with(state, bytes)));
+
+		// Cut short anywhere, it is refused. At every fourth byte, and with one change to each byte
+		// below, as each load makes two Jolt systems of the default capacities: 20 s under the
+		// sanitisers, where every cut and four changes to every byte took 75 s (measured 2026-11-28).
+		for (std::size_t size = 0; size < bytes.size(); size += 4)
+		{
+			CAPTURE(size);
+			CHECK_FALSE(load(with(state, bytes.first(size))));
+		}
+
+		// A count of bodies past any world's, and a body that is not there: the count follows the
+		// flags, the last step's length and the gravity, and the first body's identifier follows it.
+		constexpr std::size_t kBodies = 1 + 4 + 12;
+		std::vector<std::byte> changed{bytes.begin(), bytes.end()};
+		set(changed, kBodies, 0xffffffffu);
+		CHECK_FALSE(load(with(state, changed)));
+		changed.assign(bytes.begin(), bytes.end());
+		set(changed, kBodies + 4, 0x007fffffu);
+		CHECK_FALSE(load(with(state, changed)));
+
+		// A last step far shorter than the world's, which the next would divide by, and a gravity
+		// the world never has.
+		changed.assign(bytes.begin(), bytes.end());
+		set(changed, 1, 1u);
+		CHECK_FALSE(load(with(state, changed)));
+		changed.assign(bytes.begin(), bytes.end());
+		set(changed, 1 + 4, std::bit_cast<std::uint32_t>(1.0e30f));
+		CHECK_FALSE(load(with(state, changed)));
+
+		// Each byte with a bit flipped, or made a bool's byte that is neither 0 nor 1, or the start of
+		// a count or an identifier set huge or small, in turn: each is refused, or loads and steps.
+		for (std::size_t at = 0; at < bytes.size(); ++at)
+		{
+			CAPTURE(at);
+			changed.assign(bytes.begin(), bytes.end());
+			switch (at % 4)
+			{
+				case 0: changed[at] ^= std::byte{1} << (at / 4 % 8); break;
+				case 1: changed[at] = std::byte{2}; break;
+				case 2: set(changed, at, 0xffffffffu); break;
+				default: set(changed, at, static_cast<std::uint32_t>(at / 4 % 16)); break;
+			}
+			load(with(state, changed));
+		}
 	}
 }
 

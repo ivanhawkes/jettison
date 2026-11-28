@@ -1,0 +1,454 @@
+diff --git a/Jolt/Core/StreamIn.h b/Jolt/Core/StreamIn.h
+index accb5aa..a2dbcc7 100644
+--- a/Jolt/Core/StreamIn.h
++++ b/Jolt/Core/StreamIn.h
+@@ -32,6 +32,14 @@ public:
+ 		ReadBytes(&outT, sizeof(outT));
+ 	}
+ 
++	/// Read a bool from the binary stream. A byte other than 0 or 1 is not a valid bool, so any nonzero byte reads as true.
++	void				Read(bool &outT)
++	{
++		uint8 value = outT? 1 : 0; // Initialize to previous value, this is used for validation in the StateRecorder class
++		ReadBytes(&value, sizeof(value));
++		outT = value != 0;
++	}
++
+ 	/// Read a vector of primitives from the binary stream
+ 	template <class T, class A, std::enable_if_t<std::is_trivially_copyable_v<T>, bool> = true>
+ 	void				Read(Array<T, A> &outT)
+diff --git a/Jolt/Physics/Body/Body.cpp b/Jolt/Physics/Body/Body.cpp
+index 3cd11a3..8e07772 100644
+--- a/Jolt/Physics/Body/Body.cpp
++++ b/Jolt/Physics/Body/Body.cpp
+@@ -308,7 +308,7 @@ void Body::SaveState(StateRecorder &inStream) const
+ 	}
+ }
+ 
+-void Body::RestoreState(StateRecorder &inStream)
++bool Body::RestoreState(StateRecorder &inStream)
+ {
+ 	inStream.Read(mPosition);
+ 	inStream.Read(mRotation);
+@@ -323,8 +323,28 @@ void Body::RestoreState(StateRecorder &inStream)
+ 		JPH_IF_ENABLE_ASSERTS(mMotionProperties->mCachedMotionType = mMotionType);
+ 	}
+ 
++	// Refuse values that the bounding box and the simulation cannot use, the simulation asserts on them
++	if (inStream.IsFailed() || !isfinite(mPosition.LengthSq()) || !mRotation.IsNormalized())
++		return false;
++	if (mMotionProperties != nullptr)
++	{
++		const MotionProperties &mp = *mMotionProperties;
++		bool valid = isfinite(mp.mLinearVelocity.LengthSq()) && isfinite(mp.mAngularVelocity.LengthSq())
++			&& isfinite(Vec3(mp.mForce).LengthSq()) && isfinite(Vec3(mp.mTorque).LengthSq()) && isfinite(mp.mSleepTestTimer);
++#ifdef JPH_DOUBLE_PRECISION
++		valid = valid && isfinite(DVec3(mp.mSleepTestOffset).LengthSq());
++#endif // JPH_DOUBLE_PRECISION
++		for (const Sphere &s : mp.mSleepTestSpheres)
++			valid = valid && isfinite(s.GetCenter().LengthSq()) && isfinite(s.GetRadius());
++		if (!valid)
++			return false;
++	}
++
+ 	// Initialize bounding box
+ 	CalculateWorldSpaceBoundsInternal();
++
++	// The broad phase only takes bounds within cLargeFloat
++	return AABox(Vec3::sReplicate(-cLargeFloat), Vec3::sReplicate(cLargeFloat)).Contains(mBounds);
+ }
+ 
+ BodyCreationSettings Body::GetBodyCreationSettings() const
+diff --git a/Jolt/Physics/Body/Body.h b/Jolt/Physics/Body/Body.h
+index 3b17513..2d9e154 100644
+--- a/Jolt/Physics/Body/Body.h
++++ b/Jolt/Physics/Body/Body.h
+@@ -411,8 +411,8 @@ public:
+ 	/// Saving state for replay
+ 	void					SaveState(StateRecorder &inStream) const;
+ 
+-	/// Restoring state for replay
+-	void					RestoreState(StateRecorder &inStream);
++	/// Restoring state for replay. Returns false if the state is not valid, in which case the body must be restored again before it is used.
++	bool					RestoreState(StateRecorder &inStream);
+ 
+ 	///@}
+ 
+diff --git a/Jolt/Physics/Body/BodyManager.cpp b/Jolt/Physics/Body/BodyManager.cpp
+index eee9d68..e83d2ed 100644
+--- a/Jolt/Physics/Body/BodyManager.cpp
++++ b/Jolt/Physics/Body/BodyManager.cpp
+@@ -745,7 +745,7 @@ bool BodyManager::RestoreState(StateRecorder &inStream)
+ 			inStream.Read(num_bodies);
+ 			if (num_bodies != old_num_bodies)
+ 			{
+-				JPH_ASSERT(false, "Cannot handle adding/removing bodies");
++				// Cannot handle adding/removing bodies
+ 				UnlockAllBodies();
+ 				return false;
+ 			}
+@@ -757,12 +757,18 @@ bool BodyManager::RestoreState(StateRecorder &inStream)
+ 					inStream.Read(body_id);
+ 					if (body_id != b->GetID())
+ 					{
+-						JPH_ASSERT(false, "Cannot handle adding/removing bodies");
++						// Cannot handle adding/removing bodies
+ 						UnlockAllBodies();
+ 						return false;
+ 					}
+ 					bool is_active = b->IsActive(); // Initialize to current value for validation
+ 					inStream.Read(is_active);
++					if (is_active && b->IsStatic())
++					{
++						// A static body cannot be active
++						UnlockAllBodies();
++						return false;
++					}
+ 					if (is_active != b->IsActive())
+ 					{
+ 						if (is_active)
+@@ -770,7 +776,11 @@ bool BodyManager::RestoreState(StateRecorder &inStream)
+ 						else
+ 							bodies_to_deactivate.push_back(body_id);
+ 					}
+-					b->RestoreState(inStream);
++					if (!b->RestoreState(inStream))
++					{
++						UnlockAllBodies();
++						return false;
++					}
+ 				}
+ 		}
+ 		else
+@@ -778,6 +788,12 @@ bool BodyManager::RestoreState(StateRecorder &inStream)
+ 			// Not validating, we can be a bit more loose, read number of bodies
+ 			uint32 num_bodies = 0;
+ 			inStream.Read(num_bodies);
++			if (num_bodies > mNumBodies)
++			{
++				// Cannot restore more bodies than there are
++				UnlockAllBodies();
++				return false;
++			}
+ 
+ 			// Iterate over the stored bodies and restore their state
+ 			for (uint32 idx = 0; idx < num_bodies; ++idx)
+@@ -785,14 +801,14 @@ bool BodyManager::RestoreState(StateRecorder &inStream)
+ 				BodyID body_id;
+ 				inStream.Read(body_id);
+ 				Body *b = TryGetBody(body_id);
+-				if (b == nullptr)
++				bool is_active = false;
++				inStream.Read(is_active);
++				if (b == nullptr || !b->IsInBroadPhase() || (is_active && b->IsStatic()))
+ 				{
+-					JPH_ASSERT(false, "Restoring state for non-existing body");
++					// Restoring state for a non-existing body (only bodies in the broad phase are saved) or a static body that is active
+ 					UnlockAllBodies();
+ 					return false;
+ 				}
+-				bool is_active;
+-				inStream.Read(is_active);
+ 				if (is_active != b->IsActive())
+ 				{
+ 					if (is_active)
+@@ -800,7 +816,11 @@ bool BodyManager::RestoreState(StateRecorder &inStream)
+ 					else
+ 						bodies_to_deactivate.push_back(body_id);
+ 				}
+-				b->RestoreState(inStream);
++				if (!b->RestoreState(inStream))
++				{
++					UnlockAllBodies();
++					return false;
++				}
+ 			}
+ 		}
+ 
+@@ -810,16 +830,19 @@ bool BodyManager::RestoreState(StateRecorder &inStream)
+ 	{
+ 		UniqueLock lock(mActiveBodiesMutex JPH_IF_ENABLE_ASSERTS(, this, EPhysicsLockTypes::ActiveBodiesList));
+ 
++		// A body that is listed twice is only activated or deactivated once
+ 		for (BodyID body_id : bodies_to_activate)
+ 		{
+ 			Body *body = TryGetBody(body_id);
+-			AddBodyToActiveBodies(*body);
++			if (!body->IsActive())
++				AddBodyToActiveBodies(*body);
+ 		}
+ 
+ 		for (BodyID body_id : bodies_to_deactivate)
+ 		{
+ 			Body *body = TryGetBody(body_id);
+-			RemoveBodyFromActiveBodies(*body);
++			if (body->IsActive())
++				RemoveBodyFromActiveBodies(*body);
+ 		}
+ 	}
+ 
+diff --git a/Jolt/Physics/Constraints/ConstraintManager.cpp b/Jolt/Physics/Constraints/ConstraintManager.cpp
+index 509bddb..ff49ff4 100644
+--- a/Jolt/Physics/Constraints/ConstraintManager.cpp
++++ b/Jolt/Physics/Constraints/ConstraintManager.cpp
+@@ -248,19 +248,13 @@ bool ConstraintManager::RestoreState(StateRecorder &inStream)
+ 		uint32 num_constraints = (uint32)mConstraints.size(); // Initialize to current value for validation
+ 		inStream.Read(num_constraints);
+ 		if (num_constraints != mConstraints.size())
+-		{
+-			JPH_ASSERT(false, "Cannot handle adding/removing constraints");
+-			return false;
+-		}
++			return false; // Cannot handle adding/removing constraints
+ 		for (const Ref<Constraint> &c : mConstraints)
+ 		{
+ 			uint32 constraint_index = c->mConstraintIndex;
+ 			inStream.Read(constraint_index);
+ 			if (constraint_index != c->mConstraintIndex)
+-			{
+-				JPH_ASSERT(false, "Unexpected constraint index");
+-				return false;
+-			}
++				return false; // Unexpected constraint index
+ 			c->RestoreState(inStream);
+ 		}
+ 	}
+@@ -269,16 +263,15 @@ bool ConstraintManager::RestoreState(StateRecorder &inStream)
+ 		// Not validating, use more flexible reading, read number of constraints
+ 		uint32 num_constraints = 0;
+ 		inStream.Read(num_constraints);
++		if (num_constraints > mConstraints.size())
++			return false; // Cannot restore more constraints than there are
+ 
+ 		for (uint32 idx = 0; idx < num_constraints; ++idx)
+ 		{
+-			uint32 constraint_index;
++			uint32 constraint_index = 0;
+ 			inStream.Read(constraint_index);
+-			if (mConstraints.size() <= constraint_index)
+-			{
+-				JPH_ASSERT(false, "Restoring state for non-existing constraint");
+-				return false;
+-			}
++			if (inStream.IsFailed() || mConstraints.size() <= constraint_index)
++				return false; // Restoring state for non-existing constraint
+ 			mConstraints[constraint_index]->RestoreState(inStream);
+ 		}
+ 	}
+diff --git a/Jolt/Physics/Constraints/ContactConstraintManager.cpp b/Jolt/Physics/Constraints/ContactConstraintManager.cpp
+index efb7aee..bb0398d 100644
+--- a/Jolt/Physics/Constraints/ContactConstraintManager.cpp
++++ b/Jolt/Physics/Constraints/ContactConstraintManager.cpp
+@@ -247,11 +247,13 @@ void ContactConstraintManager::CachedContactPoint::SaveState(StateRecorder &inSt
+ 	inStream.Write(mNonPenetrationLambda);
+ }
+ 
+-void ContactConstraintManager::CachedContactPoint::RestoreState(StateRecorder &inStream)
++bool ContactConstraintManager::CachedContactPoint::RestoreState(StateRecorder &inStream)
+ {
+ 	inStream.Read(mPosition1);
+ 	inStream.Read(mPosition2);
+ 	inStream.Read(mNonPenetrationLambda);
++
++	return isfinite(Vec3(mPosition1).LengthSq()) && isfinite(Vec3(mPosition2).LengthSq()) && isfinite(mNonPenetrationLambda);
+ }
+ 
+ ////////////////////////////////////////////////////////////////////////////////////////////////////////
+@@ -265,11 +267,14 @@ void ContactConstraintManager::CachedManifold::SaveState(StateRecorder &inStream
+ 	inStream.Write(mAngularFrictionLambda);
+ }
+ 
+-void ContactConstraintManager::CachedManifold::RestoreState(StateRecorder &inStream)
++bool ContactConstraintManager::CachedManifold::RestoreState(StateRecorder &inStream)
+ {
+ 	inStream.Read(mContactNormal);
+ 	inStream.Read(mFrictionLambda);
+ 	inStream.Read(mAngularFrictionLambda);
++
++	// The normal is normalized again when it is used, so it cannot be zero
++	return Vec3(mContactNormal).IsNormalized() && isfinite(mFrictionLambda[0]) && isfinite(mFrictionLambda[1]) && isfinite(mAngularFrictionLambda);
+ }
+ 
+ ////////////////////////////////////////////////////////////////////////////////////////////////////////
+@@ -562,13 +567,13 @@ bool ContactConstraintManager::ManifoldCache::RestoreState(const ManifoldCache &
+ 		inReadCache.GetAllBodyPairsSorted(all_bp);
+ 
+ 	// Read amount of body pairs
+-	uint32 num_body_pairs;
++	uint32 num_body_pairs = 0;
+ 	if (inStream.IsValidating())
+ 		num_body_pairs = uint32(all_bp.size());
+ 	inStream.Read(num_body_pairs);
+ 
+-	// Read entire cache
+-	for (uint32 i = 0; i < num_body_pairs; ++i)
++	// Read entire cache, until a failed read since the counts come from the stream
++	for (uint32 i = 0; i < num_body_pairs && success && !inStream.IsFailed(); ++i)
+ 	{
+ 		// Read key
+ 		BodyPair body_pair_key;
+@@ -581,6 +586,12 @@ bool ContactConstraintManager::ManifoldCache::RestoreState(const ManifoldCache &
+ 		{
+ 			// Create new entry for this body pair
+ 			uint64 body_pair_hash = body_pair_key.GetHash();
++			if (mCachedBodyPairs.Find(body_pair_key, body_pair_hash) != nullptr)
++			{
++				// The cache is not a multi map, a body pair can only be restored once
++				success = false;
++				break;
++			}
+ 			BPKeyValue *bp_kv = Create(contact_allocator, body_pair_key, body_pair_hash);
+ 			if (bp_kv == nullptr)
+ 			{
+@@ -607,7 +618,7 @@ bool ContactConstraintManager::ManifoldCache::RestoreState(const ManifoldCache &
+ 			inStream.Read(num_manifolds);
+ 
+ 			uint32 handle = ManifoldMap::cInvalidHandle;
+-			for (uint32 j = 0; j < num_manifolds; ++j)
++			for (uint32 j = 0; j < num_manifolds && success && !inStream.IsFailed(); ++j)
+ 			{
+ 				// Read key
+ 				SubShapeIDPair sub_shape_key;
+@@ -621,6 +632,12 @@ bool ContactConstraintManager::ManifoldCache::RestoreState(const ManifoldCache &
+ 				if (inStream.IsValidating() && j < all_m.size())
+ 					num_contact_points = all_m[j]->GetValue().mNumContactPoints;
+ 				inStream.Read(num_contact_points);
++				if (num_contact_points == 0 || num_contact_points > MaxContactPoints || mCachedManifolds.Find(sub_shape_key, sub_shape_key_hash) != nullptr)
++				{
++					// A cached manifold has 1 to MaxContactPoints contact points, the simulation stores them in arrays of that size, and can only be restored once
++					success = false;
++					break;
++				}
+ 
+ 				// Read manifold
+ 				MKeyValue *m_kv = Create(contact_allocator, sub_shape_key, sub_shape_key_hash, num_contact_points);
+@@ -636,13 +653,15 @@ bool ContactConstraintManager::ManifoldCache::RestoreState(const ManifoldCache &
+ 					memcpy(&cm, &all_m[j]->GetValue(), CachedManifold::sGetRequiredTotalSize(num_contact_points));
+ 					cm.mNumContactPoints = uint16(num_contact_points); // Restore num contact points
+ 				}
+-				cm.RestoreState(inStream);
++				if (!cm.RestoreState(inStream))
++					success = false;
+ 				cm.mNextWithSameBodyPair = handle;
+ 				handle = ToHandle(m_kv);
+ 
+ 				// Read contact points
+ 				for (uint32 k = 0; k < num_contact_points; ++k)
+-					cm.mContactPoints[k].RestoreState(inStream);
++					if (!cm.mContactPoints[k].RestoreState(inStream))
++						success = false;
+ 			}
+ 			bp.mFirstCachedManifold = handle;
+ 		}
+@@ -653,7 +672,7 @@ bool ContactConstraintManager::ManifoldCache::RestoreState(const ManifoldCache &
+ 			bp.RestoreState(inStream);
+ 			uint32 num_manifolds = 0;
+ 			inStream.Read(num_manifolds);
+-			for (uint32 j = 0; j < num_manifolds; ++j)
++			for (uint32 j = 0; j < num_manifolds && !inStream.IsFailed(); ++j)
+ 			{
+ 				SubShapeIDPair sub_shape_key;
+ 				inStream.Read(sub_shape_key);
+@@ -673,12 +692,12 @@ bool ContactConstraintManager::ManifoldCache::RestoreState(const ManifoldCache &
+ 		inReadCache.GetAllCCDManifoldsSorted(all_m);
+ 
+ 	// Read amount of CCD manifolds
+-	uint32 num_manifolds;
++	uint32 num_manifolds = 0;
+ 	if (inStream.IsValidating())
+ 		num_manifolds = uint32(all_m.size());
+ 	inStream.Read(num_manifolds);
+ 
+-	for (uint32 j = 0; j < num_manifolds; ++j)
++	for (uint32 j = 0; j < num_manifolds && success && !inStream.IsFailed(); ++j)
+ 	{
+ 		// Read key
+ 		SubShapeIDPair sub_shape_key;
+@@ -691,6 +710,12 @@ bool ContactConstraintManager::ManifoldCache::RestoreState(const ManifoldCache &
+ 		{
+ 			// Create CCD manifold
+ 			uint64 sub_shape_key_hash = sub_shape_key.GetHash();
++			if (mCachedManifolds.Find(sub_shape_key, sub_shape_key_hash) != nullptr)
++			{
++				// A manifold can only be restored once
++				success = false;
++				break;
++			}
+ 			MKeyValue *m_kv = Create(contact_allocator, sub_shape_key, sub_shape_key_hash, 0);
+ 			if (m_kv == nullptr)
+ 			{
+@@ -709,7 +734,7 @@ bool ContactConstraintManager::ManifoldCache::RestoreState(const ManifoldCache &
+ 		mIsFinalized = true;
+ #endif
+ 
+-	return success;
++	return success && !inStream.IsFailed();
+ }
+ 
+ ////////////////////////////////////////////////////////////////////////////////////////////////////////
+diff --git a/Jolt/Physics/Constraints/ContactConstraintManager.h b/Jolt/Physics/Constraints/ContactConstraintManager.h
+index d76f3fc..f891757 100644
+--- a/Jolt/Physics/Constraints/ContactConstraintManager.h
++++ b/Jolt/Physics/Constraints/ContactConstraintManager.h
+@@ -265,9 +265,9 @@ private:
+ 	class CachedContactPoint
+ 	{
+ 	public:
+-		/// Saving / restoring state for replay
++		/// Saving / restoring state for replay, restoring returns false if the state is not valid
+ 		void					SaveState(StateRecorder &inStream) const;
+-		void					RestoreState(StateRecorder &inStream);
++		bool					RestoreState(StateRecorder &inStream);
+ 
+ 		/// Local space positions on body 1 and 2.
+ 		/// Note: these values are read through sLoadFloat3Unsafe.
+@@ -291,9 +291,9 @@ private:
+ 		/// Calculate total class size needed for storing inNumContactPoints
+ 		static constexpr int	sGetRequiredTotalSize(int inNumContactPoints)						{ return sizeof(CachedManifold) + sGetRequiredExtraSize(inNumContactPoints); }
+ 
+-		/// Saving / restoring state for replay
++		/// Saving / restoring state for replay, restoring returns false if the state is not valid
+ 		void					SaveState(StateRecorder &inStream) const;
+-		void					RestoreState(StateRecorder &inStream);
++		bool					RestoreState(StateRecorder &inStream);
+ 
+ 		/// Handle to next cached contact points in ManifoldCache::mCachedManifolds for the same body pair
+ 		uint32					mNextWithSameBodyPair;
+diff --git a/Jolt/Physics/PhysicsSystem.cpp b/Jolt/Physics/PhysicsSystem.cpp
+index de4d0ee..e9f32db 100644
+--- a/Jolt/Physics/PhysicsSystem.cpp
++++ b/Jolt/Physics/PhysicsSystem.cpp
+@@ -2929,6 +2929,10 @@ bool PhysicsSystem::RestoreState(StateRecorder &inStream, const StateRecorderFil
+ 	{
+ 		inStream.Read(mPreviousStepDeltaTime);
+ 		inStream.Read(mGravity);
++
++		// The next step divides by the previous delta time and integrates gravity
++		if (inStream.IsFailed() || !(mPreviousStepDeltaTime >= 0.0f && isfinite(mPreviousStepDeltaTime)) || !isfinite(mGravity.LengthSq()))
++			return false;
+ 	}
+ 
+ 	if (uint8(state) & uint8(EStateRecorderState::Bodies))
+@@ -2960,7 +2964,7 @@ bool PhysicsSystem::RestoreState(StateRecorder &inStream, const StateRecorderFil
+ 			return false;
+ 	}
+ 
+-	return true;
++	return !inStream.IsFailed();
+ }
+ 
+ void PhysicsSystem::SaveBodyState(const Body &inBody, StateRecorder &inStream) const
+diff --git a/Jolt/Physics/StateRecorder.h b/Jolt/Physics/StateRecorder.h
+index c3bd477..848926b 100644
+--- a/Jolt/Physics/StateRecorder.h
++++ b/Jolt/Physics/StateRecorder.h
+@@ -128,6 +128,9 @@ public:
+ 	void				SetIsLastPart(bool inIsLastPart)							{ mIsLastPart = inIsLastPart; }
+ 	bool				IsLastPart() const											{ return mIsLastPart; }
+ 
++	/// Restoring checks for a failed read, StreamIn and StreamOut both declare IsFailed
++	using StreamIn::IsFailed;
++
+ private:
+ 	bool				mIsValidating = false;
+ 	bool				mIsLastPart = true;

@@ -427,6 +427,16 @@ Jolt state and reloads exactly. A docked vehicle loses nothing, being kinematic 
 rails. `PhysicsWorld::SaveAsJoltVersion` writes a save marked as another version, so the tests
 exercise this path before Jolt is ever upgraded.
 
+A save may come from another player, so this build's Jolt state is read as untrusted bytes, and one
+that does not fit the world is refused, naming its frame, with the world left as it was. Physics
+checks what Jolt cannot judge: the state's last step is none or the world's fixed step, which the
+next step divides by to warm-start its contacts, and its gravity is none, gravity being physics'
+own. Jolt's restore is patched to refuse, without asserting, a body, contact or count that does not
+fit and a value its steps cannot take: one not finite, a rotation not normalised, bounds past its
+limit (`source/external/CMakeLists.txt`). `ReplayTests.cpp`
+cuts a saved state short at every byte and corrupts every byte, and each is refused or loads and
+steps.
+
 Jolt asserts through the engine's assertions in a Debug tree, and its profiler zones appear on
 Tracy's timeline (`source/engine/physics/src/JoltProfile.cpp`).
 

@@ -44,11 +44,11 @@ reviewed on 2026-11-10; ENet and libsodium were added on 2026-11-20, meshoptimiz
 | FastNoiseLite | v1.1.1 | `math` | Header-only; output pinned by recorded values |
 | MikkTSpace | 2020 (only commit) | `math` | |
 | meshoptimizer | v1.3 | `geometry`, privately | Its vertex and index codecs are `EXT_meshopt_compression`'s ([the cooked model](rendering.md#the-cooked-model)) |
-| Jolt Physics | v5.6.0 | `physics`, privately | Double precision, deterministic across build types |
+| Jolt Physics | v5.6.0 | `physics`, privately | Double precision, deterministic across build types; one patch, a state restore that refuses untrusted bytes (`source/external/CMakeLists.txt`) |
 | FreeType | 2.15.0 | `ui`, RmlUi, ImGui | Answers RmlUi's `find_package(Freetype)` |
 | RmlUi | 6.3 | `ui`, privately | |
 | miniaudio | 0.11.26 | `audio`, privately | Vorbis and Opus off; backends loaded at run time |
-| KTX-Software | v4.4.2 | `render` (`ktx_read`), `jettison_cook` (`ktx`, the encoder), never both in one program | **Held back** from v5.0.0-rc2, a release candidate on 2026-11-11; fetched in every tree; both built against the engine's zstd; two patches, a deterministic encoding and a leak (`source/external/CMakeLists.txt`) |
+| KTX-Software | v4.4.2 | `render` (`ktx_read`), `jettison_cook` (`ktx`, the encoder), never both in one program | **Held back** from v5.0.0-rc2, a release candidate on 2026-11-11; fetched in every tree; both built against the engine's zstd; three patches, a deterministic encoding and two leaks (`source/external/CMakeLists.txt`) |
 | WAMR | 2.4.5 | `script`, privately | Fast interpreter with instruction metering; no libc or WASI ([scripts](scripts.md)) |
 | zstd | v1.5.7 | `vfs`, privately; `ktx_read` and `ktx` | The library alone, static |
 | ENet | v1.3.18 | `net`, privately | Reliable and unreliable channels over UDP ([networking](networking.md)) |

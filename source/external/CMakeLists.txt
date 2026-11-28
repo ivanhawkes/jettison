@@ -513,6 +513,19 @@ endforeach()
 # translation units are compiled for AVX2 and nothing above it is; the engine's CPU baseline is
 # x86-64 with AVX2 either way, which is the decided minimum (docs/decisions.md, "Build and platform"), and
 # USE_AVX512 stays off, because raising it is a new decision.
+#
+# One patch (patches/jolt-restore-state.patch), applied to the clone as it stands, so a changed patch
+# applies again. A save holds each world's Jolt state and may come from another player, so
+# PhysicsSystem::RestoreState reads untrusted bytes, which Jolt trusts: it asserts before each
+# refusal of a body or constraint that is not there, which aborts a Debug tree, and it uses what it
+# reads as it comes. A manifold of more than four contact points overruns the contact constraint
+# the next step copies it into, a static body marked active is a null motion properties, a body
+# listed twice joins the active list twice, a repeated cache key, a bool's byte other than 0 or 1, a
+# rotation not normalised or bounds past cLargeFloat each assert or misbehave, and a count from the
+# stream runs on past a failed read. The patch refuses each without asserting, bounds the counts by
+# the world's own, and stops at a failed read; it refuses nothing Jolt saves. Found by physics'
+# suite corrupting a saved state byte by byte (ReplayTests.cpp, 2026-11-28). Unfixed in Jolt's
+# master on 2026-11-28 (9e53a3f); reported as https://github.com/jrouwe/JoltPhysics/issues/2264.
 block()
 	set(DOUBLE_PRECISION ON)
 	set(CROSS_PLATFORM_DETERMINISTIC ON)
@@ -534,11 +547,15 @@ block()
 	set(TARGET_PERFORMANCE_TEST OFF)
 	set(TARGET_SAMPLES OFF)
 	set(TARGET_VIEWER OFF)
+	find_package(Git REQUIRED)
 	FetchContent_Declare(
 	  JoltPhysics
 	  GIT_REPOSITORY https://github.com/jrouwe/JoltPhysics.git
 	  GIT_TAG v5.6.0
 	  GIT_SHALLOW TRUE
+	  PATCH_COMMAND "${GIT_EXECUTABLE}" -C <SOURCE_DIR> checkout -- .
+	  COMMAND "${GIT_EXECUTABLE}" -C <SOURCE_DIR> apply
+	    "${CMAKE_CURRENT_SOURCE_DIR}/patches/jolt-restore-state.patch"
 	  SOURCE_SUBDIR Build
 	  SYSTEM
 	  EXCLUDE_FROM_ALL

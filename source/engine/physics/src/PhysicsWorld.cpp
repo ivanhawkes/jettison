@@ -22,12 +22,15 @@
 #include <glm/geometric.hpp>
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <compare>
+#include <cstring>
 #include <format>
 #include <limits>
 #include <map>
 #include <set>
+#include <span>
 #include <stdexcept>
 #include <string_view>
 #include <tuple>
@@ -65,6 +68,26 @@ constexpr std::uint64_t kStateFeatures = 0b1'0000'0011;
 // Jolt's scratch memory for a step: what a step of a busy frame needs, with the heap behind it
 // for one that needs more, rather than Jolt's fixed block failing.
 constexpr JPH::uint kTempAllocatorBytes = 8u * 1024u * 1024u;
+
+
+// Jolt's state begins with its global part (PhysicsSystem::SaveState): what the state holds, the
+// length of the step before it, and the gravity. Jolt's restore takes any finite values there, but
+// the next step scales the impulses it warm-starts from by its own length over that one, without
+// bound, and the gravity is the engine's (FrameWorld sets Jolt's to none). So a state that no world
+// stepping at this one's fixed step could have saved is refused before Jolt reads it.
+bool StateFitsSteps(std::span<const std::uint8_t> state, double fixedStep)
+{
+	std::uint8_t holds = 0;
+	float step = 0.0f;
+	std::array<float, 3> gravity{};
+	if (state.size() < sizeof holds + sizeof step + sizeof gravity)
+		return false;
+	std::memcpy(&holds, state.data(), sizeof holds);
+	std::memcpy(&step, state.data() + sizeof holds, sizeof step);
+	std::memcpy(gravity.data(), state.data() + sizeof holds + sizeof step, sizeof gravity);
+	return holds == static_cast<std::uint8_t>(JPH::EStateRecorderState::All) &&
+	       (step == 0.0f || step == static_cast<float>(fixedStep)) && gravity == std::array<float, 3>{};
+}
 
 struct ShapeEntry
 {
@@ -732,6 +755,9 @@ struct PhysicsWorld::Impl
 	bool reportedUpdateError{false};
 	JoltVersion savedJolt{BuiltJoltVersion()};
 
+	// The simulation's, the one length Jolt is stepped by (StateFitsSteps).
+	double fixedStep{0.0};
+
 
 	// The ray's hits that the collector keeps, from every local frame searched: each body once, at
 	// its nearest, nearest first and a tie by entity.
@@ -836,6 +862,7 @@ PhysicsWorld &PhysicsWorld::Attach(Sim::SimWorld &world, const PhysicsSettings &
 	// Held before it is handed over, so the world's WorldService need not be cast back down.
 	std::unique_ptr<PhysicsWorld> owned{new PhysicsWorld{settings}};
 	PhysicsWorld &physics = *owned;
+	physics.m_pImpl->fixedStep = world.FixedStep();
 	world.AddService(std::string{kServiceName}, std::move(owned));
 	world.RegisterComponent<Body>();
 	world.RegisterComponent<Velocity>();
@@ -1801,12 +1828,13 @@ std::function<void()> PhysicsWorld::Load(
 
 		std::vector<std::uint8_t> state;
 		reader.Read(state);
+		const bool fits = StateFitsSteps(state, impl.fixedStep);
 		Detail::ByteRecorder recorder{std::move(state)};
-		if (!rebuild &&
-		    (!world->System().RestoreState(recorder) || recorder.IsFailed() || !recorder.IsEOF()))
+		if (!rebuild && (!fits || !world->System().RestoreState(recorder) || recorder.IsFailed() ||
+		                 !recorder.IsEOF()))
 			reader.Fail(
 			    std::format(
-			        "frame {:#x} '{}''s Jolt state does not fit its bodies", key.frame,
+			        "frame {:#x} '{}''s Jolt state does not fit its bodies and steps", key.frame,
 			        key.localFrame));
 		pending->worlds.emplace(std::move(key), std::move(world));
 	}
