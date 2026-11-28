@@ -305,6 +305,7 @@ flowchart TD
 | `resource` | A loader's callback can load more and move the resource manager's slots |
 | `host` | A failed start-up and a teardown release what each phase built |
 | `net` | It reads a peer's packets |
+| `geometry` | Its reader decodes a model file a mod can ship, and its cook copies vertices by index |
 
 ### Reading the result
 
