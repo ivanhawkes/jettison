@@ -72,8 +72,7 @@ std::optional<PackageDescription> DescribePackage(const std::filesystem::path &s
 	if (!bytes)
 		return std::nullopt;
 	const std::string_view text{reinterpret_cast<const char *>(bytes->data()), bytes->size()};
-	PackageDescription description =
-	    Serialise::YamlArchive::Read<PackageDescription>(text, {kPackageFormatVersion});
+	auto description = Serialise::YamlArchive::Read<PackageDescription>(text, {kPackageFormatVersion});
 	for (const std::string &required : description.required)
 		if (required.starts_with(kModMountPrefix))
 			throw std::runtime_error{std::format(

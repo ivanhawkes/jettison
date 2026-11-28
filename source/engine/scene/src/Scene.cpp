@@ -1,6 +1,7 @@
 #include <jettison/scene/Scene.h>
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <format>
 #include <fstream>
@@ -501,9 +502,10 @@ void CheckMesh(const MeshRecord &mesh, const std::string &id)
 	}
 	if (mesh.material)
 		CheckVirtualPath(*mesh.material, "a material", id);
+	const auto atLeastZero = [](float channel) { return std::isfinite(channel) && channel >= 0.0f; };
 	if (const auto &scale = mesh.emissiveScale;
-	    scale && !(scale->r >= 0.0f && scale->g >= 0.0f && scale->b >= 0.0f && scale->a >= 0.0f))
-		Refuse("Entity mesh emissiveScale is not negative: " + id);
+	    scale && !std::ranges::all_of(std::array{scale->r, scale->g, scale->b, scale->a}, atLeastZero))
+		Refuse("Entity mesh emissiveScale is negative or not finite: " + id);
 }
 
 

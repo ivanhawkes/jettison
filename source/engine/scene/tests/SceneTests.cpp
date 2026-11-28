@@ -327,7 +327,7 @@ TEST_CASE("Scene: references, paths, cameras and meshes are checked as the file 
 	    scene, "  - id: m\n    mesh:\n      shape: box\n      innerRadius: 0.5\n", "for a ring");
 	CheckRefused(
 	    scene, "  - id: m\n    mesh:\n      shape: box\n      emissiveScale: [1, 1, 1, -1]\n",
-	    "emissiveScale is not negative");
+	    "emissiveScale is negative or not finite");
 	CheckRefused(
 	    scene, "  - id: m\n    mesh:\n      model: models/arm.glb\n      color: [1, 0, 0]\n",
 	    "color is for a shape");
