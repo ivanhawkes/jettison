@@ -445,7 +445,7 @@ styles, an unprocessed panel, a blinking beacon), which the `effects`, `post` an
 - A grade blended between two tables, for a sequence's own look: [J22](roadmap.md#j22).
 - The UI's clip masks and filters, which want the stencil and post targets in the output pass:
   [J23](roadmap.md#j23).
-- An emissive scale per draw, and other rendering items not yet placed: [J27](roadmap.md#j27).
+- Rendering items not yet placed: [J27](roadmap.md#j27). A draw's own glow is [rendering's](rendering.md#a-draws-own-glow).
 - Screen-space reflections are out by decision, not open work.
 
 ## Decisions

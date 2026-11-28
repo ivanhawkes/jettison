@@ -360,7 +360,6 @@ same palette, Mocha, by role (`assets/ui/base.rcss`; [the game UI's palette](ui.
 | Cube maps and texture arrays in files | |
 | Normal mapping in `mesh` | Waits for tangent-space vertex data, which `math/Tangents.h` makes. A planet builds its frame from the sphere and does not need it. |
 | A model file read once | Today it is read twice, for its rig and for its geometry. |
-| An emissive scale per draw | A mesh's own, or a material parameter set per draw, so a glow can change smoothly without a model per colour. The renderer keeps one procedural model per shape and colour (`render/src/vulkan/ModelCache.h`). |
 | Air over a mesh | The haze is the planet's own surface's and the sky's, not that of a mesh within the air, nor of a transparent draw. Two bodies' air and rings are not sorted where they overlap on the screen. |
 | The environment capture's planets | The capture draws a body as a sphere of its mesh's colour, without its maps or clouds. |
 | A gas giant's bands | The test content's Corva is one colour under its air. |
