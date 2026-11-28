@@ -118,6 +118,9 @@ same on any file system and needs no quoting.
   `detail-` before one of them for a detail layer. These are the material slots' words, spelt as the
   code spells them.
 - A material is `materials/<asset>.material.yaml`.
+- A normal map is in tangent space with green up: glTF's convention, Blender's, and Substance's
+  "OpenGL" preset. The engine, the cook and the import scripts read it so and flip nothing, so a
+  map exported with green down (DirectX's, Unreal's) is exported again with green up.
 
 Source packs keep their own names outside the repository, and an import script maps them
 (`scripts/import-planet-textures.sh`). Shader programs in `assets/shaders/` predate the rule and are

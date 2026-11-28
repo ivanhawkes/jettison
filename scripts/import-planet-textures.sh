@@ -15,10 +15,8 @@
 # Every map is Basis Universal UASTC with rate-distortion optimisation and zstd, mipmapped by the
 # tool, which the engine transcodes to BC7 (or RGBA8 on a device without it). Colour is sRGB; every
 # other map is data and is assigned a linear transfer function, so the tool takes the bytes as they
-# are rather than converting them from sRGB. The normal maps are authored with green pointing down
-# the image (DirectX's convention: integrating them that way reproduces the height map, and the
-# detail colour at a correlation of 0.997); green is inverted here so they point up, as glTF's do
-# and as the engine's shaders read them. Greyscale maps are kept to one channel.
+# are rather than converting them from sRGB. Normal maps are taken as they are, so they must have
+# green up (docs/coding-standards.md, "Content files"). Greyscale maps are kept to one channel.
 set -euo pipefail
 
 if [[ $# -ne 2 ]]; then
@@ -68,7 +66,7 @@ import_map() {
 			magick "$source" -colorspace Gray -depth 8 -define png:color-type=0 "$png"
 			format=R8_UNORM tf=linear ;;
 		normal)
-			magick "$source" -channel G -negate +channel -depth 8 -define png:color-type=2 "$png"
+			magick "$source" -depth 8 -define png:color-type=2 "$png"
 			format=R8G8B8_UNORM tf=linear ;;
 	esac
 	ktx create --format "$format" --assign-tf "$tf" --encode uastc --uastc-quality 2 \
