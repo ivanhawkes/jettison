@@ -1,0 +1,12 @@
+diff --git a/lib/writer2.c b/lib/writer2.c
+index ca3619a..722de8b 100644
+--- a/lib/writer2.c
++++ b/lib/writer2.c
+@@ -185,6 +185,7 @@ appendLibId(ktxHashList* head, ktxHashListEntry* writerEntry)
+     assert(fullId[fullIdLen-1] == '\0');
+ 
+     ktxHashList_DeleteEntry(head, writerEntry);
++    free(writerEntry);
+     result = ktxHashList_AddKVPair(head, KTX_WRITER_KEY,
+                                    (ktx_uint32_t)fullIdLen, fullId);
+ cleanup:

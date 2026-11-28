@@ -119,6 +119,8 @@ done
 [ -n "$build_dir" ] || build_dir="build/$preset"
 executable="$build_dir/source/test/render_test"
 ground="$build_dir/source/samples/ground/ground"
+# The test content's scenes, from the tree the build cooks.
+scenes="$PWD/$build_dir/source/test/content/scene"
 
 if [ "$build" -eq 1 ]; then
 	cmake --preset "$preset" ${werror[@]+"${werror[@]}"} >/dev/null
@@ -199,7 +201,7 @@ run_app() {
 		echo "smoke-test: missing validation layer exits cleanly"
 		empty_assets="$(mktemp -d "${TMPDIR:-/tmp}/jettison-empty-assets.XXXXXX")"
 		startup_status=0
-		startup_output="$("$@" --assets "$empty_assets" --scene "$PWD/source/test/content/scene/main.yaml" 2>&1)" || startup_status=$?
+		startup_output="$("$@" --assets "$empty_assets" --scene "$scenes/main.yaml" 2>&1)" || startup_status=$?
 		rmdir "$empty_assets"
 		if [ "$startup_status" -ne 1 ] || [[ "$startup_output" != *"failed to open file"* ]] ||
 			[[ "$startup_output" == *"[vulkan:error"* ]] || [[ "$startup_output" == *"Validation Error:"* ]]; then
@@ -215,7 +217,7 @@ run_app() {
 	# under an orbit camera and the sun). Each walks the whole sequence; the run fails if either does.
 	app_log="$(mktemp "${TMPDIR:-/tmp}/jettison-smoke-app.XXXXXX")"
 	status=0
-	for scene in "" "$PWD/source/test/content/scene/orbit.yaml"; do
+	for scene in "" "$scenes/orbit.yaml"; do
 		scene_args=()
 		[ -n "$scene" ] && scene_args=(--scene "$scene")
 		echo "smoke-test: scene ${scene:-default}"

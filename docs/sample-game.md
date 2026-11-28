@@ -107,10 +107,13 @@ post chain (`effects.yaml`, `post.yaml`), with their materials, textures and mod
 sequence, a colour grade and a few sounds. It is what the retired space sample built, baked into
 files.
 
-`render_test` (`source/test/main.cpp`) is the shell with no game, mounting this content as `base`.
-Its scenes are the [reference frames](build-and-gates.md#reference-frames) listed in
-`source/test/frames/views.txt`, and several engine suites read them as test data. Its pack,
-`content.pack`, is built for the smoke test's packed run.
+The build cooks it into `build/<preset>/source/test/content`, with dense test meshes (asteroids and
+a station's kit) generated beside the sources ([the engine's
+content](dense-geometry-and-ray-tracing.md#the-cook)). `render_test` (`source/test/main.cpp`) is the
+shell with no game, mounting the cooked content as `base`. Its scenes are the [reference
+frames](build-and-gates.md#reference-frames) listed in `source/test/frames/views.txt`, and several
+engine suites read the sources as test data. Its pack, `content.pack`, is built for the smoke test's
+packed run.
 
 ## The consumer project
 

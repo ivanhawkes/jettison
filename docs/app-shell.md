@@ -82,7 +82,7 @@ A program with no window starts the same `Host::Game` through `Host::Session` it
 | Program | Source | Game | Content mounted as `base` |
 | --- | --- | --- | --- |
 | `flotsam` | `source/tools/flotsam` | None | None: the engine alone, on an empty scene |
-| `render_test` | `source/test/main.cpp` | None | The test content, `source/test/content` |
+| `render_test` | `source/test/main.cpp` | None | The test content, `source/test/content`, as the build cooks it |
 | `ground` | `source/samples/ground` | `Sample::GroundGame` | `source/samples/ground/assets` |
 | `jettison_pack` | `source/tools/pack` | Not a shell program | Packs a directory into a [pack](glossary.md#pack) |
 | `jettison_bake_collision` | `source/tools/collision` | Not a shell program | Bakes a model's [collision file](physics.md#a-models-collision-shape) |

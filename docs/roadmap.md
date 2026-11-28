@@ -48,9 +48,9 @@ on a server ([its graphical client](../../manifest/docs/roadmap.md#the-graphical
 Placed by the user on 2026-11-28: the geometry module, the cook and levels of detail for model
 files, [J37](#j37), the dense-geometry track's next stage, which the rest of that track, the
 characters track and the art standards' support stand on. Its first sub-phase, J37a, the
-`geometry` module and the cooked GLB, J37b, the loaders on its reader, and J37c, `jettison_cook`
-in one-shot mode, are done ([history](history.md#j37a)); the engine's content cooked at build time
-(J37d) and levels of detail for model files (J37e) are next.
+`geometry` module and the cooked GLB, J37b, the loaders on its reader, J37c, `jettison_cook` in
+one-shot mode, and J37d, the engine's content cooked at build time, are done
+([history](history.md#j37a)); levels of detail for model files (J37e) are next.
 
 ## Waiting on you
 
@@ -376,7 +376,7 @@ the rows below say what each stage is, what it waits on, and which backlog items
 
 | Stage | What it is | Needs | Touches |
 | --- | --- | --- | --- |
-| <a id="j37"></a>J37. The geometry module, the cook, and levels of detail for model files | Done: meshoptimizer, the CPU module `geometry` and its cooked GLB with levels of detail (J37a, [history](history.md#j37a)); the model and rig loaders on its reader, levels of detail from its primitives and KTX 2 base colours through it (J37b, [history](history.md#j37b)); `jettison_cook` cooking models and textures once, with layered settings files and a cook record over each source's references (J37c, [history](history.md#j37c)). Remaining: the engine's content cooked at build time, dense test meshes generated; levels of detail and hysteresis for model files; `SetLodThreshold` on `IRenderer`. | J36 | Takes [J27](#j27)'s level-of-detail row; takes over [J12](history.md#j12)'s baker, `Bake::CollisionShape`, for every model it cooks |
+| <a id="j37"></a>J37. The geometry module, the cook, and levels of detail for model files | Done: meshoptimizer, the CPU module `geometry` and its cooked GLB with levels of detail (J37a, [history](history.md#j37a)); the model and rig loaders on its reader, levels of detail from its primitives and KTX 2 base colours through it (J37b, [history](history.md#j37b)); `jettison_cook` cooking models and textures once, with layered settings files and a cook record over each source's references (J37c, [history](history.md#j37c)); the engine's content cooked at build time, dense test meshes generated (J37d, [history](history.md#j37d)). Remaining: levels of detail and hysteresis for model files; `SetLodThreshold` on `IRenderer`. | J36 | Takes [J27](#j27)'s level-of-detail row; takes over [J12](history.md#j12)'s baker, `Bake::CollisionShape`, for every model it cooks |
 | <a id="j38"></a>J38. The cook's watch mode | `jettison_cook --watch`: the artists' daemon, cooking a source tree outside the game's repository into its asset folder as files change. | J37 | — |
 | <a id="j39"></a>J39. The meshlet hierarchy, cooked, and its page file | Each static mesh cooked into a meshlet hierarchy (`clusterlod.h`) and a page file beside its GLB; the meshlet size chosen by measurement. | J37 | — |
 | <a id="j40"></a>J40. GPU culling and mesh-shader drawing | Instances and meshlets culled on the GPU, drawn by task and mesh shaders in the prepass, opaque pass and cascades, in a deterministic order; the indexed path the fallback. | J39 | The reference frames, the ground sample's included ([J28](history.md#j28)), recorded again |

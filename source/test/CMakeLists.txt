@@ -1,23 +1,63 @@
-# The engine's test content (content/), which render_test mounts over the engine's assets as "base"
-# and the engine's suites read: static scenes (a planet and a station at real scale, a ringed giant,
-# the transparent pass's and the post chain's benches, the texture table's, models and a skinned
-# clip), a fixture program of sixteen texture slots, their materials,
-# textures and models, a clip, a sequence, a grade and a few sounds. Its pack, content.pack beside
-# the staged tree, is built for the smoke test's packed run.
-jettison_add_assets(jettison_test_content
+# The engine's test content (content/), which render_test mounts over the engine's assets as "base":
+# static scenes (a planet and a station at real scale, a ringed giant, the transparent pass's and the
+# post chain's benches, the texture table's, models and a skinned clip), a fixture program of sixteen
+# texture slots, their materials, textures and models, a clip, a sequence, a grade and a few sounds.
+# The engine's suites read the sources; everything else reads the tree jettison_cook makes of them
+# (docs/dense-geometry-and-ray-tracing.md, "The cook"). The sources are staged as the cook's source
+# tree, content-source/, where the dense test meshes are generated beside them, and cooked into
+# content/, which the cook's record makes cheap when nothing changed, as the packer runs on every
+# build. Its pack, content.pack beside the cooked tree, is built for the smoke test's packed run.
+set(content_source "${CMAKE_CURRENT_BINARY_DIR}/content-source")
+set(content_cooked "${CMAKE_CURRENT_BINARY_DIR}/content")
+jettison_add_assets(jettison_test_content_source
 	SOURCE "${CMAKE_CURRENT_SOURCE_DIR}/content"
-	OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/content"
-	DIRECTORIES animations cinematics grades materials scene
-	CONFIGURED audio models textures
+	OUTPUT "${content_source}"
+	DIRECTORIES animations cinematics grades materials models scene
+	CONFIGURED audio textures
 	FILES mod.yaml shaders/slots.program.yaml
 )
-# The fixture programs, compiled into the staged tree beside their descriptors.
+set_property(TARGET jettison_test_content_source PROPERTY FOLDER "Test")
+
+# The dense test meshes' generator, CPU only. The same bytes in every build type: no contraction into
+# FMAs, which a build type could do differently.
+add_executable(jettison_test_meshes test_meshes.cpp)
+target_link_libraries(jettison_test_meshes PRIVATE Jettison::Core fastgltf glm jettison_warnings)
+target_compile_options(jettison_test_meshes PRIVATE -ffp-contract=off)
+set_property(TARGET jettison_test_meshes PROPERTY FOLDER "Test")
+# What it writes, named so that a mesh the staging's configure removes with the models it does not
+# know is generated again.
+set(test_meshes
+	models/asteroids/asteroid-large.glb
+	models/asteroids/asteroid-small.glb
+	models/station/station-corridor.glb
+	models/station/station-junction.glb
+	models/station/station-panel.glb
+)
+list(TRANSFORM test_meshes PREPEND "${content_source}/")
+add_custom_command(
+	OUTPUT ${test_meshes}
+	COMMAND jettison_test_meshes "${content_source}"
+	DEPENDS jettison_test_meshes
+	COMMENT "Generating the dense test meshes"
+	VERBATIM
+)
+
+add_custom_target(jettison_test_content
+	COMMAND jettison_cook "${content_source}" "${content_cooked}"
+	DEPENDS ${test_meshes}
+	COMMENT "Cooking the test content"
+	VERBATIM
+)
+add_dependencies(jettison_test_content jettison_test_content_source jettison_cook)
+set_property(TARGET jettison_test_content PROPERTY JETTISON_ASSET_DIRECTORY "${content_cooked}")
+# The fixture programs, compiled into the cooked tree beside their descriptors, which the cook leaves
+# alone, as it does every file its record does not name.
 jettison_compile_shaders(jettison_test_content content/shaders/slots.frag)
 jettison_compile_shader_variant(jettison_test_content
 	SOURCE ../../assets/shaders/mesh.vert OUTPUT content/shaders/slots.vert DEFINES UNLIT)
 set_property(TARGET jettison_test_content PROPERTY FOLDER "Test")
 jettison_add_pack(jettison_test_content_pack
-	SOURCE "${CMAKE_CURRENT_BINARY_DIR}/content"
+	SOURCE "${content_cooked}"
 	OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/content.pack"
 	DEPENDS jettison_test_content
 )

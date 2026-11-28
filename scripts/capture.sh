@@ -8,7 +8,8 @@
 #   scripts/capture.sh [options] --references [--update] [name...]      the reference frames
 #
 # The reference frames are the views source/test/frames/views.txt lists, one a line: a name, then
-# render_test's arguments, a | standing for a space within one; a view whose arguments start with
+# render_test's arguments, a | standing for a space within one and $CONTENT for the test content the
+# tree cooked (build/<preset>/source/test/content); a view whose arguments start with
 # --ground runs the ground sample instead, with the rest. Each view is captured and compared
 # with source/test/frames/<name>.png, and the run fails if any pixel differs by more than 2%
 # (another machine's lavapipe rounds a little differently), or if the validation layer reported
@@ -49,12 +50,12 @@ while [ "$#" -gt 0 ]; do
 	--icd) icd="$2"; shift 2 ;;
 	--references) references=1; shift ;;
 	--update) update=1; shift ;;
-	-h | --help) sed -n '2,28p' "$0"; exit 0 ;;
+	-h | --help) sed -n '2,29p' "$0"; exit 0 ;;
 	*) break ;;
 	esac
 done
 if [ "$references" -eq 0 ] && [ "$#" -lt 1 ]; then
-	sed -n '2,28p' "$0" >&2
+	sed -n '2,29p' "$0" >&2
 	exit 2
 fi
 
@@ -134,9 +135,10 @@ done <"$frames_dir/views.txt"
 # planet's maps on one thread.
 pids=()
 for name in "${names[@]}"; do
-	# The arguments are words, with $PWD standing for the repository and | for a space within one
-	# (a console line given to --run).
-	read -r -a args <<<"${view_args[$name]//\$PWD/$PWD}"
+	# The arguments are words, with $CONTENT standing for the cooked test content, $PWD for the
+	# repository and | for a space within one (a console line given to --run).
+	view="${view_args[$name]//\$CONTENT/$PWD/$build_dir/source/test/content}"
+	read -r -a args <<<"${view//\$PWD/$PWD}"
 	args=("${args[@]//|/ }")
 	program="$build_dir/source/test/render_test"
 	if [ "${args[0]:-}" = "--ground" ]; then

@@ -397,6 +397,15 @@ endif()
 #    this project's gate, so ASTCENC_WERROR is off.
 #  - libktx publicly defines DEBUG in Debug builds. It is linked privately by whatever uses it,
 #    so the definition stays out of public engine headers.
+#  - Two patches (patches/), applied to the clone as it stands, so a changed list applies again:
+#    - ktx-uastc-rdo-hash.patch: Basis Universal's UASTC rate-distortion pass hashes a key's
+#      padding, four bytes nothing writes, into its history table, so a lookup could miss what it
+#      holds and the same image encode to other bytes. Found by the cook's tree giving a different
+#      UASTC block one run in six (2026-11-28), and by valgrind (an uninitialised value from
+#      uastc_rdo_blocks into the table's hash); the patch hashes the key's two members alone.
+#    - ktx-writer-leak.patch: writing a texture that names its writer (KTXwriter) takes the entry
+#      out of the key-value list to append libktx's version and never frees it, which
+#      LeakSanitizer fails the cook for in the sanitised tree; the patch frees it.
 #
 # zstd, for pack files (vfs, phase 11a) and for libktx's supercompressed textures, one copy for
 # all. The library alone, static, from zstd's own CMake build: no programs, no legacy formats
@@ -443,6 +452,10 @@ block()
 	    --depth 1 --single-branch --branch v4.4.2
 	    --config filter.lfs.smudge= --config filter.lfs.process= --config filter.lfs.required=false
 	    https://github.com/KhronosGroup/KTX-Software.git <SOURCE_DIR>
+	  PATCH_COMMAND "${GIT_EXECUTABLE}" -C <SOURCE_DIR> checkout -- .
+	  COMMAND "${GIT_EXECUTABLE}" -C <SOURCE_DIR> apply
+	    "${CMAKE_CURRENT_SOURCE_DIR}/patches/ktx-uastc-rdo-hash.patch"
+	    "${CMAKE_CURRENT_SOURCE_DIR}/patches/ktx-writer-leak.patch"
 	  SYSTEM
 	  EXCLUDE_FROM_ALL
 	)

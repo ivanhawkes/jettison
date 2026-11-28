@@ -48,7 +48,7 @@ reviewed on 2026-11-10; ENet and libsodium were added on 2026-11-20, meshoptimiz
 | FreeType | 2.15.0 | `ui`, RmlUi, ImGui | Answers RmlUi's `find_package(Freetype)` |
 | RmlUi | 6.3 | `ui`, privately | |
 | miniaudio | 0.11.26 | `audio`, privately | Vorbis and Opus off; backends loaded at run time |
-| KTX-Software | v4.4.2 | `render` (`ktx_read`), `jettison_cook` (`ktx`, the encoder), never both in one program | **Held back** from v5.0.0-rc2, a release candidate on 2026-11-11; fetched in every tree; both built against the engine's zstd |
+| KTX-Software | v4.4.2 | `render` (`ktx_read`), `jettison_cook` (`ktx`, the encoder), never both in one program | **Held back** from v5.0.0-rc2, a release candidate on 2026-11-11; fetched in every tree; both built against the engine's zstd; two patches, a deterministic encoding and a leak (`source/external/CMakeLists.txt`) |
 | WAMR | 2.4.5 | `script`, privately | Fast interpreter with instruction metering; no libc or WASI ([scripts](scripts.md)) |
 | zstd | v1.5.7 | `vfs`, privately; `ktx_read` and `ktx` | The library alone, static |
 | ENet | v1.3.18 | `net`, privately | Reliable and unreliable channels over UDP ([networking](networking.md)) |
@@ -159,12 +159,14 @@ has a test preset; for another tree, use `ctest --test-dir build/<preset>`.
 - **The engine's assets** are staged beside the executable, and `jettison_assets_pack` packs them
   into `build/<preset>/assets.pack`. The shell mounts the pack when there is no directory, as in a
   shipped build ([files, packs and mods](files-and-mods.md)).
-- **The test content** (`source/test/content`) is staged and packed the same way
-  (`jettison_test_content`, `jettison_test_content_pack`), under `build/<preset>/source/test`.
+- **The test content** (`source/test/content`) is staged with the dense test meshes generated
+  beside it, cooked (`jettison_test_content`) and packed (`jettison_test_content_pack`), under
+  `build/<preset>/source/test`, in every tree that builds `render_test`
+  ([the engine's content](dense-geometry-and-ray-tracing.md#the-cook)).
 - **Executables**: `render_test` (the shell with no game, `source/test`), `ground` (the ground
   sample, `source/samples/ground`), `flotsam`, `jettison_pack`, `jettison_bake_collision` and
-  `jettison_cook` (`source/tools`). Their
-  command-line arguments are in [the app shell](app-shell.md).
+  `jettison_cook` (`source/tools`), and `jettison_test_meshes`, the build's generator of the dense
+  test meshes (`source/test`). Their command-line arguments are in [the app shell](app-shell.md).
 
 The render harness is `render_test`, not `test`: CMake reserves `test` once testing is enabled, and
 Ninja's phony `source/test/test` would collide with it.
@@ -603,7 +605,7 @@ With `--packed` the script builds `jettison_assets_pack` and `jettison_test_cont
 each test-content scene with `--assets build/<preset>/assets.pack` and
 `--content build/<preset>/source/test/content.pack`. The run fails unless the shell says, once a
 scene, that it mounted both as [packs](glossary.md#pack) and read the content's description. The
-gate's smoke test is packed, while the sanitised run and the reference frames read the staged
+gate's smoke test is packed, while the sanitised run and the reference frames read the
 directories, so every gate draws from both kinds of mount. The ground sample reads its staged
 content either way. A smoke run without `--user-dir` has a scratch user directory ([the app
 shell](app-shell.md#the-render-test)).
@@ -624,7 +626,7 @@ compares a fresh capture with, so a change that alters a picture fails until it 
 loop, on lavapipe under Xvfb: on one machine the same to the byte every run, whatever the load.
 
 ```bash
-./scripts/capture.sh out.png --scene $PWD/source/test/content/scene/orbit.yaml \
+./scripts/capture.sh out.png --scene $PWD/build/clang-headless/source/test/content/scene/orbit.yaml \
     --run "orbit 0.8 -0.1 2.0e7 ostra"                  # one frame, camera placed by a console line
 ./scripts/capture.sh --references                       # compare every view with its reference
 ./scripts/capture.sh --references corva                 # one view
@@ -661,16 +663,17 @@ its tick.
 ### The views
 
 `source/test/frames/views.txt` lists the views, one a line: a name, then `render_test`'s arguments.
-`$PWD` stands for the repository, and `|` for a space within one argument (a console line given to
+`$CONTENT` stands for the test content the tree cooked (`build/<preset>/source/test/content`), `$PWD`
+for the repository, and `|` for a space within one argument (a console line given to
 `--run`). The reference is `source/test/frames/<name>.png`. The scenes are the test content's static
 scenes (`source/test/content/scene`), but for a view whose arguments start with `--ground`, which runs
 the ground sample over its own content with the rest, so a game's look is held as the test
 content's is. For example:
 
 ```text
-ostra --scene $PWD/source/test/content/scene/orbit.yaml --run orbit|0.8|-0.1|2.0e7|ostra
-effects --scene $PWD/source/test/content/scene/effects.yaml --after-frames 180
-dock-sequence --scene $PWD/source/test/content/scene/orbit.yaml --run orbit|3.14|0.15|30|ship --run sequence|dock|1
+ostra --scene $CONTENT/scene/orbit.yaml --run orbit|0.8|-0.1|2.0e7|ostra
+effects --scene $CONTENT/scene/effects.yaml --after-frames 180
+dock-sequence --scene $CONTENT/scene/orbit.yaml --run orbit|3.14|0.15|30|ship --run sequence|dock|1
 ground --ground
 ```
 

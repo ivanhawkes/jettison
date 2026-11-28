@@ -1,0 +1,13 @@
+diff --git a/external/basisu/encoder/basisu_uastc_enc.cpp b/external/basisu/encoder/basisu_uastc_enc.cpp
+index af3b5ce..5953ee1 100644
+--- a/external/basisu/encoder/basisu_uastc_enc.cpp
++++ b/external/basisu/encoder/basisu_uastc_enc.cpp
+@@ -3819,7 +3819,7 @@ namespace basisu
+ 	{
+ 		std::size_t operator()(selector_bitsequence const& s) const noexcept
+ 		{
+-			return static_cast<std::size_t>(hash_hsieh((uint8_t *)&s, sizeof(s)) ^ s.m_sel);
++			return static_cast<std::size_t>(hash_hsieh((uint8_t *)&s.m_sel, sizeof(s.m_sel)) ^ s.m_sel ^ s.m_ofs);
+ 		}
+ 	};
+ 

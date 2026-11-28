@@ -725,8 +725,8 @@ and may declare a [quiet](#quiet-step). See [Simulation](simulation.md).
 ### Test content
 
 The engine's own test assets (`source/test/content`): scenes, models, textures, audio, grades and
-cinematics, mounted as `base` by `render_test` and read by the suites. See
-[Samples](sample-game.md).
+cinematics, cooked by the build and mounted as `base` by `render_test`, and read by the suites as
+sources. See [Samples](sample-game.md).
 
 ### Tick
 

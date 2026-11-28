@@ -107,8 +107,9 @@ on disk, for the development scenes the reference views use
 The build stages a tree with `jettison_add_assets`, which copies it beside the build on every build
 of the target, so an edit reaches the running app's copy. `jettison_use_content` makes a staged tree
 an executable's default content; each program's is listed in [the
-programs](app-shell.md#the-programs). Several engine suites also read the test content, through
-`JETTISON_TEST_CONTENT_DIR`.
+programs](app-shell.md#the-programs). The test content is cooked after it is staged ([the engine's
+content](dense-geometry-and-ray-tracing.md#the-cook)), and several engine suites read its sources,
+through `JETTISON_TEST_CONTENT_DIR`.
 
 ### Packages and `mod.yaml`
 
@@ -469,7 +470,7 @@ In the build, as the test content is packed in `source/test/CMakeLists.txt`:
 
 ```cmake
 jettison_add_pack(jettison_test_content_pack
-	SOURCE "${CMAKE_CURRENT_BINARY_DIR}/content"
+	SOURCE "${content_cooked}"
 	OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/content.pack"
 	DEPENDS jettison_test_content
 )

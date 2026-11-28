@@ -89,7 +89,8 @@ jettison/
     └── test/
         ├── main.cpp            render_test, the shell with no game, which the smoke test runs
         ├── content/            static scenes, materials, textures, models, sounds, animations,
-        │                       cinematics and grades, which the engine's suites read too
+        │                       cinematics and grades, cooked by the build; the suites read them
+        ├── test_meshes.cpp     jettison_test_meshes: the dense test meshes, made for the cook
         ├── frames/             the reference frames and their views
         ├── consumer/           the consumer project: the CPU engine fetched as a game would
         ├── devtools_alone.cpp  devtools linked alone, with no Vulkan or GLFW

@@ -274,7 +274,7 @@ flowchart LR
 **Built (J37c): one-shot mode.** `jettison_cook <source> <output>` (`source/tools/cook`, the
 library `Cook::CookTree`, `CookTree.h`, which documents the contract); the watch is
 [J38](roadmap.md#j38), the meshlet page file [J39](roadmap.md#j39), the engine's own content cooked
-at build time later in J37. As built:
+at build time below. As built:
 
 - **Outputs.** A model (`.gltf`, `.glb`) becomes `.glb` through `Geometry::CookModel`, every one of
   its images KTX 2 inside it; an image (`.png`, `.jpg`, `.jpeg`, `.tga`) no model references
@@ -292,18 +292,40 @@ at build time later in J37. As built:
 - **Colour.** A model's image is sRGB when a material names it as base colour or emission, data
   otherwise (one named as both is refused); a loose image is sRGB when its map is `color` or
   `emissive` (not `detail-color`, which the import script encodes as data). Mipmaps are a box
-  filter, in linear light for colour, where `ktx create` uses its own resampler. Normal maps keep
-  their green: a glTF's already point up, unlike the planet pack's that the import script flips.
+  filter, in linear light for colour, where `ktx create` uses its own resampler. Normal maps are
+  taken with green up, as the [content-file rule](coding-standards.md#content-files) says.
 - **The record** is `cook-record.yaml` in the output, each source's key a 64-bit FNV-1a
   (`Core::Fnv1a64`, `HashCombine`) of its bytes, its references' paths and bytes, its settings
   layers' names and text and `Cook::kCookVersion`. A copied file has no settings layers, so
   `cook.yaml` cooks again only what it applies to. A model whose bytes are unchanged is checked
   against the files its record entry lists without being parsed.
 - **The same bytes.** libktx encodes on one thread with RDO's multithreading off, which its header
-  documents as deterministic; the suite cooks one tree twice into identical outputs.
+  documents as deterministic, and with Basis Universal's RDO pass patched to hash no padding, which
+  made one run in six differ by a block (`source/external/CMakeLists.txt`); the suite cooks one
+  tree twice into identical outputs, and the test content cooks to the same bytes in the Debug and
+  sanitised trees.
 - **Checked by** the `cook` suite (`source/tools/cook/tests`), over a tree it writes: layered and
   refused settings, the record, refused names and glTF, skipping, deletion, cooking again on a
   changed buffer, image or `cook.yaml`, the same bytes twice, copies and collision files.
+
+**Built (J37d): the engine's content cooked by the build.** `source/test/CMakeLists.txt` stages
+`source/test/content` as the cook's source tree, `build/<preset>/source/test/content-source`;
+`jettison_test_meshes` (`source/test/test_meshes.cpp`) writes the dense test meshes into it; and
+`jettison_test_content` cooks it into `build/<preset>/source/test/content` on every build, as the
+packer runs, the record making a run with nothing changed cheap. That tree is what `render_test`
+mounts, the pack is made of, and the smoke test and the reference views name their scenes in
+(`$CONTENT` in `views.txt`); the engine's suites read the sources, as fixtures. Nothing cooked is
+committed, and the content logs no uncooked model.
+
+- **The dense test meshes**, under `models/asteroids` and `models/station`, GLB with positions,
+  texture coordinates and a material, no normals: two asteroids, icospheres subdivided six and five
+  times (81,920 and 20,480 triangles), lumped, cratered and stretched; and a station's kit, a ribbed
+  corridor with its inner wall (18,624), a junction of two crossed (37,248) and a grooved panel
+  (32,768). Each cooks to five levels, halving, their errors growing. Nothing random or timed, and
+  built without FMA contraction, so every build type writes the same bytes.
+- **Cost**, measured 2026-11-28 over the whole tree (77 MB, 42 sources, the planet's 75 MB of KTX 2
+  copied): a cold cook 3.0 s in Debug and 7.9 s under the sanitisers, the generator 0.1 s; a build
+  with nothing changed 0.44 s and 1.3 s, the record hashing every source.
 
 ### Cooked formats
 
