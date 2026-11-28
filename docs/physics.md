@@ -598,9 +598,32 @@ a window, and outlines what it is over in a fainter, narrower line than a select
 with `--frame-step`, whose frames are the same every run. A pick reaches 50 km (`kPickDistance`). A
 game whose `PickSpace` sets `statics` false picks and hovers only what moves.
 
+### Seeing the bodies
+
+The dev tools draw the bodies as Jolt has their shapes: the Scene panel's Physics bodies (F1), or
+the console's `bodies on`. Each body of the frame the game picks in (`Game::PickIn`) is drawn by
+Jolt's own debug renderer in wireframe, every edge of its shape's triangles, compound parts and
+offsets included, over the scene: static bodies grey, kinematic amber, dynamic green and sensors
+violet. A game that picks in no frame draws none.
+
+It is presentation, as a pick against the snapshots is: `SnapshotPicker::DrawBodies` places each
+body as `CastRay` does, between the two newest snapshots at the alpha the frame shows, from its
+shape's definition built as Jolt builds it, so the lines sit on the proxies and read no simulation
+state. The picker's frame is the scene's coordinates, as a pick's ray is cast in them, and the lines
+go to `Render::DebugDraw`, which takes the camera off in double precision. Nothing runs until it is
+turned on, the picker making Jolt's renderer at its first draw. Jolt picks a round shape's detail by
+its distance from the camera. Jolt's `JPH_DEBUG_RENDERER` is on in the Debug and Release
+configurations the presets build (`source/external/CMakeLists.txt`); it adds drawing code and no
+state, so no step, save or hash changes with it. The physics suite holds a box, a mesh and a
+compound of two placed parts to the corners Jolt draws.
+
+```bash
+scripts/capture.sh --ground bodies.png --run "bodies on"
+```
+
 ## Limits and open work
 
-- Jolt's debug renderer, Jolt's job system on more threads, tuned capacities:
+- Jolt's job system on more threads, tuned capacities:
   [J07](roadmap.md#j07).
 - A model's collision shape, baked beside it as world content the server reads (`Mesh` and
   `ConvexHull` shapes exist; nothing bakes them from a model): [J12](roadmap.md#j12).
@@ -621,14 +644,14 @@ AVX2 flags stay inside it.
 | Header | Holds |
 | --- | --- |
 | `source/engine/physics/include/jettison/physics/PhysicsWorld.h` | `PhysicsWorld`, `PhysicsSettings`, `FrameModel`, contacts, casts and overlaps, `Pick` and `Picked`, `JoltVersion` |
-| `source/engine/physics/include/jettison/physics/SnapshotPicker.h` | `SnapshotPicker`, `PickOptions`: picks against the snapshots |
+| `source/engine/physics/include/jettison/physics/SnapshotPicker.h` | `SnapshotPicker`, `PickOptions`: picks against the snapshots, and draws their bodies as Jolt has their shapes (`DrawBodies`, `BodyLine`) |
 | `source/engine/physics/include/jettison/physics/Components.h` | `Body`, `BodyKind`, `Velocity`, `OnRails`, `LocalFrame`, `RegisterTypes` |
 | `source/engine/physics/include/jettison/physics/Shape.h` | `ShapeDefinition`, `ShapeKind` |
 | `source/engine/physics/include/jettison/physics/Layer.h` | `LayerDefinition`: a collision layer and what it meets; `LayersMeet`, the rule over them |
 | `source/engine/physics/include/jettison/physics/Flight.h` | `Handling`, `FlightControls`, `SetFlightControls`, `Thrust`, `Reason`, `StepFlight` |
 
 Tests: `source/engine/physics/tests/PhysicsTests.cpp` (bodies, shapes, offsets and compounds,
-layers and groups, capacities),
+layers and groups, capacities, the bodies drawn),
 `RoomTests.cpp` (a frame model's rails, local frames, gravity and quiet steps) and
 `ReplayTests.cpp` (a recorded run pinned to a state hash, saves, and the rebuild across Jolt
 versions). Run them with `ctest --test-dir build/clang-debug -R '^physics$'`.

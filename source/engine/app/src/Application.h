@@ -257,6 +257,10 @@ class Application final : private Shell
 
 	void DrawPicked();
 
+	// The bodies of the frame the game picks in, as Jolt draws their shapes, where the snapshots draw
+	// them (SnapshotPicker::DrawBodies): the dev tools' Physics bodies, or the console's bodies.
+	void DrawBodies();
+
 	std::string Describe(entt::entity simEntity) const override;
 
 	// A reason the step gave, as the player reads it, from the newest snapshot (Reasons.h).
@@ -551,6 +555,7 @@ class Application final : private Shell
 	// on, so both line pipelines are in what the render test walks.
 	Render::DebugDraw m_debugDraw;
 	bool m_showSceneDebug{false};
+	bool m_showBodies{false};
 
 	// The renderer's cluster check over the run, which the headless run turns on and judges once the
 	// renderer is gone: copied out of it as the frame loop ends.

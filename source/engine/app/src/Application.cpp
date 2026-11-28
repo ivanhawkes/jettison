@@ -256,6 +256,28 @@ void DrawLight(
 	for (const glm::dvec3 &edge : {side, -side, up, -up})
 		draw.Line(origin, center + edge * across, color);
 }
+
+
+// A body's shape as the dev tools draw it, by what moves it: the ground and walls grey, what the
+// game moves amber, what physics moves green, and a sensor, which meets nothing, violet.
+constexpr glm::vec4 kStaticBody{0.55f, 0.6f, 0.65f, 1.0f};
+constexpr glm::vec4 kKinematicBody{1.0f, 0.65f, 0.15f, 1.0f};
+constexpr glm::vec4 kDynamicBody{0.3f, 1.0f, 0.4f, 1.0f};
+constexpr glm::vec4 kSensorBody{0.75f, 0.4f, 1.0f, 1.0f};
+
+
+glm::vec4 BodyColour(const Physics::Body &body)
+{
+	if (body.sensor)
+		return kSensorBody;
+	switch (body.kind)
+	{
+		case Physics::BodyKind::Static: return kStaticBody;
+		case Physics::BodyKind::Kinematic: return kKinematicBody;
+		case Physics::BodyKind::Dynamic: return kDynamicBody;
+	}
+	return kDynamicBody;
+}
 } // namespace
 
 namespace
@@ -532,6 +554,16 @@ Application::Application(
 		    m_pRenderer->SetDebugView(found->second);
 	    });
 	m_console.RegisterCommand(
+	    "bodies",
+	    "Draws the physics bodies of the frame the game picks in as Jolt has their shapes, as the "
+	    "Scene panel's Physics bodies does, or stops: bodies [on|off]",
+	    [this](DevTools::Console &, std::span<const std::string> arguments)
+	    {
+		    if (!arguments.empty() && arguments[0] != "on" && arguments[0] != "off")
+			    throw std::invalid_argument{"takes on or off"};
+		    m_showBodies = arguments.empty() ? !m_showBodies : arguments[0] == "on";
+	    });
+	m_console.RegisterCommand(
 	    "sequence",
 	    "Plays a cinematic in cinematics/ from a time in seconds, on the active camera, or stops "
 	    "the one playing: sequence <name> [seconds] | stop",
@@ -751,6 +783,13 @@ void Application::RegisterFrameSystems()
 				     DrawLight(m_debugDraw, *light, origin, -basis[2]);
 		     }
 	     }});
+
+	m_frame.Register(
+	    {"shell.bodies",
+	     TickPhase::Presentation,
+	     {},
+	     {"scene.debug"},
+	     [this](entt::registry &, double) { DrawBodies(); }});
 
 	// Before the render, so a texture or material that finished loading, or reloaded, draws this
 	// frame.
@@ -1500,6 +1539,7 @@ void Application::DrawScenePanel()
 		if (ImGui::Checkbox(name, &visible))
 			m_pScene->SetLayerVisible(layer, visible);
 	}
+	ImGui::Checkbox("Physics bodies", &m_showBodies);
 	ImGui::End();
 }
 
@@ -2327,6 +2367,25 @@ void Application::DrawPicked()
 	if (ImGui::Begin("Picked", nullptr, kOverlay))
 		ImGui::Text("%s  %.0f m", Describe(m_picked->entity).c_str(), m_picked->distance);
 	ImGui::End();
+}
+
+
+void Application::DrawBodies()
+{
+	if (!m_showBodies || !m_pPicker)
+		return;
+	const std::optional<PickSpace> space = m_pGame->PickIn(*this);
+	if (!space)
+		return;
+	JETTISON_PROFILE_ZONE("shell.bodies");
+
+	// The frame the game picks in is the scene's coordinates, as a pick's ray is cast in them; the
+	// snapshots and alpha are the ones the sync phase placed the proxies at.
+	m_pPicker->DrawBodies(
+	    m_simStepper->Previous(), m_simStepper->Current(), m_simStepper->Alpha(), space->frame,
+	    Render::ActiveCameraView(m_pScene->Registry()).position,
+	    [this](entt::entity, const Physics::Body &body, const glm::dvec3 &from, const glm::dvec3 &to)
+	    { m_debugDraw.Line(from, to, BodyColour(body), Render::DebugDepth::Overlay); });
 }
 
 

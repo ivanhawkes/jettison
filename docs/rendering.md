@@ -469,7 +469,8 @@ The debug views make a lighting problem visible rather than inferred:
 
 `Render::DebugDraw` collects lines (axes, boxes, spheres, circles) any system adds during the
 frame, in double precision. The renderer makes them camera-relative and draws them into the HDR
-target, depth-tested or over everything.
+target, depth-tested or over everything. The dev tools draw the physics bodies' shapes through it
+([physics](physics.md#seeing-the-bodies)).
 
 ## Using it
 

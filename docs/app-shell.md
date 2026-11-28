@@ -173,6 +173,7 @@ flowchart LR
 | `camera.rig`, `camera.sequence` | The orbit and pilot cameras, then a cinematic over them |
 | `audio.update` | The listener at the camera, clip events, sources and the mixer ([audio](audio.md)) |
 | `scene.debug` | Each mesh's axes and each light, when F2 shows them |
+| `shell.bodies` | The bodies of the frame the game picks in, as Jolt has their shapes, when the Scene panel's Physics bodies or `bodies on` shows them ([seeing the bodies](physics.md#seeing-the-bodies)) |
 | `resource.update` | Finishes loads and hot reloads, so a reloaded file draws this frame |
 | `scripts.reload` | Loads again a script whose module changed, where resources hot-reload ([scripts](scripts.md#loading-again)) |
 | `shell.ui`, `shell.marks`, `ui.update` | The dev tools and the pick's marker (where it hit, the surface's normal, and an overlay naming it and its distance); the outline on what is picked; the game UI: a document whose files changed read again, where resources hot-reload, then `Game::UpdateUi` ([reloading](ui.md#reloading-and-the-debugger)) |
@@ -251,7 +252,7 @@ The shell's keys are in an input context of its own, `shell`, at the bottom of t
 
 | Key | Action |
 | --- | --- |
-| F1 | Shows or hides the dev tools: the Dev tools window (the console, ImGui's demo and metrics, the theme), the Renderer and Scene panels, and the game's panels |
+| F1 | Shows or hides the dev tools: the Dev tools window (the console, ImGui's demo and metrics, the theme), the Renderer and Scene panels (the scene's layers, and Physics bodies), and the game's panels |
 | ` (grave accent) | Opens or closes the console |
 | Escape | Closes the first that is open: the console, the dev tools, the saves screen, the game's (`Game::Back`), a cinematic; otherwise ends the run |
 | F2 | Shows or hides the scene's debug lines |
@@ -283,6 +284,7 @@ messages are in it. A game adds its own commands in `Game::AddCommands`. The she
 | `orbit <yaw> <pitch> <distance> [target]` | Places the orbit camera at once, in radians and metres, about a target or a scene entity's id |
 | `sequence <name> [seconds]`, `sequence stop` | Plays a cinematic from `cinematics/` on the active camera, or stops it |
 | `grade <name> [strength]`, `grade off` | Grades the frame by a `.cube` table in `grades/` |
+| `bodies [on or off]` | Draws the physics bodies as Jolt has their shapes, as the Scene panel's Physics bodies does ([physics](physics.md#seeing-the-bodies)) |
 | `scripts` | Lists the loaded scripts, their calls, traps and fuel ([scripts](scripts.md)) |
 | `script_bindings <directory>` | Writes the C and Rust bindings for this build's types |
 | `crash fault, assert or exception` | Ends the run as a defect would, to see the crash report |
@@ -388,7 +390,8 @@ build/clang-debug/source/samples/ground/ground --frame-step 0.0166666666666667 \
 ```
 
 `scripts/capture.sh <out.png> [render_test arguments...]` wraps the first form on lavapipe under
-Xvfb, and `--references` runs every reference view.
+Xvfb, and `--references` runs every reference view; `--ground` runs the ground sample in its place,
+for a frame of a game's world, such as its bodies with `--run "bodies on"`.
 
 ### Running the render test
 

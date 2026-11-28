@@ -19,6 +19,8 @@
 #
 # Options:
 #  --preset NAME   CMake preset to build and run (default: clang-headless)
+#  --ground        Run the ground sample (source/samples/ground) in place of render_test, for a
+#                  frame of a game's world: its bodies, say (the console's bodies on)
 #  --no-build      Run the tree as it is
 #  --window WxH    The frame's size (default: 960x540)
 #  --frames N      Frames drawn with nothing loading before the one captured (default: 30)
@@ -35,29 +37,31 @@ frames=30
 icd=""
 references=0
 update=0
+program="test/render_test"
 while [ "$#" -gt 0 ]; do
 	case "$1" in
 	--preset) preset="$2"; shift 2 ;;
+	--ground) program="samples/ground/ground"; shift ;;
 	--no-build) build=0; shift ;;
 	--window) window="$2"; shift 2 ;;
 	--frames) frames="$2"; shift 2 ;;
 	--icd) icd="$2"; shift 2 ;;
 	--references) references=1; shift ;;
 	--update) update=1; shift ;;
-	-h | --help) sed -n '2,23p' "$0"; exit 0 ;;
+	-h | --help) sed -n '2,25p' "$0"; exit 0 ;;
 	*) break ;;
 	esac
 done
 if [ "$references" -eq 0 ] && [ "$#" -lt 1 ]; then
-	sed -n '2,23p' "$0" >&2
+	sed -n '2,25p' "$0" >&2
 	exit 2
 fi
 
 build_dir="build/$preset"
-executable="$build_dir/source/test/render_test"
+executable="$build_dir/source/$program"
 if [ "$build" -eq 1 ]; then
 	cmake --preset "$preset" >/dev/null
-	cmake --build --preset "$preset" --target render_test >/dev/null
+	cmake --build --preset "$preset" --target "$(basename "$program")" >/dev/null
 fi
 [ -x "$executable" ] || { echo "capture: no executable at $executable" >&2; exit 1; }
 headless_use_lavapipe "$icd" || exit 1
