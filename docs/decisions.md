@@ -313,6 +313,11 @@ What moves a frame's bodies and what pulls in it are under [Physics](#physics).
   without the presentation directories; a mod whose `mod.yaml` says `side: client` is cosmetic,
   which a server ignores and players need not match; and a client checks on connecting that it holds
   the server's world content ([files, packs and mods](files-and-mods.md#the-servers-world-content)). [Files, packs and mods](files-and-mods.md)
+- **A `requires` names a mod by its identifier, on every end** (2026-11-28, the user's). A mod mounts as
+  `mod:<identifier>` in the shell, its session and a server alike, and a package names a mod it needs
+  by the identifier alone (`requires: [copper]`), `Host::Fulfils` finding the mount; the mount form
+  (`mod:copper`) is refused as the description is read, naming the identifier, so one `mod.yaml`
+  serves a client and a server. [Files, packs and mods](files-and-mods.md)
 
 ## Scripts
 

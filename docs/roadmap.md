@@ -369,19 +369,6 @@ Until then RmlUi's defaults draw nothing for them, and no screen uses them.
 Loose ends of the [samples](sample-game.md), for when a sample is next extended; none is an engine
 requirement.
 
-<a id="j28"></a>
-### J28. The ground sample's frames held
-
-**What remains.** `scripts/capture.sh` taking the executable to run, and a ground view in
-`source/test/frames/views.txt`, so a [reference frame](glossary.md#reference-frame-image) holds the
-ground sample's look.
-
-**Why.** `capture.sh` runs `render_test` alone, so the ground sample's scene and chase camera were
-checked once, by eye. It matters before Manifest's graphical client, when a second game's look
-counts.
-
-**Feature doc:** [samples](sample-game.md); [reference frames](build-and-gates.md#reference-frames).
-
 <a id="j29"></a>
 ### J29. The ground sample's loose ends
 
@@ -408,7 +395,7 @@ the rows below say what each stage is, what it waits on, and which backlog items
 | <a id="j37"></a>J37. The geometry module, the cook, and levels of detail for model files | meshoptimizer added; the CPU module `geometry`; `jettison_cook` cooking models and textures once, with layered settings files and a cook record over each source's references; the cooked GLB's reader for models, rigs and KTX 2 textures; the engine's content cooked at build time, dense test meshes generated; levels of detail and hysteresis for model files; `SetLodThreshold` on `IRenderer`. | J36 | Takes [J27](#j27)'s level-of-detail row; leaves [J12](#j12) small |
 | <a id="j38"></a>J38. The cook's watch mode | `jettison_cook --watch`: the artists' daemon, cooking a source tree outside the game's repository into its asset folder as files change. | J37 | — |
 | <a id="j39"></a>J39. The meshlet hierarchy, cooked, and its page file | Each static mesh cooked into a meshlet hierarchy (`clusterlod.h`) and a page file beside its GLB; the meshlet size chosen by measurement. | J37 | — |
-| <a id="j40"></a>J40. GPU culling and mesh-shader drawing | Instances and meshlets culled on the GPU, drawn by task and mesh shaders in the prepass, opaque pass and cascades, in a deterministic order; the indexed path the fallback. | J39 | [J28](#j28)'s frames recorded again |
+| <a id="j40"></a>J40. GPU culling and mesh-shader drawing | Instances and meshlets culled on the GPU, drawn by task and mesh shaders in the prepass, opaque pass and cascades, in a deterministic order; the indexed path the fallback. | J39 | The reference frames, the ground sample's included ([J28](history.md#j28)), recorded again |
 | <a id="j41"></a>J41. Occlusion culling | Two passes against a depth pyramid; scope says In. | J40 | — |
 | <a id="j42"></a>J42. Ray-tracing foundation | Bottom-level structures per model from one cooked level, the TLAS each frame in render space, the build pass, refits from [J51](#j51)'s deform pass, hits' materials read through [J68](history.md#j68)'s texture table. | J37, J51, J68 | — |
 | <a id="j43"></a>J43. Streaming | Meshlet pages read as the view needs them, through ranged VFS reads, into a pool of fixed-size pages; the coarsest levels always loaded; one memory budget over the GPU's geometry, with an order for giving way when it cannot hold. | J40 | Changes the model cache, whose prefetch a scene's load holds for ([J13](history.md#j13)) |
