@@ -9,7 +9,9 @@ jettison_add_module(physics
 		reflect
 		serialise
 		sim
+		vfs
 	HEADERS
+		include/jettison/physics/CollisionFile.h
 		include/jettison/physics/Components.h
 		include/jettison/physics/Flight.h
 		include/jettison/physics/Layer.h
@@ -17,6 +19,7 @@ jettison_add_module(physics
 		include/jettison/physics/Shape.h
 		include/jettison/physics/SnapshotPicker.h
 	SOURCES
+		src/CollisionFile.cpp
 		src/Components.cpp
 		src/Convert.h
 		src/Flight.cpp
@@ -30,6 +33,7 @@ jettison_add_module(physics
 		src/Shapes.h
 		src/SnapshotPicker.cpp
 	TESTS
+		tests/CollisionFileTests.cpp
 		tests/PhysicsTests.cpp
 		tests/ReplayTests.cpp
 		tests/RoomTests.cpp

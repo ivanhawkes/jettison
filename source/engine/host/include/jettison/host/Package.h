@@ -19,10 +19,11 @@ inline constexpr std::uint32_t kPackageFormatVersion = 1;
 // shell's mounts, its session's and a server's, so one mod is one package on every end.
 inline constexpr std::string_view kModMountPrefix = "mod:";
 
-// The directories that hold the world, which a server reads: definitions and scripts. The rest of a
-// package (models, textures, scenes, UI, sounds, string tables) is presentation. Cooked collision
-// shapes join them once the cook writes them (J12).
-inline constexpr std::array<std::string_view, 2> kWorldDirectories{"defs", "scripts"};
+// The directories that hold the world, which a server reads: definitions, scripts and the collision
+// files baked from models (Physics::ReadCollisionFile), so a server collides as a client does and
+// reads no model. The rest of a package (models, textures, scenes, UI, sounds, string tables) is
+// presentation.
+inline constexpr std::array<std::string_view, 3> kWorldDirectories{"defs", "scripts", "collision"};
 
 // Which side of a networked game a package is for ("side" in mod.yaml): both, the default, or the
 // client alone, as a cosmetic mod is. A server leaves a client's package out, and its players need not

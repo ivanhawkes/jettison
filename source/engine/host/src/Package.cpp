@@ -120,7 +120,8 @@ Vfs::PackSummary WriteServerPack(
 			options.paths.emplace_back(world);
 	if (options.paths.empty())
 		throw std::runtime_error{std::format(
-		    "{} holds no world content, under defs or scripts, for a server", directory.string())};
+		    "{} holds no world content, under defs, scripts or collision, for a server",
+		    directory.string())};
 	if (description)
 		options.paths.emplace_back(kPackageDescriptionFile);
 	return Vfs::WritePack(directory, pack, std::move(options));
@@ -131,6 +132,7 @@ void CheckSide(const PackageDescription &description, const std::filesystem::pat
 {
 	if (description.side == Side::Client && HoldsWorld(source))
 		throw std::runtime_error{
-		    "it is for the client alone (side: client) yet holds world content, under defs or scripts"};
+		    "it is for the client alone (side: client) yet holds world content, under defs, scripts or "
+		    "collision"};
 }
 } // namespace Jettison::Host

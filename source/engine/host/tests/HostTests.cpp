@@ -553,14 +553,21 @@ TEST_CASE("Host: a server pack holds a package's description and world, and none
 	scratch.Put("content/scripts/rain.wasm", "rain");
 	scratch.Put("content/textures/barn.png", "red");
 	scratch.Put("content/strings/en/farm.yaml", "version: 1\n");
+
+	// A model's collision file is the world's, and the model presentation's.
+	scratch.Put("content/models/barn.glb", "barn");
+	scratch.Put("content/collision/barn.collision", "barn's shape");
 	const Vfs::PackSummary summary =
 	    Host::WriteServerPack(scratch.Path("content"), scratch.Path("server.pack"));
-	CHECK(summary.files == 3);
+	CHECK(summary.files == 4);
 	Vfs::FileSystem packed;
 	packed.AddMount({"farm", scratch.Path("server.pack")});
 	CHECK(
 	    packed.Enumerate("") ==
-	    std::vector<std::string>{"defs/crops/wheat.yaml", "mod.yaml", "scripts/rain.wasm"});
+	    std::vector<std::string>{
+	        "collision/barn.collision", "defs/crops/wheat.yaml", "mod.yaml", "scripts/rain.wasm"});
+	scratch.Put("shapes/collision/barn.collision", "barn's shape");
+	CHECK(Host::HoldsWorld(scratch.Path("shapes")));
 	CHECK(Host::DescribePackage(scratch.Path("server.pack"))->name == "Farm");
 
 	// A server session runs on it as on the directory.
