@@ -4,6 +4,7 @@
 // Jolt.h has to come first.
 #include <Jolt/Core/JobSystemSingleThreaded.h>
 #include <Jolt/Core/TempAllocator.h>
+#include <Jolt/Geometry/AABox.h>
 #include <Jolt/Physics/Body/BodyCreationSettings.h>
 #include <Jolt/Physics/Body/BodyFilter.h>
 #include <Jolt/Physics/Body/BodyLock.h>
@@ -15,6 +16,7 @@
 #include <Jolt/Physics/Collision/NarrowPhaseQuery.h>
 #include <Jolt/Physics/Collision/ObjectLayer.h>
 #include <Jolt/Physics/Collision/RayCast.h>
+#include <Jolt/Physics/Collision/Shape/Shape.h>
 #include <Jolt/Physics/Collision/Shape/SphereShape.h>
 #include <Jolt/Physics/Collision/ShapeCast.h>
 #include <Jolt/Physics/EPhysicsUpdateError.h>
@@ -232,6 +234,31 @@ std::optional<std::string> Unmakeable(
 		return std::format(
 		    "is static in the frame of '{}', which carries it: what a frame carries is kinematic",
 		    key.localFrame);
+	return std::nullopt;
+}
+
+
+// Why a body cannot be placed as its record has it in a world whose frame's origin is the one
+// given, or nothing. Jolt asserts on a body whose bounds are past its broad phase's range, as it
+// works them out, or that is not turned by a rotation, which a save can give (the save fuzz target's
+// save-crash-bounds.bin), and no world that ran could have saved.
+std::optional<std::string> Unplaceable(
+    const Sim::Transform &placed, const glm::dvec3 &origin, const ShapeEntry &shape)
+{
+	const JPH::Quat turn = Detail::ToJolt(placed.orientation).Normalized();
+	if (!turn.IsNormalized())
+		return std::format(
+		    "is turned by ({}, {}, {}, {}), which is not a rotation", placed.orientation.w,
+		    placed.orientation.x, placed.orientation.y, placed.orientation.z);
+	const JPH::RVec3 at = Detail::ToJolt(placed.position - origin);
+	const JPH::AABox bounds = shape.shape->GetWorldSpaceBounds(
+	    JPH::RMat44::sRotationTranslation(turn, at + turn * shape.shape->GetCenterOfMass()),
+	    JPH::Vec3::sOne());
+	if (!JPH::AABox{JPH::Vec3::sReplicate(-JPH::cLargeFloat), JPH::Vec3::sReplicate(JPH::cLargeFloat)}
+	         .Contains(bounds))
+		return std::format(
+		    "is at ({}, {}, {}) in its world, past the {} m from its origin Jolt's broad phase holds",
+		    at.GetX(), at.GetY(), at.GetZ(), JPH::cLargeFloat);
 	return std::nullopt;
 }
 
@@ -1807,10 +1834,14 @@ std::function<void()> PhysicsWorld::Load(
 			reader.Read(record.body);
 			reader.Read(record.placed);
 			reader.Read(record.velocity);
-			const auto finite = [](const glm::vec3 &vector)
-			{ return std::isfinite(vector.x) && std::isfinite(vector.y) && std::isfinite(vector.z); };
-			if (!finite(record.velocity.linear) || !finite(record.velocity.angular))
-				reader.Fail(std::format("{} has a velocity that is not finite", Describe(entity)));
+			// Jolt asserts on a velocity whose square in a float is not finite as it clamps it (Make).
+			const auto holds = [](const glm::vec3 &vector)
+			{ return std::isfinite(Detail::ToJolt(vector).LengthSq()); };
+			if (!holds(record.velocity.linear) || !holds(record.velocity.angular))
+				reader.Fail(
+				    std::format(
+				        "{} has a velocity that is not finite, or whose square a float cannot hold",
+				        Describe(entity)));
 
 			// Jolt's state says what sleeps, and a rebuild has to be told.
 			bool asleep = false;
@@ -1819,8 +1850,10 @@ std::function<void()> PhysicsWorld::Load(
 				reader.Fail(
 				    std::format("{} has body index {}, which is not free", Describe(entity), index));
 			const ShapeEntry *shape = impl.FindShape(record.body.shape);
-			if (const std::optional<std::string> problem =
-			        Unmakeable(record.body, shape, key, impl.layerNumbers))
+			std::optional<std::string> problem = Unmakeable(record.body, shape, key, impl.layerNumbers);
+			if (!problem)
+				problem = Unplaceable(record.placed, world->frameOrigin, *shape);
+			if (problem)
 				reader.Fail(std::format("{} cannot be a body: it {}", Describe(entity), *problem));
 			record.key = key;
 			record.id = JPH::BodyID{index, sequences[index]};

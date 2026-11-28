@@ -657,6 +657,70 @@ TEST_CASE("Physics replay: a contact cache's movement that is not finite is refu
 }
 
 
+TEST_CASE("Physics replay: a body's record Jolt would assert on as it made the body is refused")
+{
+	// Placed past Jolt's range, turned by no rotation, or moving faster than a float squares (the
+	// save fuzz target's save-crash-bounds.bin and its velocity's square). Each value is the last
+	// copy of the body's before Halcyon's Jolt state: its component comes first, then its record. The
+	// paddle turns where it was launched.
+	Sim::SimWorld original{kStep, kSeed};
+	Populate(original);
+	Run(original, 180);
+	const std::vector<std::byte> save = original.Save();
+	constexpr std::size_t kBodies = 1 + 4 + 12;
+	const std::vector<JoltState> states = JoltStates(save);
+	const auto halcyon = std::ranges::find_if(
+	    states,
+	    [&](const JoltState &state)
+	    {
+		    std::uint32_t count = 0;
+		    std::memcpy(&count, &save[state.at + kBodies], sizeof count);
+		    return count > 2;
+	    });
+	REQUIRE(halcyon != states.end());
+	const auto inRecord = [&](const auto &value)
+	{
+		const auto *bytes = reinterpret_cast<const std::byte *>(&value);
+		const auto end = save.begin() + static_cast<std::ptrdiff_t>(halcyon->at);
+		const auto found = std::ranges::find_end(save.begin(), end, bytes, bytes + sizeof value);
+		REQUIRE(found.begin() != end);
+		return static_cast<std::size_t>(found.begin() - save.begin());
+	};
+	const std::size_t place = inRecord(glm::dvec3{0.0, -10.0, 0.0});
+	const std::size_t turn = inRecord(original.Registry().get<Sim::Transform>(Id(1)).orientation);
+	const std::size_t moving = inRecord(original.Registry().get<Velocity>(Id(2)).linear);
+	const auto changed = [&](std::size_t at, auto value)
+	{
+		std::vector<std::byte> bytes = save;
+		std::memcpy(&bytes[at], &value, sizeof value);
+		return bytes;
+	};
+
+	Sim::SimWorld loaded{kStep, 1};
+	Populate(loaded);
+	REQUIRE(LoadsAndSteps(loaded, save));
+	CHECK_THROWS_WITH_AS(
+	    loaded.Load(changed(place, 2.0e15)), doctest::Contains("Jolt's broad phase holds"),
+	    Serialise::FormatError);
+	CHECK_THROWS_WITH_AS(
+	    loaded.Load(changed(place + sizeof(double), std::numeric_limits<double>::quiet_NaN())),
+	    doctest::Contains("Jolt's broad phase holds"), Serialise::FormatError);
+	CHECK_THROWS_WITH_AS(
+	    loaded.Load(changed(turn, glm::dquat{0.0, 0.0, 0.0, 0.0})),
+	    doctest::Contains("which is not a rotation"), Serialise::FormatError);
+	CHECK_THROWS_WITH_AS(
+	    loaded.Load(changed(moving, 1.0e20f)), doctest::Contains("whose square a float cannot hold"),
+	    Serialise::FormatError);
+	CHECK_THROWS_WITH_AS(
+	    loaded.Load(changed(moving, std::numeric_limits<float>::infinity())),
+	    doctest::Contains("velocity that is not finite"), Serialise::FormatError);
+
+	// Far out but in range, and fast but within what Jolt clamps, it loads and steps.
+	CHECK(LoadsAndSteps(loaded, changed(place, 1.0e12)));
+	CHECK(LoadsAndSteps(loaded, changed(moving, 1.0e18f)));
+}
+
+
 TEST_CASE("Physics replay: a save of another Jolt is made again from its records, and steps on")
 {
 	// Saved at step 180, as three pairs touch: a ball and a shard against the bay's walls, and the

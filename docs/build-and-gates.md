@@ -756,9 +756,8 @@ side, most of it the KTX 2 seeds' transcoding, measured 2026-11-28). A target wi
 and builds the tree as needed, and fuzzes the target over its working corpus,
 `build/clang-fuzz/fuzz/<target>/corpus`, which keeps each input that reached new code for the next run,
 and its seeds. An input that fails is written beside it as `crash-<sha1>`, `leak-`, `oom-` or
-`timeout-`; the target given that file alone runs it again. The devenv shell has no
-`llvm-symbolizer`, so the sanitisers' stacks are addresses: `addr2line -f -C -i -e <target> <offset>`
-names them. `--list` lists the targets.
+`timeout-`; the target given that file alone runs it again. The sanitisers and libFuzzer name its stack's frames
+through the devenv's `llvm-symbolizer`. `--list` lists the targets.
 
 **A crash becomes a test.** The defect is fixed at its cause, in the loader's one check function or
 the library's patch, and the input becomes a case of the module's suite: built in the test when it

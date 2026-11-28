@@ -159,12 +159,15 @@ if(JETTISON_PRESENTATION)
 		set(RMLUI_LUA_BINDINGS OFF)
 		set(RMLUI_TRACY_PROFILING OFF)
 		set(RMLUI_WARNINGS_AS_ERRORS OFF)
+		jettison_patches_hash(rmlui_patches_hash
+			"${CMAKE_CURRENT_SOURCE_DIR}/patches/rmlui-null-glyphs.patch")
 		FetchContent_Declare(
 		  RmlUi
 		  GIT_REPOSITORY https://github.com/mikke89/RmlUi.git
 		  GIT_TAG 6.3
 		  GIT_SHALLOW TRUE
 		  PATCH_COMMAND "${GIT_EXECUTABLE}" -C <SOURCE_DIR> checkout -- .
+		  COMMAND "${CMAKE_COMMAND}" -E echo "patches ${rmlui_patches_hash}"
 		  COMMAND "${GIT_EXECUTABLE}" -C <SOURCE_DIR> apply "${CMAKE_CURRENT_SOURCE_DIR}/patches/rmlui-null-glyphs.patch"
 		  SYSTEM
 		  EXCLUDE_FROM_ALL
@@ -321,11 +324,14 @@ target_include_directories(FastNoiseLite SYSTEM INTERFACE "${fastnoiselite_SOURC
 # animation and render suites for once the sanitised tree compiled C with the sanitisers
 # (2026-11-28). The patch masks the shift to 0, what x86-64 does with the shift as written, so the
 # same tangents come out. The repository has had no commit since 2020.
+jettison_patches_hash(mikktspace_patches_hash
+	"${CMAKE_CURRENT_SOURCE_DIR}/patches/mikktspace-rotate-shift.patch")
 FetchContent_Declare(
   mikktspace
   GIT_REPOSITORY https://github.com/mmikk/MikkTSpace.git
   GIT_TAG 3e895b49d05ea07e4c2133156cfa94369e19e409
   PATCH_COMMAND "${GIT_EXECUTABLE}" -C <SOURCE_DIR> checkout -- .
+  COMMAND "${CMAKE_COMMAND}" -E echo "patches ${mikktspace_patches_hash}"
   COMMAND "${GIT_EXECUTABLE}" -C <SOURCE_DIR> apply
     "${CMAKE_CURRENT_SOURCE_DIR}/patches/mikktspace-rotate-shift.patch"
   SOURCE_SUBDIR _fetchcontent_no_cmake
@@ -505,7 +511,9 @@ block()
 	jettison_patches_hash(ktx_patches_hash
 		"${CMAKE_CURRENT_SOURCE_DIR}/patches/ktx-uastc-rdo-hash.patch"
 		"${CMAKE_CURRENT_SOURCE_DIR}/patches/ktx-writer-leak.patch"
-		"${CMAKE_CURRENT_SOURCE_DIR}/patches/ktx-short-header-leak.patch")
+		"${CMAKE_CURRENT_SOURCE_DIR}/patches/ktx-short-header-leak.patch"
+		"${CMAKE_CURRENT_SOURCE_DIR}/patches/ktx-method-types.patch"
+		"${CMAKE_CURRENT_SOURCE_DIR}/patches/ktx-etc1s-data.patch")
 	FetchContent_Declare(
 	  KTX-Software
 	  DOWNLOAD_COMMAND "${CMAKE_COMMAND}" -E rm -rf <SOURCE_DIR>
@@ -644,12 +652,15 @@ add_subdirectory(wamr)
 # a datagram's header length is taken as the address of a member of a null pointer, which UBSan stops
 # net's suite for (member access within null pointer, protocol.c) once the sanitised tree compiles C
 # with the sanitisers (2026-11-28); the patch uses offsetof, the same number defined.
+jettison_patches_hash(enet_patches_hash
+	"${CMAKE_CURRENT_SOURCE_DIR}/patches/enet-offsetof.patch")
 FetchContent_Declare(
   enet
   GIT_REPOSITORY https://github.com/lsalzman/enet.git
   GIT_TAG v1.3.18
   GIT_SHALLOW TRUE
   PATCH_COMMAND "${GIT_EXECUTABLE}" -C <SOURCE_DIR> checkout -- .
+  COMMAND "${CMAKE_COMMAND}" -E echo "patches ${enet_patches_hash}"
   COMMAND "${GIT_EXECUTABLE}" -C <SOURCE_DIR> apply "${CMAKE_CURRENT_SOURCE_DIR}/patches/enet-offsetof.patch"
   SYSTEM
 )

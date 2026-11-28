@@ -8,6 +8,7 @@
 #include <cstdint>
 #include <functional>
 #include <memory>
+#include <set>
 #include <span>
 #include <string>
 #include <string_view>
@@ -61,6 +62,10 @@ struct SnapshotInput
 	// save fuzz target found a component's storage naming (snapshot.hpp, 2026-11-28).
 	const entt::registry *pRegistry{nullptr};
 
+	// The entities a component's storage has given it to: EnTT's loader asserts on one given it twice,
+	// which the save fuzz target found (sparse_set.hpp, 2026-11-28).
+	std::set<entt::entity> given;
+
 	// Every counted item is at least an entity's four bytes, so a count the data cannot hold is
 	// refused before the loader reserves storage for it.
 	void operator()(std::uint32_t &count)
@@ -73,8 +78,12 @@ struct SnapshotInput
 	void operator()(entt::entity &entity)
 	{
 		reader.Read(entity);
-		if (pRegistry != nullptr && entity != entt::null && !pRegistry->valid(entity))
+		if (pRegistry == nullptr || entity == entt::null)
+			return;
+		if (!pRegistry->valid(entity))
 			reader.Fail("a component is given to an entity the save does not hold");
+		if (!given.insert(entity).second)
+			reader.Fail("a component is given to an entity twice");
 	}
 
 	template <typename T> void operator()(T &component)
@@ -196,26 +205,27 @@ class SimWorld
 	template <typename T> void RegisterComponent(ComponentMigrations migrations)
 	{
 		AddComponent(
-		    entt::resolve<T>(), {[](const entt::registry &registry, Serialise::BinaryWriter &writer)
-		                         {
-			                         Detail::SnapshotOutput output{writer};
-			                         entt::snapshot{registry}.get<T>(output);
-		                         },
-		                         [](entt::snapshot_loader &loader, const entt::registry &registry,
-		                            Serialise::BinaryReader &reader, const ComponentMigrations &chain,
-		                            std::uint32_t version)
-		                         {
-			                         if (version == chain.Current().version)
-			                         {
-				                         Detail::SnapshotInput input{reader, &registry};
-				                         loader.get<T>(input);
-				                         return;
-			                         }
-			                         Detail::MigratingInput input{{reader, &registry}, chain, version};
-			                         loader.get<T>(input);
-		                         },
-		                         {},
-		                         std::move(migrations)});
+		    entt::resolve<T>(),
+		    {[](const entt::registry &registry, Serialise::BinaryWriter &writer)
+		     {
+			     Detail::SnapshotOutput output{writer};
+			     entt::snapshot{registry}.get<T>(output);
+		     },
+		     [](entt::snapshot_loader &loader, const entt::registry &registry,
+		        Serialise::BinaryReader &reader, const ComponentMigrations &chain,
+		        std::uint32_t version)
+		     {
+			     if (version == chain.Current().version)
+			     {
+				     Detail::SnapshotInput input{reader, &registry, {}};
+				     loader.get<T>(input);
+				     return;
+			     }
+			     Detail::MigratingInput input{{reader, &registry, {}}, chain, version};
+			     loader.get<T>(input);
+		     },
+		     {},
+		     std::move(migrations)});
 	}
 
 	// How a command is applied. Throws std::logic_error for a type Reflect does not know or one

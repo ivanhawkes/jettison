@@ -380,7 +380,7 @@ void SimWorld::Load(std::span<const std::byte> save)
 
 	entt::registry registry;
 	entt::snapshot_loader loader{registry};
-	EntityInput entities{{reader, nullptr}, {}, {}};
+	EntityInput entities{{reader, nullptr, {}}, {}, {}};
 	loader.get<entt::entity>(entities);
 	const auto componentCount = static_cast<std::uint32_t>(reader.ReadUnsigned(4));
 	std::vector<std::string_view> seen;

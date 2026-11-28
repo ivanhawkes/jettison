@@ -165,7 +165,8 @@ saved without a version is read as version 1.
 
 `SimWorld::Load` reads everything into locals and commits only at the end, so a save that does not
 fit leaves the world as it was. It refuses, naming the cause, a component, command or service the
-world does not register, one given twice, a service missing from the save, and a storage at a
+world does not register, one given twice, an entity listed twice, a component given to an entity
+twice or to one the save does not hold, a service missing from the save, and a storage at a
 version its chain does not reach. A service reads its state against the registry and the command
 queue it will have, and hands back what puts that state in place once they are committed.
 

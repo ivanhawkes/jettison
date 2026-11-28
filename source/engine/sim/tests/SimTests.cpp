@@ -734,6 +734,23 @@ TEST_CASE("Sim: a save that does not fit is refused, and the world is left as it
 	CHECK_THROWS_WITH_AS(
 	    one.Load(stray), doctest::Contains("a component is given to an entity the save does not hold"),
 	    Serialise::FormatError);
+
+	// And one naming an entity twice, where EnTT's loader asserted the slot was free: the second
+	// entity follows the first's position, its last field.
+	Sim::SimWorld two{kStep, kSeed};
+	two.RegisterComponent<Position>();
+	const glm::dvec3 first{1.0, 2.0, 3.0};
+	two.Registry().emplace<Position>(two.Registry().create(), first);
+	two.Registry().emplace<Position>(two.Registry().create(), glm::dvec3{4.0, 5.0, 6.0});
+	std::vector<std::byte> doubled = two.Save();
+	const auto *bytes = reinterpret_cast<const std::byte *>(&first);
+	const auto value = std::ranges::search(doubled, std::span{bytes, sizeof first});
+	REQUIRE(!value.empty());
+	REQUIRE(*value.end() == std::byte{1});
+	*value.end() = std::byte{0};
+	CHECK_THROWS_WITH_AS(
+	    two.Load(doubled), doctest::Contains("a component is given to an entity twice"),
+	    Serialise::FormatError);
 }
 
 
