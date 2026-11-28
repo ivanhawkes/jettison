@@ -37,6 +37,11 @@ constexpr std::size_t kHeaderSize = 8 + 4 + 4 + 8 + 8;
 // A record's fixed part: its path's length, its method, its offset and its two sizes.
 constexpr std::size_t kRecordSize = 4 + 1 + 8 + 8 + 8;
 
+// The most a zstd frame's bytes can decompress to, each: a block regenerates at most
+// ZSTD_BLOCKSIZE_MAX (128 KiB) and takes four bytes at the least, its 3-byte header and an RLE block's
+// one byte (RFC 8878, 3.1.1.2). A size an index claims past it is refused before it is allocated.
+constexpr std::uint64_t kZstdMostPerByte = ZSTD_BLOCKSIZE_MAX / 4;
+
 enum class Method : std::uint8_t
 {
 	Stored = 0,
@@ -309,6 +314,11 @@ class PackSource final : public Detail::Source
 				Fail(std::format("the bytes of '{}' are not between its header and its index", *path));
 			if (static_cast<Method>(*method) == Method::Stored && *stored != *size)
 				Fail(std::format("'{}' is stored as it is, at a size other than its own", *path));
+			if (*size / kZstdMostPerByte > *stored)
+				Fail(
+				    std::format(
+				        "'{}' claims {} bytes, more than its {} stored bytes can hold", *path, *size,
+				        *stored));
 			if (*size > std::numeric_limits<std::size_t>::max())
 				Fail(std::format("'{}' is larger than this build can hold", *path));
 			m_entries.push_back(

@@ -5,6 +5,7 @@
 #include <fastgltf/tools.hpp>
 
 #include <algorithm>
+#include <format>
 #include <memory>
 #include <optional>
 #include <span>
@@ -54,7 +55,9 @@ RigNode ReadNode(const fastgltf::Node &source)
 }
 
 
-Clip ReadClip(const fastgltf::Asset &asset, const fastgltf::Animation &animation, std::size_t index)
+Clip ReadClip(
+    const fastgltf::Asset &asset, const fastgltf::Animation &animation, std::size_t index,
+    const std::string &label)
 {
 	Clip clip;
 	clip.name = animation.name.empty() ? "Animation " + std::to_string(index) : animation.name;
@@ -88,6 +91,14 @@ Clip ReadClip(const fastgltf::Asset &asset, const fastgltf::Animation &animation
 			fastgltf::iterateAccessor<glm::vec3>(
 			    asset, outputAccessor,
 			    [&](glm::vec3 value) { track.values.emplace_back(value, 0.0f); });
+
+		// Sample reads a value at each key, or three for a cubic spline's tangents and value.
+		const std::size_t perKey = track.interpolation == Interpolation::CubicSpline ? 3 : 1;
+		if (track.values.size() != track.times.size() * perKey)
+			throw std::runtime_error(
+			    std::format(
+			        "glTF clip '{}' has {} values for {} keys, where it needs {}: {}", clip.name,
+			        track.values.size(), track.times.size(), track.times.size() * perKey, label));
 		if (!track.times.empty())
 			clip.duration = std::max(clip.duration, track.times.back());
 		clip.tracks.push_back(std::move(track));
@@ -158,7 +169,7 @@ Rig ReadGltfRig(const ModelFile &file)
 	}
 
 	for (std::size_t index = 0; index < asset.animations.size(); ++index)
-		rig.clips.push_back(ReadClip(asset, asset.animations[index], index));
+		rig.clips.push_back(ReadClip(asset, asset.animations[index], index, label));
 	return rig;
 }
 

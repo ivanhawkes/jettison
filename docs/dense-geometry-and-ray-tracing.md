@@ -768,7 +768,7 @@ order, logging each step with the model's name:
 
 | Item | How |
 | --- | --- |
-| [J12](history.md#j12) | Built before it, with a baker of its own (`source/tools/collision`) reading the glTF with fastgltf; the cook calls its library, `Bake::CollisionShape`, for every model, and may move its reading to `geometry`. Physics reads only the baked file. |
+| [J12](history.md#j12) | Built before it, with a baker of its own (`source/tools/collision`); the cook calls its library, `Bake::CollisionShape`, for every model, which reads the model through `geometry`'s reader. Physics reads only the baked file. |
 | [J13](history.md#j13) | Done: a scene's load waits on the model cache's prefetch, which streaming (J43) keeps when it changes the cache. |
 | [J18](roadmap.md#j18) | A new dependency and a new tool to install with the SDK. |
 | [J19](roadmap.md#j19) | Cooked files are signed with the pack; nothing new. |

@@ -80,7 +80,8 @@ Posing a rig on the CPU waits on no GPU device and needs no module that has one.
 
 The model file's parse accepts a binary `.glb`, or a `.gltf` with its buffers embedded, since a
 resource's decode is given only the file's own bytes. The rig loader refuses a file with no nodes,
-or with other than one mesh node.
+or with other than one mesh node, and a clip whose sampler gives other than a value for each key
+(three for a cubic spline), which `Sample` would read past.
 
 Each frame, the update advances the entity's `AnimationPlayerComponent`, wrapping a looping clip and
 holding one that does not loop at its end. It then calls `Rig::EvaluateSkin`, which writes a matrix

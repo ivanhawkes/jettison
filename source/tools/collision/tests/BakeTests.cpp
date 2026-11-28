@@ -14,6 +14,7 @@
 #include <optional>
 #include <stdexcept>
 #include <string>
+#include <string_view>
 #include <unistd.h>
 #include <vector>
 
@@ -154,4 +155,43 @@ TEST_CASE("Bake: a model that does not read is refused, naming it")
 	CHECK_THROWS_WITH_AS(
 	    Bake::CollisionShape(Model("none.gltf")), doctest::Contains("none.gltf' does not read"),
 	    std::runtime_error);
+}
+
+
+TEST_CASE("Bake: a model is read as geometry reads one, its scene's nodes each once")
+{
+	const std::filesystem::path directory =
+	    std::filesystem::temp_directory_path() / ("jettison-bake-refusals-" + std::to_string(getpid()));
+	std::filesystem::remove_all(directory);
+	std::filesystem::create_directories(directory / "models");
+	const auto model = [&](std::string_view name, std::string_view nodes, std::string_view uri)
+	{
+		const std::filesystem::path path = directory / "models" / name;
+		std::ofstream{path} << R"({"asset": {"version": "2.0"}, "scene": 0, "scenes": [{"nodes": [0]}],
+			"nodes": )" << nodes
+		                    << R"(, "buffers": [{"byteLength": 48, "uri": ")" << uri << R"("}],
+			"bufferViews": [{"buffer": 0, "byteLength": 48}],
+			"accessors": [{"bufferView": 0, "componentType": 5126, "count": 4, "type": "VEC3"}],
+			"meshes": [{"primitives": [{"attributes": {"POSITION": 0}}]}]})";
+		return path;
+	};
+
+	// A tetrahedron's four corners.
+	const std::string_view corners = "data:application/octet-stream;base64,"
+	                                 "AAAAAAAAAAAAAAAAAACAPwAAAAAAAAAAAAAAAAAAgD8AAAAAAAAAAAAAAAAAAIA/";
+	const ShapeDefinition shape = Bake::CollisionShape(model("one.gltf", R"([{"mesh": 0}])", corners));
+	REQUIRE(shape.parts.size() == 1);
+	CHECK(shape.parts[0].points.size() == 4);
+
+	// A node two parents share would be baked twice, and nested so, exponentially many times.
+	CHECK_THROWS_WITH_AS(
+	    Bake::CollisionShape(model("shared.gltf", R"([{"children": [1, 1]}, {"mesh": 0}])", corners)),
+	    doctest::Contains("shared.gltf"), std::runtime_error);
+
+	// A buffer is read from within the model's directory, never beside or above it.
+	std::ofstream{directory / "outside.bin", std::ios::binary} << std::string(48, '\0');
+	CHECK_THROWS_WITH_AS(
+	    Bake::CollisionShape(model("outside.gltf", R"([{"mesh": 0}])", "../outside.bin")),
+	    doctest::Contains("outside its directory"), std::runtime_error);
+	std::filesystem::remove_all(directory);
 }

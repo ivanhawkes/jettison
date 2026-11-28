@@ -129,7 +129,10 @@ shape (`DefineShape`). A mesh among its parts makes it a mesh, for static and ki
 
 `jettison_bake_collision <model> <collision file>` (`source/tools/collision`) bakes one from a glTF
 or GLB model, through the library function `Bake::CollisionShape`, which the cook
-([J37](history.md#j37)) calls for every model it cooks:
+([J37](history.md#j37)) calls for every model it cooks. It reads the model through `geometry`'s
+reader (`Geometry::GltfFile`, [the cooked model](rendering.md#the-cooked-model)), so a buffer comes
+only from within the model's directory and every view and accessor is held to its buffer before it
+is read, and it refuses, naming the model, a node its scene reaches twice, shared or in a cycle:
 
 | The model's mesh nodes | Their parts |
 | --- | --- |

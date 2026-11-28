@@ -241,6 +241,30 @@ TEST_CASE("Model: a base colour through KHR_texture_basisu decodes as KTX 2, a P
 }
 
 
+TEST_CASE("Model: a joint of no weight is pointed at the skin's first, since the shader reads it")
+{
+	// A triangle skinned to one joint, its first corner naming joint 9 at no weight.
+	const std::string text = R"({"asset": {"version": "2.0"}, "nodes": [{"mesh": 0, "skin": 0}],
+		"skins": [{"joints": [0]}],
+		"buffers": [{"byteLength": 96, "uri": "data:application/octet-stream;base64,)"
+	                         "AAAAAAAAAAAAAAAAAACAPwAAAAAAAAAAAAAAAAAAgD8AAAAAAAkAAAAAAAAAAAAAAACAPwAAA"
+	                         "AAAAAAAAAAAAAAAgD8AAAAAAAAAAAAAAAAAAIA/AAAAAAAAAAAAAAAA"
+	                         R"("}],
+		"bufferViews": [{"buffer": 0, "byteLength": 96}],
+		"accessors": [
+			{"bufferView": 0, "componentType": 5126, "count": 3, "type": "VEC3"},
+			{"bufferView": 0, "byteOffset": 36, "componentType": 5121, "count": 3, "type": "VEC4"},
+			{"bufferView": 0, "byteOffset": 48, "componentType": 5126, "count": 3, "type": "VEC4"}],
+		"meshes": [{"primitives": [{"attributes": {"POSITION": 0, "JOINTS_0": 1, "WEIGHTS_0": 2}}]}]})";
+	std::vector<std::byte> bytes(text.size());
+	std::memcpy(bytes.data(), text.data(), text.size());
+	const auto model = Model::FromGltf(*Geometry::GltfFile::Parse(bytes, "skinned.gltf"));
+	REQUIRE(model->Vertices().size() == 3);
+	for (const Vertex &vertex : model->Vertices())
+		CHECK(vertex.joints == glm::uvec4{0});
+}
+
+
 TEST_CASE("Model: the generated asteroid at the reference views' distances, each at its level")
 {
 	const auto file = Geometry::GltfFile::Parse(

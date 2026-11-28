@@ -79,6 +79,50 @@ void CheckChain(const TextureData &texture, std::size_t bytesPerTexel, std::uint
 }
 
 
+// A KTX 2 file of RGBA8 texels, uncompressed, of one level whose data is the four bytes of one texel
+// whatever the size its header gives: identifier, header, index, level index, the basic data format
+// descriptor (KDF 1.3's RGBSDA, four 8-bit channels), then the texel.
+std::vector<std::byte> Rgba8Ktx2(std::uint32_t width, std::uint32_t height)
+{
+	std::vector<std::byte> bytes;
+	const auto put = [&bytes](std::uint64_t value, int width)
+	{
+		for (int byte = 0; byte < width; ++byte)
+			bytes.push_back(static_cast<std::byte>(value >> (8 * byte)));
+	};
+	for (const int value : {0xab, 0x4b, 0x54, 0x58, 0x20, 0x32, 0x30, 0xbb, 0x0d, 0x0a, 0x1a, 0x0a})
+		bytes.push_back(static_cast<std::byte>(value));
+	for (const std::uint32_t value : {37u, 1u, width, height, 0u, 0u, 1u, 1u, 0u})
+		put(value, 4);
+	put(104, 4);
+	put(92, 4);
+	put(0, 4);
+	put(0, 4);
+	put(0, 8);
+	put(0, 8);
+	put(196, 8);
+	put(4, 8);
+	put(4, 8);
+	put(92, 4);
+	put(0, 4);
+	put(2 | (88u << 16), 4);
+	put(1 | (1u << 8) | (1u << 16), 4);
+	put(0, 4);
+	put(4, 4);
+	put(0, 4);
+	for (const std::uint32_t channel : {0u, 1u, 2u, 15u})
+	{
+		const std::uint32_t offset = (channel == 15u ? 3u : channel) * 8;
+		put(offset | (7u << 16) | (channel << 24), 4);
+		put(0, 4);
+		put(0, 4);
+		put(255, 4);
+	}
+	put(0xff302010, 4);
+	return bytes;
+}
+
+
 std::filesystem::path Sample(const char *name)
 {
 	return std::filesystem::path{JETTISON_TEST_CONTENT_DIR} / "textures" / "panels" / name;
@@ -130,6 +174,44 @@ TEST_CASE("Texture: KTX 2 data it cannot use is refused with the file's name")
 	    doctest::Contains("textures/garbage.ktx2"), std::runtime_error);
 	CHECK_THROWS_AS(DecodeKtx2({}, TranscodeTarget::Bc7, "empty"), std::runtime_error);
 	CHECK_THROWS_AS(DecodeImage(garbage, true, "garbage.png"), std::runtime_error);
+}
+
+
+TEST_CASE("Texture: a file claiming more than it holds is refused before its claim is allocated")
+{
+	const std::vector<std::byte> panels = ReadBytes(Sample("panels-color.ktx2"));
+	const auto put = [](std::vector<std::byte> bytes, std::size_t at, std::uint64_t value, int width)
+	{
+		for (int byte = 0; byte < width; ++byte)
+			bytes[at + static_cast<std::size_t>(byte)] = static_cast<std::byte>(value >> (8 * byte));
+		return bytes;
+	};
+
+	// The header's width and height, at bytes 20 and 24.
+	CHECK_THROWS_WITH_AS(
+	    DecodeKtx2(put(put(panels, 20, 65536, 4), 24, 65536, 4), TranscodeTarget::Rgba8, "wide.ktx2"),
+	    doctest::Contains("65536 by 65536"), std::runtime_error);
+
+	// The first level's length in the level index, which follows the 80-byte header and index.
+	CHECK_THROWS_WITH_AS(
+	    DecodeKtx2(put(panels, 80 + 8, std::uint64_t{1} << 40, 8), TranscodeTarget::Rgba8, "long.ktx2"),
+	    doctest::Contains("long.ktx2"), std::runtime_error);
+
+	// One texel's data, under a header that says one and under one that says four by four.
+	CHECK(DecodeKtx2(Rgba8Ktx2(1, 1), TranscodeTarget::Rgba8, "texel.ktx2").bytes.size() == 4);
+	CHECK_THROWS_WITH_AS(
+	    DecodeKtx2(Rgba8Ktx2(4, 4), TranscodeTarget::Rgba8, "short.ktx2"),
+	    doctest::Contains("level 0 is larger than the data it is given"), std::runtime_error);
+
+	// Twice the width its levels' data was made for, which the transcoder refuses.
+	CHECK_THROWS_WITH_AS(
+	    DecodeKtx2(put(panels, 20, 512, 4), TranscodeTarget::Rgba8, "stretched.ktx2"),
+	    doctest::Contains("stretched.ktx2"), std::runtime_error);
+
+	// An image's header claims a size stb_image would allocate before it found the texels missing.
+	CHECK_THROWS_WITH_AS(
+	    DecodeImage(Ppm(100000, 1, {1, 2, 3}), true, "wide.ppm"), doctest::Contains("100000 by 1"),
+	    std::runtime_error);
 }
 
 

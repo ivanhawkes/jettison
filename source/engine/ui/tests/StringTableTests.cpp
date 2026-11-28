@@ -314,6 +314,21 @@ TEST_CASE(
 }
 
 
+TEST_CASE("Strings: an argument past the most a text formats is refused, however many its digits")
+{
+	const Scratch scratch;
+	scratch.Put("base/strings/en/market.yaml", kEnglish);
+
+	// 2^32: argument 0 to a count that wraps.
+	scratch.Put(
+	    "base/strings/de/market.yaml", "version: 1\nmarket:\n  docked: Angedockt an {4294967296}\n");
+	StringTable strings;
+	strings.Load(scratch.Files(), "de");
+	CHECK(strings.Problems() == 1);
+	CHECK(strings.Text("market.docked") == "Docked at {0}");
+}
+
+
 TEST_CASE("Strings: a fraction, a date and a time in each of the engine's languages, from its tables")
 {
 	using namespace std::chrono;

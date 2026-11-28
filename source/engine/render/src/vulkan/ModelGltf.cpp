@@ -166,6 +166,13 @@ std::vector<Vertex> ReadVertices(
 				if ((vertex.weights[influence] > 0.0f && vertex.joints[influence] >= jointCount) ||
 				    (vertex.weights1[influence] > 0.0f && vertex.joints1[influence] >= jointCount))
 					throw std::runtime_error("glTF vertex joint index exceeds the skin joint count");
+
+				// The shader reads every influence's joint matrix, weighed or not, so one of no weight
+				// is pointed at the first joint rather than past the skin's.
+				if (!(vertex.weights[influence] > 0.0f))
+					vertex.joints[influence] = 0;
+				if (!(vertex.weights1[influence] > 0.0f))
+					vertex.joints1[influence] = 0;
 			}
 		}
 		vertices.push_back(vertex);

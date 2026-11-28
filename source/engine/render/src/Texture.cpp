@@ -8,6 +8,7 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <format>
 #include <limits>
 #include <memory>
 #include <stdexcept>
@@ -24,6 +25,20 @@ constexpr ktx_uint32_t kVkR8G8B8A8Unorm = 37;
 constexpr ktx_uint32_t kVkR8G8B8A8Srgb = 43;
 constexpr ktx_uint32_t kVkBc7Unorm = 145;
 constexpr ktx_uint32_t kVkBc7Srgb = 146;
+
+// The largest width or height a texture is read at. A file's header claims the size its decoders
+// allocate, so a claim past it is refused before anything is allocated for it. It is lavapipe's
+// maxImageDimension2D, half the RTX 5060 Ti's 32768 (vulkaninfo, 2026-11-28), and four times the
+// test content's largest, 4096.
+constexpr std::uint32_t kMaxTextureDimension = 16384;
+
+// RGBA8's, the widest texel a texture is read as.
+constexpr std::uint64_t kTexelBytes = 4;
+
+// The most a texture's image data inflates to: a chain of RGBA8 levels at the largest size, its mips
+// a third of its first level more.
+constexpr std::uint64_t kMaxTextureBytes =
+    std::uint64_t{kMaxTextureDimension} * kMaxTextureDimension * kTexelBytes * 4 / 3;
 
 
 [[noreturn]] void Refuse(std::string_view name, const std::string &what)
@@ -93,6 +108,16 @@ void ProbeSize(std::span<const std::byte> bytes, std::string_view name)
 	if (bytes.size() > static_cast<std::size_t>(std::numeric_limits<int>::max()))
 		Refuse(name, "the file is too large to decode");
 }
+
+
+void CheckDimensions(std::uint64_t width, std::uint64_t height, std::string_view name)
+{
+	if (width > kMaxTextureDimension || height > kMaxTextureDimension)
+		Refuse(
+		    name, std::format(
+		              "it is {} by {}, past the {} a side a texture is read at", width, height,
+		              kMaxTextureDimension));
+}
 } // namespace
 
 
@@ -113,8 +138,8 @@ TextureData DecodeKtx2(std::span<const std::byte> bytes, TranscodeTarget target,
 	ProbeSize(bytes, name);
 	ktxTexture2 *pRaw = nullptr;
 	const KTX_error_code created = ktxTexture2_CreateFromMemory(
-	    reinterpret_cast<const ktx_uint8_t *>(bytes.data()), bytes.size(),
-	    KTX_TEXTURE_CREATE_LOAD_IMAGE_DATA_BIT, &pRaw);
+	    reinterpret_cast<const ktx_uint8_t *>(bytes.data()), bytes.size(), KTX_TEXTURE_CREATE_NO_FLAGS,
+	    &pRaw);
 	if (created != KTX_SUCCESS)
 		Refuse(name, std::string{"not a KTX 2 file it can read: "} + ktxErrorString(created));
 	const std::unique_ptr<ktxTexture2, KtxDeleter> pTexture{pRaw};
@@ -122,6 +147,16 @@ TextureData DecodeKtx2(std::span<const std::byte> bytes, TranscodeTarget target,
 	if (pTexture->isCubemap || pTexture->isArray || pTexture->numDimensions != 2 ||
 	    pTexture->numFaces != 1 || pTexture->numLayers != 1)
 		Refuse(name, "only 2D textures are read: no cube maps, arrays or volumes");
+	CheckDimensions(pTexture->baseWidth, pTexture->baseHeight, name);
+
+	// libktx allocates the sizes the level index claims as it loads them, so they are held to the
+	// bytes the file has, and to what a texture of the largest size inflates to.
+	if (ktxTexture_GetDataSize(ktxTexture(pTexture.get())) > bytes.size() ||
+	    ktxTexture_GetDataSizeUncompressed(ktxTexture(pTexture.get())) > kMaxTextureBytes)
+		Refuse(name, "its levels claim more bytes than the file holds, or than a texture inflates to");
+	const KTX_error_code loaded = ktxTexture2_LoadImageData(pTexture.get(), nullptr, 0);
+	if (loaded != KTX_SUCCESS)
+		Refuse(name, std::string{"its image data does not read: "} + ktxErrorString(loaded));
 
 	if (ktxTexture2_NeedsTranscoding(pTexture.get()))
 	{
@@ -150,12 +185,17 @@ TextureData DecodeKtx2(std::span<const std::byte> bytes, TranscodeTarget target,
 	texture.width = pTexture->baseWidth;
 	texture.height = pTexture->baseHeight;
 	const ktx_uint8_t *pData = ktxTexture_GetData(ktxTexture(pTexture.get()));
+	const ktx_size_t dataSize = ktxTexture_GetDataSize(ktxTexture(pTexture.get()));
 	for (ktx_uint32_t level = 0; level < pTexture->numLevels; ++level)
 	{
 		ktx_size_t offset = 0;
 		if (ktxTexture_GetImageOffset(ktxTexture(pTexture.get()), level, 0, 0, &offset) != KTX_SUCCESS)
 			Refuse(name, "level " + std::to_string(level) + " has no image");
+
+		// The size is the level's dimensions', not the bytes the file gives it, which may be fewer.
 		const ktx_size_t size = ktxTexture_GetImageSize(ktxTexture(pTexture.get()), level);
+		if (offset > dataSize || size > dataSize - offset)
+			Refuse(name, "level " + std::to_string(level) + " is larger than the data it is given");
 		TextureLevel entry;
 		entry.width = std::max(1u, texture.width >> level);
 		entry.height = std::max(1u, texture.height >> level);
@@ -177,6 +217,13 @@ TextureData DecodeImage(std::span<const std::byte> bytes, bool srgb, std::string
 	int width = 0;
 	int height = 0;
 	int channels = 0;
+
+	// stb_image allocates the size a header claims, up to 2 GiB, before it decodes a texel.
+	if (stbi_info_from_memory(
+	        reinterpret_cast<const stbi_uc *>(bytes.data()), static_cast<int>(bytes.size()), &width,
+	        &height, &channels) == 0)
+		Refuse(name, std::string{"stb_image cannot decode it: "} + stbi_failure_reason());
+	CheckDimensions(static_cast<std::uint64_t>(width), static_cast<std::uint64_t>(height), name);
 	stbi_uc *pPixels = stbi_load_from_memory(
 	    reinterpret_cast<const stbi_uc *>(bytes.data()), static_cast<int>(bytes.size()), &width,
 	    &height, &channels, STBI_rgb_alpha);

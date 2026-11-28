@@ -200,8 +200,10 @@ file in it is stored as it is or compressed as one zstd frame, so one file reads
 
 The index is sorted by path, each path once, and every file's bytes lie between the header and the
 index. The index is checked whole as the pack is mounted; a pack that breaks the layout, any
-truncated prefix included, is refused with a message naming what is wrong. A compressed file's
-frame checksum and size are checked as it is read; a stored file is not checked.
+truncated prefix included, is refused with a message naming what is wrong, and so is a compressed
+file whose size is more than its stored bytes can hold: a zstd block regenerates at most 128 KiB
+and takes four bytes at the least, so a size past 32,768 times the stored bytes is never allocated.
+A compressed file's frame checksum and size are checked as it is read; a stored file is not checked.
 
 A file is compressed only where that pays. The packer tries zstd at level 1 and stores the file as
 it is unless that saves at least a thirty-second of it, then compresses the files that pass at the

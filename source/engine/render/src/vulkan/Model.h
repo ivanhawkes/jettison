@@ -78,6 +78,12 @@ class Model
 	// Makes the buffers, named for the validation layer, and frees the CPU copy of the vertices.
 	void Upload(DeviceContext &deviceContext, const std::string &name);
 
+	// The CPU copy of the vertices, empty once Upload has freed it.
+	const std::vector<Vertex> &Vertices() const
+	{
+		return m_vertices;
+	}
+
 	// Hands the buffers over, leaving the model with none: to whoever frees them once no frame in
 	// flight reads them.
 	void TakeBuffers(Buffer &vertexBuffer, Buffer &indexBuffer);

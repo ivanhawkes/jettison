@@ -5,7 +5,7 @@ add_library(jettison_collision_bake STATIC Bake.cpp Bake.h)
 target_include_directories(jettison_collision_bake PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}")
 target_link_libraries(jettison_collision_bake
 	PUBLIC Jettison::Physics
-	PRIVATE fastgltf jettison_warnings)
+	PRIVATE Jettison::Geometry fastgltf jettison_warnings)
 # The same model bakes to the same bytes in every build type, as a simulation module computes: a
 # node's transform fused into FMAs or not would move a point by a rounding.
 target_compile_options(jettison_collision_bake PRIVATE -ffp-contract=off)

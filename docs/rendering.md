@@ -398,7 +398,9 @@ A model's levels of detail are its file's (`GltfFile::Levels`), chosen by `Selec
 and their materials are the finest level's. A file that was not cooked is one level, exact, and is
 logged as a warning naming `jettison_cook`. A model's own base-colour image is a KTX 2 file where
 its texture names it through `KHR_texture_basisu`, as a cooked file's does, and otherwise decoded
-by stb_image (below).
+by stb_image (below). The vertex shader reads all eight of a vertex's joint matrices whatever their
+weights, so a joint of no weight is read as the skin's first, and one weighed past the skin's
+joints is refused.
 
 A procedural shape (`render/Procedural.h`: UV, ico and cube spheres, rings, cylinders, boxes) is
 made on first use, each with five levels of detail but the box, which has one.
@@ -416,6 +418,11 @@ Textures decode on the I/O worker with no device (`render/Texture.h`):
 - **PNG and JPEG**, through stb_image, are for development. They get a mip chain built on the CPU,
   averaged in linear light for sRGB data. A name ending `.linear.png` marks linear data, such as a
   normal map.
+
+A file's header claims the size its decoder allocates, so either is refused, naming the file, past
+16,384 texels a side (lavapipe's `maxImageDimension2D`) before anything is allocated, and a KTX 2
+file's levels are held to the bytes it has before libktx loads them, and each to the data it is
+given before it is copied.
 
 A CPU device is given RGBA8 rather than BC7, and its material sampler takes no anisotropy. Lavapipe
 decodes BC7 and filters anisotropically in software at every fetch, each of which multiplied the

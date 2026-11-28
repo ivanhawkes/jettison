@@ -1,5 +1,7 @@
 #include "Bake.h"
 
+#include <jettison/geometry/GltfFile.h>
+
 #include <fastgltf/core.hpp>
 #include <fastgltf/glm_element_traits.hpp>
 #include <fastgltf/tools.hpp>
@@ -11,6 +13,9 @@
 #include <algorithm>
 #include <cstdint>
 #include <format>
+#include <fstream>
+#include <iterator>
+#include <memory>
 #include <stdexcept>
 #include <string>
 #include <utility>
@@ -71,15 +76,15 @@ void ReadTriangles(
 
 Physics::ShapeDefinition CollisionShape(const std::filesystem::path &model)
 {
-	auto data = fastgltf::GltfDataBuffer::FromPath(model);
-	if (data.error() != fastgltf::Error::None)
-		Refuse(model, std::format("does not read: {}", fastgltf::getErrorMessage(data.error())));
-	fastgltf::Parser parser;
-	auto parsed =
-	    parser.loadGltf(data.get(), model.parent_path(), fastgltf::Options::LoadExternalBuffers);
-	if (parsed.error() != fastgltf::Error::None)
-		Refuse(model, std::format("does not parse: {}", fastgltf::getErrorMessage(parsed.error())));
-	const fastgltf::Asset &asset = parsed.get();
+	std::ifstream stream{model, std::ios::binary};
+	const std::vector<char> chars{
+	    std::istreambuf_iterator<char>{stream}, std::istreambuf_iterator<char>{}};
+	if (!stream)
+		Refuse(model, "does not read");
+	const auto *pBytes = reinterpret_cast<const std::byte *>(chars.data());
+	const std::unique_ptr<Geometry::GltfFile> pFile = Geometry::GltfFile::Parse(
+	    {pBytes, chars.size()}, model.string(), std::filesystem::absolute(model).parent_path());
+	const fastgltf::Asset &asset = pFile->Asset();
 	if (asset.scenes.empty())
 		Refuse(model, "has no scene");
 
@@ -88,10 +93,18 @@ Physics::ShapeDefinition CollisionShape(const std::filesystem::path &model)
 	const bool hasAuthored = std::ranges::any_of(asset.nodes, authored);
 	Physics::ShapeDefinition shape;
 	shape.kind = Physics::ShapeKind::Compound;
+
+	// glTF's nodes are trees, each node in one place; one met twice is in a cycle, which would recurse
+	// without end, or is shared, which a file can nest to bake a mesh exponentially many times.
+	std::vector<bool> visited(asset.nodes.size());
 	fastgltf::iterateSceneNodes(
 	    asset, asset.defaultScene.value_or(0), fastgltf::math::fmat4x4{},
 	    [&](const fastgltf::Node &node, const fastgltf::math::fmat4x4 &matrix)
 	    {
+		    const auto index = static_cast<std::size_t>(&node - asset.nodes.data());
+		    if (visited[index])
+			    Refuse(model, std::format("has node '{}' in its scene more than once", node.name));
+		    visited[index] = true;
 		    if (!node.meshIndex || (hasAuthored && !authored(node)))
 			    return;
 		    Physics::ShapeDefinition part;

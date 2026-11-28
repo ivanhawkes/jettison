@@ -364,6 +364,32 @@ TEST_CASE("Rig loader: a glTF file's hierarchy, skin and clips, through the reso
 }
 
 
+TEST_CASE("Rig loader: a clip whose values do not match its keys is refused, naming the file")
+{
+	// A triangle's corners, then two key times, then one translation.
+	const std::string text =
+	    R"({"asset": {"version": "2.0"}, "nodes": [{"mesh": 0}],
+		"buffers": [{"byteLength": 56, "uri": "data:application/octet-stream;base64,)"
+	    "AAAAAAAAAAAAAAAAAACAPwAAAAAAAAAAAAAAAAAAgD8AAAAAAAAAAAAAgD8AAAAAAAAAAAAAAAA="
+	    R"("}],
+		"bufferViews": [{"buffer": 0, "byteLength": 56}],
+		"accessors": [
+			{"bufferView": 0, "componentType": 5126, "count": 3, "type": "VEC3"},
+			{"bufferView": 0, "byteOffset": 36, "componentType": 5126, "count": 2, "type": "SCALAR"},
+			{"bufferView": 0, "byteOffset": 44, "componentType": 5126, "count": 1, "type": "VEC3"}],
+		"meshes": [{"primitives": [{"attributes": {"POSITION": 0}}]}],
+		"animations": [{"name": "Slide", "samplers": [{"input": 1, "output": 2}],
+			"channels": [{"sampler": 0, "target": {"node": 0, "path": "translation"}}]}]})";
+	std::vector<std::byte> bytes(text.size());
+	std::memcpy(bytes.data(), text.data(), text.size());
+	const auto file = ModelFile::Parse(bytes, "models/slide.gltf");
+	CHECK_THROWS_WITH_AS(
+	    ReadGltfRig(*file),
+	    doctest::Contains("has 1 values for 2 keys, where it needs 2: models/slide.gltf"),
+	    std::runtime_error);
+}
+
+
 TEST_CASE("Rig loader: a cooked model's rig is the file's it was cooked from")
 {
 	std::ifstream stream{

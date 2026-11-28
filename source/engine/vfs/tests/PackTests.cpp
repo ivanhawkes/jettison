@@ -331,6 +331,28 @@ TEST_CASE("Pack: a damaged pack is refused, saying what is wrong")
 }
 
 
+TEST_CASE("Pack: a file claiming more bytes than its stored bytes can hold is refused as it is mounted")
+{
+	const Scratch scratch;
+	PutBase(scratch);
+	WritePack(scratch.Path("assets"), scratch.Path("base.pack"));
+	std::string bytes = scratch.Contents("base.pack");
+
+	// The index's record of the compressed "defs/goods/beer.yaml": its path, then its method, offset
+	// and stored size, then its size, set to a terabyte.
+	const std::string path = "defs/goods/beer.yaml";
+	const std::size_t size = bytes.rfind(path) + path.size() + 1 + 8 + 8;
+	for (std::size_t byte = 0; byte < 8; ++byte)
+		bytes[size + byte] = byte == 5 ? '\x01' : '\0';
+	scratch.Put("claiming.pack", bytes);
+
+	FileSystem files;
+	CHECK_THROWS_WITH_AS(
+	    files.AddMount({"claiming", scratch.Path("claiming.pack")}),
+	    doctest::Contains("'defs/goods/beer.yaml' claims 1099511627776 bytes"), std::runtime_error);
+}
+
+
 TEST_CASE("Pack: a damaged file in a pack is caught as it is read")
 {
 	const Scratch scratch;

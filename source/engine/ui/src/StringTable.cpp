@@ -94,9 +94,15 @@ std::optional<References> FindReferences(std::string_view text)
 				continue;
 			}
 			std::size_t cursor = at + 1;
+			// An index past the arguments a text formats names none, and is refused before its digits
+			// could wrap round to one that does.
 			unsigned index = 0;
 			while (cursor < text.size() && text[cursor] >= '0' && text[cursor] <= '9')
+			{
 				index = index * 10 + static_cast<unsigned>(text[cursor++] - '0');
+				if (index >= StringTable::kMaxArguments)
+					return std::nullopt;
+			}
 			if (cursor == at + 1)
 				return std::nullopt;
 			const std::size_t end = text.find('}', cursor);

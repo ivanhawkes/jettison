@@ -265,6 +265,13 @@ struct RotationAnimationComponent
 
 - Exceptions for failures at boundaries (start-up, loading, file and format errors), carrying
   enough context to act on: the stage, the path, the version.
+- **Loading bytes.** A file the engine did not write, or a peer's message, is checked before
+  anything follows it: every offset, length, count and index it declares lies within what it holds,
+  in arithmetic that cannot overflow, and every type is one its use allows, since a library's reader
+  (fastgltf's accessor tools) reads wherever it is pointed and may assert rather than refuse. Nothing
+  is allocated for what the bytes merely claim: an allocation is bounded by what they can hold, or by
+  a named limit whose comment justifies it. The checks live in one function per format, which names
+  the file in its refusal (`Geometry::GltfFile::Parse`, a pack's index in `Vfs`).
 - No exceptions inside per-frame or per-step hot paths. Programming errors there are assertions.
 - Outcomes that are expected and recoverable, such as a lookup that can miss or a command the
   simulation refuses, return `std::optional` or a small result type naming the

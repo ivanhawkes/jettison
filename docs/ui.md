@@ -350,7 +350,9 @@ writes English's separators and ISO 8601's `2026-11-27` and `15:05`. Month and w
 not written.
 
 **Refused translations.** A translation that names an argument or a data expression its base text
-does not, or holds a brace that is neither, is refused as it is read, and the base's text stands.
+does not, or holds a brace that is neither, is refused as it is read, and the base's text stands. An
+argument past the eight a text formats (`StringTable::kMaxArguments`) is no argument, in a base text
+too.
 No translation can make a format throw or make a document read a variable its screen does not bind.
 
 ### The language

@@ -28,8 +28,9 @@ inline constexpr std::size_t kAuthoredConvexHullPoints = 256;
 // model's axes and metres, its parts the mesh nodes of its scene in the scene's order, each moved by
 // its node's transform. Its collision- nodes where it has any, the rest left out; else a convex hull
 // of each mesh node, simplified to kDrawnConvexHullPoints. The same model gives the same shape.
-// Throws std::runtime_error naming the model for one that does not read, has no scene or no mesh
-// node, has a primitive that is not triangles or has no positions, or a node whose points make no
-// convex hull (all on a line).
+// The model is read by Geometry::GltfFile, its buffers from within its directory. Throws
+// std::runtime_error naming the model for one that does not read or that GltfFile refuses, has no
+// scene or no mesh node, has a node in its scene more than once, has a primitive that is not triangles
+// or has no positions, or a node whose points make no convex hull (all on a line).
 Physics::ShapeDefinition CollisionShape(const std::filesystem::path &model);
 } // namespace Jettison::Bake
