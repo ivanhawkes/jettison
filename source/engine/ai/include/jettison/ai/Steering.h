@@ -33,8 +33,9 @@ class FrameIndices;
 
 namespace Jettison::Physics
 {
+struct Body;
 struct Handling;
-}
+} // namespace Jettison::Physics
 
 namespace Jettison::Ai
 {
@@ -234,8 +235,9 @@ struct DestinationRefused
 //      two vehicles at its speed close in the lookahead, so one faster than it is seen later, widened
 //      by the largest shape (Physics::PhysicsWorld::LargestShapeRadius) and the larger of its
 //      clearance and separation. Bodies but sensors are obstacles, each the sphere of its shape's
-//      ShapeRadius, but for what a destination kept clear of by its shape leaves out (byShape); the
-//      dynamic bodies among them, vehicles, are its neighbours.
+//      ShapeRadius, but for what a destination kept clear of by its shape leaves out (byShape) and
+//      what the vehicle would pass through: a body its layer does not meet (Physics::LayersMeet),
+//      or one of its own group. The dynamic bodies among them, vehicles, are its neighbours.
 //   3. Its velocity: Seek to a waypoint, Arrive at the destination, then Avoid and Separate; and,
 //      kept clear by its shape, slowed to stop short of what its shape swept along the way meets.
 //   4. Its controls, with assist on and taken against its frame: the velocity in its own axes as
@@ -269,9 +271,9 @@ class Steering
 	double Radius(std::string_view shape);
 
 	// The velocity, slowed along its way to stop the clearance short of what the vehicle's shape, swept
-	// along it, would meet before its target (Destination::byShape).
+	// along it, would meet before its target (Destination::byShape), cast as the vehicle's layer.
 	glm::dvec3 ShapeLimited(
-	    std::uint64_t frame, entt::entity vehicle, std::string_view shape, const Sim::Transform &at,
+	    std::uint64_t frame, entt::entity vehicle, const Physics::Body &body, const Sim::Transform &at,
 	    const Agent &agent, const glm::dvec3 &velocity, const glm::dvec3 &target,
 	    double clearance) const;
 

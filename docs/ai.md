@@ -119,7 +119,9 @@ to their own right, so they part.
    pass radius of a waypoint goes on to the next.
 2. Finds what is near from its frame's spatial index (`Spatial::FrameIndices`, see
    [Scenes](scene.md)). Every body but a sensor within reach is an obstacle, taken as the sphere
-   that holds its shape (`PhysicsWorld::ShapeRadius`). The dynamic ones are also neighbours to
+   that holds its shape (`PhysicsWorld::ShapeRadius`), but for what the vehicle would pass
+   through: a body its [layer](physics.md#layers-and-groups) does not meet
+   (`Physics::LayersMeet`), or one of its own group. The dynamic ones are also neighbours to
    separate from.
 3. Works out its velocity: `Seek` to a waypoint or `Arrive` at the destination, then `Avoid` and
    `Separate`.
@@ -149,8 +151,9 @@ since bodies in two frames never meet ([Coordinate frames and units](coordinates
 **Kept clear by shape.** A platform's sphere holds its berths, so a vehicle flown to a berth must
 fly inside it. A destination with `byShape` leaves out of the obstacles its entity and every body
 on the same body's [rails](glossary.md#rails) (the platform and the vehicles clamped to it).
-Instead it sweeps the vehicle's own shape along its way (`PhysicsWorld::CastShape`) and slows to
-stop the clearance short of what the sweep meets; what lies beyond its target, such as the deck
+Instead it sweeps the vehicle's own shape along its way (`PhysicsWorld::CastShape`, cast as the
+vehicle's layer, though it still meets its own group's bodies, which a cast has no option to leave
+out) and slows to stop the clearance short of what the sweep meets; what lies beyond its target, such as the deck
 under a berth, is not in its way. Within the clearance it backs out, unless the sweep back the
 other way is as near something, as between a deck and the roof over it, when it holds still and
 turns as it was going to. It comes to each waypoint no faster than its turn there allows, as a

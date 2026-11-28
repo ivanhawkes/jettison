@@ -380,6 +380,49 @@ TEST_CASE("Steering: a ship whose way is through the station flies round it with
 }
 
 
+TEST_CASE("Steering: a ship flies straight through what its layer or its group would pass through")
+{
+	enum class Case
+	{
+		LayersApart,
+		OneGroup,
+		LayersMeet
+	};
+	for (const Case kind : {Case::LayersApart, Case::OneGroup, Case::LayersMeet})
+	{
+		CAPTURE(static_cast<int>(kind));
+		Fixture fixture;
+		fixture.physics.DefineLayers({{"dock", {}}, {"ghost", {}}, {"ship", {{"dock"}}}});
+		entt::registry &registry = fixture.world.Registry();
+		const entt::entity ship = fixture.Ship({0.0, 0.0, 1500.0}, Point({0.0, 0.0, -1500.0}, 80.0f));
+		Physics::Body &station = registry.get<Physics::Body>(fixture.station);
+		Physics::Body &hull = registry.get<Physics::Body>(ship);
+		if (kind == Case::OneGroup)
+		{
+			station.group = 3;
+			hull.group = 3;
+		}
+		else
+		{
+			station.layer = "dock";
+			hull.layer = kind == Case::LayersApart ? "ghost" : "ship";
+		}
+		double nearest = std::numeric_limits<double>::infinity();
+		for (int step = 0; step < 60 * 120 && !registry.get<Ai::Destination>(ship).arrived; ++step)
+		{
+			fixture.Step();
+			nearest = std::min(nearest, glm::length(fixture.FromStation(ship)));
+		}
+		CHECK(registry.get<Ai::Destination>(ship).arrived);
+		CHECK(fixture.collisions.empty());
+		if (kind == Case::LayersMeet)
+			CHECK(nearest > 100.0);
+		else
+			CHECK(nearest < 10.0);
+	}
+}
+
+
 TEST_CASE("Steering: a course's waypoints are flown through in order")
 {
 	Fixture fixture;

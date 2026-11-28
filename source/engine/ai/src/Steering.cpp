@@ -390,7 +390,7 @@ Steering &Steering::Attach(
 
 
 glm::dvec3 Steering::ShapeLimited(
-    std::uint64_t frame, entt::entity vehicle, std::string_view shape, const Sim::Transform &at,
+    std::uint64_t frame, entt::entity vehicle, const Physics::Body &body, const Sim::Transform &at,
     const Agent &agent, const glm::dvec3 &velocity, const glm::dvec3 &target, double clearance) const
 {
 	const double speed = glm::length(velocity);
@@ -401,8 +401,8 @@ glm::dvec3 Steering::ShapeLimited(
 	// As far as it could need to stop from this speed, and the clearance past that.
 	const double reach = speed * speed / (2.0 * std::max(agent.maxAcceleration, 1.0e-6)) +
 	                     speed * kSettleSeconds + clearance + kShapeSlack;
-	const std::optional<Physics::CastHit> hit =
-	    m_physics.CastShape(frame, shape, at, way, reach, {vehicle, false, std::nullopt});
+	const std::optional<Physics::CastHit> hit = m_physics.CastShape(
+	    frame, body.shape, at, way, reach, {vehicle, false, std::nullopt, body.layer});
 	if (!hit)
 		return velocity;
 
@@ -416,7 +416,8 @@ glm::dvec3 Steering::ShapeLimited(
 	if (allowed < 0.0)
 	{
 		const std::optional<Physics::CastHit> behind = m_physics.CastShape(
-		    frame, shape, at, -way, clearance + kShapeSlack, {vehicle, false, std::nullopt});
+		    frame, body.shape, at, -way, clearance + kShapeSlack,
+		    {vehicle, false, std::nullopt, body.layer});
 		if (behind && behind->distance < clearance)
 			return glm::dvec3{0.0};
 	}
@@ -459,6 +460,7 @@ void Steering::Step(Sim::SimWorld &world)
 	};
 
 	const double largest = m_physics.LargestShapeRadius();
+	const Physics::LayerDefinitions &layers = m_physics.Layers();
 	std::vector<entt::entity> near;
 	std::vector<Obstacle> obstacles;
 	std::vector<Obstacle> neighbours;
@@ -471,6 +473,7 @@ void Steering::Step(Sim::SimWorld &world)
 		Destination &destination = registry.get<Destination>(vehicle);
 		const Physics::Handling &handling = registry.get<const Physics::Handling>(vehicle);
 		const Sim::Transform &transform = registry.get<const Sim::Transform>(vehicle);
+		const Physics::Body &own = registry.get<const Physics::Body>(vehicle);
 		const std::string_view localFrame = LocalFrameOf(registry, vehicle);
 		const glm::dvec3 &origin = originOf(frame, localFrame);
 
@@ -529,8 +532,7 @@ void Steering::Step(Sim::SimWorld &world)
 		                            : Capability(handling.maxSpeed);
 		const Agent agent{
 		    transform.position, glm::dvec3{registry.get<const Physics::Velocity>(vehicle).linear},
-		    maxSpeed, BrakingAcceleration(handling),
-		    Radius(registry.get<const Physics::Body>(vehicle).shape)};
+		    maxSpeed, BrakingAcceleration(handling), Radius(own.shape)};
 
 		// What is near, in its frame.
 		obstacles.clear();
@@ -548,6 +550,11 @@ void Steering::Step(Sim::SimWorld &world)
 				const auto *body = registry.try_get<Physics::Body>(entity);
 				if (entity == vehicle || !body || body->sensor ||
 				    LocalFrameOf(registry, entity) != localFrame)
+					continue;
+
+				// What it would pass through is not in its way.
+				if (!Physics::LayersMeet(layers, own.layer, body->layer) ||
+				    (own.group && body->group == own.group))
 					continue;
 				if (destination.byShape)
 				{
@@ -612,8 +619,8 @@ void Steering::Step(Sim::SimWorld &world)
 		    maxSpeed);
 		if (destination.byShape)
 			velocity = ShapeLimited(
-			    frame, vehicle, registry.get<const Physics::Body>(vehicle).shape, transform, agent,
-			    velocity, onCourse ? waypoint(destination.next) : target, clearance);
+			    frame, vehicle, own, transform, agent, velocity,
+			    onCourse ? waypoint(destination.next) : target, clearance);
 
 		if (!onCourse && !destination.arrived &&
 		    glm::distance(agent.position, target) <= double{destination.arrivalRadius} &&
