@@ -7,6 +7,8 @@
 
 #include <doctest/doctest.h>
 
+#include <atomic>
+#include <cctype>
 #include <chrono>
 #include <filesystem>
 #include <fstream>
@@ -31,6 +33,16 @@ struct Text
 struct Length
 {
 	std::size_t bytes{0};
+};
+
+struct Shout
+{
+	std::string contents;
+};
+
+struct Echo
+{
+	std::string contents;
 };
 
 // A base and a mod mount of their own per test case, removed when the fixture goes.
@@ -121,6 +133,42 @@ void Settle(Jobs::IoWorker &worker, Resource::ResourceManager &manager)
 Resource::ResourceOptions NoHotReload()
 {
 	return {.hotReload = false, .pollInterval = {}};
+}
+
+
+// TextLoader, counting its reads, and the two types made from a Text: its length and its contents
+// in capitals.
+void RegisterMadeFromText(
+    Resource::ResourceManager &manager, std::shared_ptr<std::atomic<int>> reads, bool keep)
+{
+	Resource::Loader<Text> text = TextLoader();
+	text.decode = [reads, decode = std::move(text.decode)](
+	                  std::span<const std::byte> bytes, std::string_view path)
+	{
+		++*reads;
+		return decode(bytes, path);
+	};
+	text.keep = keep;
+	manager.RegisterLoader(std::move(text));
+	manager.RegisterLoader(
+	    Resource::DerivedLoader<Length, Text>{
+	        [](const Text &source, std::string_view)
+	        { return std::make_unique<Length>(Length{source.contents.size()}); },
+	        {},
+	        {}});
+	manager.RegisterLoader(
+	    Resource::DerivedLoader<Shout, Text>{
+	        [](const Text &source, std::string_view)
+	        {
+		        if (source.contents == "quiet")
+			        throw std::runtime_error{"nothing to shout"};
+		        std::string contents = source.contents;
+		        for (char &character : contents)
+			        character = static_cast<char>(std::toupper(static_cast<unsigned char>(character)));
+		        return std::make_unique<Shout>(Shout{std::move(contents)});
+	        },
+	        {},
+	        {}});
 }
 } // namespace
 
@@ -533,4 +581,175 @@ TEST_CASE("Resource: retire sees a value a reload replaced and a value the last 
 
 	manager.Release(handle);
 	CHECK(*retired == std::vector<std::string>{"first", "second"});
+}
+
+
+TEST_CASE("Resource: types made from another share its one read, and a changed file makes both again")
+{
+	const Scratch scratch;
+	scratch.Put("base/greeting.txt", "hello");
+	Jobs::IoWorker worker;
+	Resource::ResourceManager manager{scratch.Files(), worker, {.hotReload = true, .pollInterval = {}}};
+	const auto reads = std::make_shared<std::atomic<int>>(0);
+	RegisterMadeFromText(manager, reads, false);
+
+	// The first starts the read, whose job makes it; the second, asked for while the read is in
+	// flight, is made from it once it lands.
+	const auto length = manager.Load<Length>("greeting.txt");
+	const auto shout = manager.Load<Shout>("greeting.txt");
+	CHECK(manager.Loading() == 3);
+	Settle(worker, manager);
+	CHECK(manager.TryGet(length)->bytes == 5);
+	Settle(worker, manager);
+	CHECK(*reads == 1);
+	CHECK(manager.TryGet(length)->bytes == 5);
+	CHECK(manager.TryGet(shout)->contents == "HELLO");
+	CHECK(manager.Loading() == 0);
+
+	// The source is not kept once they have it.
+	const auto text = manager.Load<Text>("greeting.txt");
+	CHECK(manager.StatusOf(text) == Status::Ready);
+	CHECK(manager.TryGet(text) == nullptr);
+
+	scratch.Put("base/greeting.txt", "hello there");
+	manager.Update(); // Sees the change and starts the reload.
+	Settle(worker, manager);
+	CHECK(*reads == 2);
+	CHECK(manager.TryGet(length)->bytes == 11);
+	CHECK(manager.TryGet(shout)->contents == "HELLO THERE");
+	CHECK(manager.RevisionOf(length) == 2);
+	CHECK(manager.RevisionOf(shout) == 2);
+
+	// ReloadAll reads the file whether or not it changed, and makes both again from that read.
+	manager.ReloadAll();
+	Settle(worker, manager);
+	CHECK(*reads == 3);
+	CHECK(manager.RevisionOf(length) == 3);
+	CHECK(manager.RevisionOf(shout) == 3);
+	manager.Release(text);
+	manager.Release(length);
+	manager.Release(shout);
+}
+
+
+TEST_CASE("Resource: a type made from another, asked for late, reads only if the source was dropped")
+{
+	const Scratch scratch;
+	scratch.Put("base/greeting.txt", "hello");
+	Jobs::IoWorker worker;
+
+	// Asked for while the read is in flight, it is made once the read lands, from that read.
+	{
+		Resource::ResourceManager manager{
+		    scratch.Files(), worker, {.hotReload = false, .settleLoads = true}};
+		const auto reads = std::make_shared<std::atomic<int>>(0);
+		RegisterMadeFromText(manager, reads, false);
+		const auto length = manager.Load<Length>("greeting.txt");
+		worker.WaitIdle();
+		const auto shout = manager.Load<Shout>("greeting.txt");
+		manager.Update();
+		CHECK(*reads == 1);
+		CHECK(manager.TryGet(shout)->contents == "HELLO");
+
+		// Asked for once the source was dropped, the file is read again, and the type made
+		// before is left as it was, since the file has not changed.
+		manager.Release(shout);
+		const auto again = manager.Load<Shout>("greeting.txt");
+		manager.Update();
+		CHECK(*reads == 2);
+		CHECK(manager.TryGet(again)->contents == "HELLO");
+		CHECK(manager.RevisionOf(length) == 1);
+		manager.Release(again);
+		manager.Release(length);
+	}
+
+	// A kept source makes a late type without a read, and goes with the last type made from it.
+	{
+		Resource::ResourceManager manager{
+		    scratch.Files(), worker, {.hotReload = false, .settleLoads = true}};
+		const auto reads = std::make_shared<std::atomic<int>>(0);
+		RegisterMadeFromText(manager, reads, true);
+		const auto length = manager.Load<Length>("greeting.txt");
+		manager.Update();
+		const auto shout = manager.Load<Shout>("greeting.txt");
+		manager.Update();
+		CHECK(*reads == 1);
+		CHECK(manager.TryGet(shout)->contents == "HELLO");
+		manager.Release(length);
+		manager.Release(shout);
+		const auto reloaded = manager.Load<Length>("greeting.txt");
+		manager.Update();
+		CHECK(*reads == 2);
+		manager.Release(reloaded);
+	}
+}
+
+
+TEST_CASE("Resource: a source that fails fails what is made from it, with its error, until it reloads")
+{
+	const Scratch scratch;
+	Jobs::IoWorker worker;
+	Resource::ResourceManager manager{
+	    scratch.Files(), worker, {.hotReload = true, .pollInterval = {}, .settleLoads = true}};
+	const auto reads = std::make_shared<std::atomic<int>>(0);
+	RegisterMadeFromText(manager, reads, false);
+
+	const auto length = manager.Load<Length>("late.txt");
+	manager.Update();
+	CHECK(manager.StatusOf(length) == Status::Failed);
+	CHECK(manager.ErrorOf(length) == "'late.txt' is not in any mount");
+
+	// Asked for after the failure, it fails at once, with the same error.
+	const auto shout = manager.Load<Shout>("late.txt");
+	CHECK(manager.StatusOf(shout) == Status::Failed);
+	CHECK(manager.ErrorOf(shout) == "'late.txt' is not in any mount");
+
+	scratch.Put("base/late.txt", "here");
+	manager.Update(); // Sees the file and starts the reload.
+	manager.Update();
+	CHECK(manager.TryGet(length)->bytes == 4);
+	CHECK(manager.TryGet(shout)->contents == "HERE");
+	CHECK(manager.ErrorOf(shout).empty());
+
+	// A reload that fails keeps the values made before, and says why.
+	scratch.Put("base/late.txt", "bad");
+	manager.Update();
+	manager.Update();
+	CHECK(manager.TryGet(length)->bytes == 4);
+	CHECK(manager.StatusOf(length) == Status::Ready);
+	CHECK(manager.ErrorOf(length) == "the text is bad");
+
+	// A type that cannot be made from a good source fails alone.
+	scratch.Put("base/late.txt", "quiet");
+	manager.Update();
+	manager.Update();
+	CHECK(manager.TryGet(length)->bytes == 5);
+	CHECK(manager.ErrorOf(length).empty());
+	CHECK(manager.TryGet(shout)->contents == "HERE");
+	CHECK(manager.ErrorOf(shout) == "nothing to shout");
+	manager.Release(length);
+	manager.Release(shout);
+}
+
+
+TEST_CASE("Resource: a type made from one with no loader, or from a made type, is refused")
+{
+	const Scratch scratch;
+	Jobs::IoWorker worker;
+	Resource::ResourceManager manager{scratch.Files(), worker, NoHotReload()};
+	manager.RegisterLoader(
+	    Resource::DerivedLoader<Length, Text>{
+	        [](const Text &source, std::string_view)
+	        { return std::make_unique<Length>(Length{source.contents.size()}); },
+	        {},
+	        {}});
+	CHECK_THROWS_WITH_AS(
+	    (void)manager.Load<Length>("a.txt"), doctest::Contains("no loader"), std::logic_error);
+	manager.RegisterLoader(TextLoader());
+	manager.RegisterLoader(
+	    Resource::DerivedLoader<Echo, Length>{
+	        [](const Length &, std::string_view) { return std::make_unique<Echo>(); }, {}, {}});
+	CHECK_THROWS_AS((void)manager.Load<Echo>("a.txt"), std::logic_error);
+	CHECK_THROWS_AS(manager.RegisterLoader(Resource::DerivedLoader<Shout, Text>{}), std::logic_error);
+	CHECK(manager.Loading() == 0);
 }

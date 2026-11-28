@@ -321,8 +321,16 @@ A `decode` must not read reflection or an archive: types register lazily on firs
 meta context is not guarded against the main thread registering at the same time. A YAML file is
 parsed in `finish`, as clip files and sequences are (`animation/src/ClipFile.cpp`).
 
-Today render registers models, materials and colour grades, animation registers rigs and clips,
-scene registers sequences, and ui a document's images.
+A `DerivedLoader<T, Source>` makes a type from another type's value of the same path rather than
+from the file, so one read and one decode serve several types. The types made from a source as its
+read starts are made by the same job, and one asked for while it is in flight once it lands; a
+reload of the source makes them again, unless the file is as it was, and a source that fails fails
+them with its error. A source whose `Loader::keep` is false is dropped once they have it, so a type
+asked for after that reads the file again. A model file is the case: one parse, a model and a rig
+made from it ([models](rendering.md#models-and-textures)).
+
+Today render registers models, materials and colour grades, animation registers a model file's
+parse, rigs and clips, scene registers sequences, and ui a document's images.
 
 `Load<T>(path)` returns a `ResourceHandle<T>` at once, and the value appears after a later
 `Update()`. Each `Load` is paired with one `Release`; loading a path already loaded returns the

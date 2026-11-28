@@ -5,9 +5,11 @@
 #include <cstdint>
 #include <functional>
 #include <memory>
+#include <optional>
 #include <span>
 #include <string>
 #include <string_view>
+#include <type_traits>
 #include <typeindex>
 
 #include <jettison/resource/ResourceHandle.h>
@@ -43,6 +45,30 @@ template <typename T> struct Loader
 	// a frame in flight may still read, which this hands to whatever frees it later. A value still
 	// held when the manager is destroyed is dropped without it: release every handle first.
 	// Must not throw.
+	std::function<void(T &value)> retire;
+
+	// False for a value that is only a step towards the types made from it (DerivedLoader): it is
+	// dropped once they have it, so it holds no memory past their making, and TryGet gives null for
+	// it. A type made from it that is asked for after that reads the file again.
+	bool keep{true};
+};
+
+// How a resource type is made from another type's value of the same path rather than from the file,
+// so one read and one decode serve several types: a model file's rig and its geometry, from its one
+// parse. The source is read from its file (a Loader, not another DerivedLoader). The types made from
+// a source when its read starts are made by the same job, from what it read, and those asked for
+// while it is in flight once it lands. A reload of the source makes them again, unless the file is
+// as it was when they were made; a source that fails fails them, with its error.
+template <typename T, typename Source> struct DerivedLoader
+{
+	static_assert(!std::is_same_v<T, Source>, "a type cannot be made from itself");
+
+	// On the I/O worker, as Loader::decode: the source's value to this type's.
+	std::function<std::unique_ptr<T>(const Source &source, std::string_view virtualPath)> derive;
+
+	// As Loader's.
+	std::function<void(T &value, std::string_view virtualPath)> finish;
+
 	std::function<void(T &value)> retire;
 };
 
@@ -105,18 +131,34 @@ class ResourceManager
 		    {[decode = std::move(loader.decode)](
 		         std::span<const std::byte> bytes, std::string_view path) -> std::shared_ptr<void>
 		     { return std::shared_ptr<T>{decode(bytes, path)}; },
-		     loader.finish
-		         ? FinishRaw{[finish = std::move(loader.finish)](void *value, std::string_view path)
-		                     { finish(*static_cast<T *>(value), path); }}
-		         : FinishRaw{},
-		     loader.retire ? RetireRaw{[retire = std::move(loader.retire)](void *value)
-		                               { retire(*static_cast<T *>(value)); }}
-		                   : RetireRaw{}});
+		     WrapFinish(std::move(loader.finish)),
+		     WrapRetire(std::move(loader.retire)),
+		     std::nullopt,
+		     {},
+		     loader.keep});
+	}
+
+	// Throws as the other: for a loader with no derive, or a type registered twice. The source's
+	// loader may be registered after this one, but before the first Load of this type.
+	template <typename T, typename Source> void RegisterLoader(DerivedLoader<T, Source> loader)
+	{
+		if (!loader.derive)
+			ThrowNoDecode(typeid(T));
+		RegisterRaw(
+		    typeid(T),
+		    {{},
+		     WrapFinish(std::move(loader.finish)),
+		     WrapRetire(std::move(loader.retire)),
+		     typeid(Source),
+		     [derive = std::move(loader.derive)](
+		         const void *source, std::string_view path) -> std::shared_ptr<void>
+		     { return std::shared_ptr<T>{derive(*static_cast<const Source *>(source), path)}; },
+		     true});
 	}
 
 	// Returns at once with a handle; the resource becomes available after a later Update().
-	// Throws std::logic_error for a type with no loader and std::invalid_argument for a path that
-	// is not a valid virtual path.
+	// Throws std::logic_error for a type with no loader (or a derived type whose source has none)
+	// and std::invalid_argument for a path that is not a valid virtual path.
 	template <typename T> ResourceHandle<T> Load(std::string_view virtualPath)
 	{
 		const RawHandle raw = LoadRaw(typeid(T), virtualPath);
@@ -177,12 +219,33 @@ class ResourceManager
 	    std::function<std::shared_ptr<void>(std::span<const std::byte>, std::string_view)>;
 	using FinishRaw = std::function<void(void *, std::string_view)>;
 	using RetireRaw = std::function<void(void *)>;
+	using DeriveRaw = std::function<std::shared_ptr<void>(const void *, std::string_view)>;
 	struct RawLoader
 	{
 		DecodeRaw decode;
 		FinishRaw finish;
 		RetireRaw retire;
+
+		// Set for a DerivedLoader, which has a derive and no decode.
+		std::optional<std::type_index> source;
+		DeriveRaw derive;
+		bool keep{true};
 	};
+
+	template <typename T> static FinishRaw WrapFinish(std::function<void(T &, std::string_view)> finish)
+	{
+		if (!finish)
+			return {};
+		return [finish = std::move(finish)](void *value, std::string_view path)
+		{ finish(*static_cast<T *>(value), path); };
+	}
+
+	template <typename T> static RetireRaw WrapRetire(std::function<void(T &)> retire)
+	{
+		if (!retire)
+			return {};
+		return [retire = std::move(retire)](void *value) { retire(*static_cast<T *>(value)); };
+	}
 
 	template <typename T> static RawHandle Raw(ResourceHandle<T> handle)
 	{

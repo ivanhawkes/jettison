@@ -57,6 +57,11 @@ struct ResourceManager::State : std::enable_shared_from_this<State>
 		// overtaken, or the slot was released while it was in flight, and is dropped.
 		std::uint64_t ticket{0};
 		bool inFlight{false};
+
+		// For a type made from another (RawLoader::source): the source's slot, which this one holds a
+		// reference to, and whether this one has been made from the source's latest read.
+		RawHandle source{};
+		bool made{false};
 	};
 
 	struct Pool
@@ -73,6 +78,28 @@ struct ResourceManager::State : std::enable_shared_from_this<State>
 		std::shared_ptr<void> value;
 		std::string error;
 		Stamp stamp;
+	};
+
+	// A slot made from the file being read, by the read's own job.
+	struct Dependent
+	{
+		std::type_index type;
+		std::uint32_t index{0};
+		std::uint32_t generation{0};
+		std::uint64_t ticket{0};
+		std::shared_ptr<const RawLoader> loader;
+
+		// Made whatever the read finds; otherwise only if the file changed since the last read, so a
+		// read for a type asked for late does not make the others again.
+		bool always{false};
+		bool skipped{false};
+		Result result{};
+	};
+
+	struct Read
+	{
+		Result source;
+		std::vector<Dependent> dependents;
 	};
 
 
@@ -109,41 +136,165 @@ struct ResourceManager::State : std::enable_shared_from_this<State>
 	}
 
 
+	// Reads the slot's file and decodes it on the worker, and in the same job makes the slots of the
+	// path made from it (State::Dependent).
 	void Start(std::type_index type, Pool &pool, std::uint32_t index)
 	{
 		Slot &slot = pool.slots[index];
 		slot.inFlight = true;
 		slot.ticket = nextTicket++;
-		auto result = std::make_shared<Result>();
+		auto read = std::make_shared<Read>();
+		read->dependents = TakeDependents(type, slot.path);
 		worker.Enqueue(
-		    [&files = fileSystem, path = slot.path, loader = pool.loader, result]
+		    [&files = fileSystem, path = slot.path, loader = pool.loader, previous = slot.stamp, read]
 		    {
+			    Result &result = read->source;
+
 			    // Stamped before the read, so a write that lands during it shows as a change at
 			    // the next poll rather than being missed.
-			    result->stamp = StampOf(files, path);
+			    result.stamp = StampOf(files, path);
 			    try
 			    {
 				    const std::optional<std::vector<std::byte>> bytes = files.Read(path);
 				    if (!bytes)
 				    {
-					    result->error = std::format("'{}' is not in any mount", path);
+					    result.error = std::format("'{}' is not in any mount", path);
 					    return;
 				    }
-				    result->value = loader->decode(*bytes, path);
-				    if (!result->value)
-					    result->error = std::format("'{}' decoded to nothing", path);
+				    result.value = loader->decode(*bytes, path);
+				    if (!result.value)
+					    result.error = std::format("'{}' decoded to nothing", path);
 			    }
 			    catch (const std::exception &error)
 			    {
-				    result->error = error.what();
+				    result.error = error.what();
+			    }
+			    if (!result.value)
+				    return;
+			    const bool changed = result.stamp != previous;
+			    for (Dependent &dependent : read->dependents)
+			    {
+				    dependent.skipped = !dependent.always && !changed;
+				    if (!dependent.skipped)
+					    dependent.result = Derive(*dependent.loader, result.value.get(), path);
 			    }
 		    },
+		    [self = weak_from_this(), type, index, generation = slot.generation, ticket = slot.ticket,
+		     read]
+		    {
+			    if (const std::shared_ptr<State> state = self.lock())
+				    state->FinishRead(type, index, generation, ticket, std::move(*read));
+		    });
+	}
+
+
+	// Makes a slot from its source's value on the worker, apart from any read of the source.
+	void StartDerive(
+	    std::type_index type, Pool &pool, std::uint32_t index, std::shared_ptr<void> source)
+	{
+		Slot &slot = pool.slots[index];
+		slot.inFlight = true;
+		slot.made = true;
+		slot.ticket = nextTicket++;
+		auto result = std::make_shared<Result>();
+		worker.Enqueue(
+		    [loader = pool.loader, source = std::move(source), path = slot.path, result]
+		    { *result = Derive(*loader, source.get(), path); },
 		    [self = weak_from_this(), type, index, generation = slot.generation, ticket = slot.ticket,
 		     result]
 		    {
 			    if (const std::shared_ptr<State> state = self.lock())
 				    state->Finish(type, index, generation, ticket, std::move(*result));
 		    });
+	}
+
+
+	static Result Derive(const RawLoader &loader, const void *source, const std::string &path)
+	{
+		Result result;
+		try
+		{
+			result.value = loader.derive(source, path);
+			if (!result.value)
+				result.error = std::format("'{}' decoded to nothing", path);
+		}
+		catch (const std::exception &error)
+		{
+			result.error = error.what();
+		}
+		return result;
+	}
+
+
+	template <typename Function>
+	void ForEachDependent(std::type_index sourceType, const std::string &path, Function function)
+	{
+		for (auto &[type, pool] : pools)
+		{
+			if (pool.loader->source != sourceType)
+				continue;
+			if (const auto found = pool.byPath.find(path); found != pool.byPath.end())
+				function(type, pool, found->second);
+		}
+	}
+
+
+	// The slots of the path made from the type, for a read of it about to start, each given a new
+	// ticket. One not made from the last read, or still being made from it, is made from this one
+	// whatever it finds.
+	std::vector<Dependent> TakeDependents(std::type_index sourceType, const std::string &path)
+	{
+		std::vector<Dependent> dependents;
+		ForEachDependent(
+		    sourceType, path,
+		    [&](std::type_index type, Pool &pool, std::uint32_t index)
+		    {
+			    Slot &slot = pool.slots[index];
+			    const bool always = !slot.made || slot.inFlight;
+			    slot.made = true;
+			    slot.inFlight = true;
+			    slot.ticket = nextTicket++;
+			    dependents.push_back({type, index, slot.generation, slot.ticket, pool.loader, always});
+		    });
+		return dependents;
+	}
+
+
+	// A slot made from another type that no job is making: made from the source's value if that is
+	// held, failed with the source's error if it has one, or else the file read again, since the
+	// source's value was not kept.
+	void Supply(std::type_index type, Pool &pool, std::uint32_t index)
+	{
+		const Slot &slot = pool.slots[index];
+		if (slot.made || slot.inFlight)
+			return;
+		Pool &sourcePool = pools.at(*pool.loader->source);
+		const std::uint32_t sourceIndex = slot.source.index;
+		const Slot &source = sourcePool.slots[sourceIndex];
+		if (source.inFlight)
+			return;
+		if (source.value)
+			StartDerive(type, pool, index, source.value);
+		else if (!source.error.empty())
+			Fail(pool.slots[index], source.error);
+		else
+			Start(*pool.loader->source, sourcePool, sourceIndex);
+	}
+
+
+	// The slot's source failed: it keeps a value it has, as a reload that fails does, and says why.
+	static void Fail(Slot &slot, const std::string &error)
+	{
+		slot.inFlight = false;
+		slot.error = error;
+		if (slot.revision == 0)
+			slot.status = Status::Failed;
+	}
+
+
+	static bool IsCurrent(const Slot &slot, std::uint32_t generation, std::uint64_t ticket)
+	{
+		return slot.generation == generation && slot.ticket == ticket && slot.references > 0;
 	}
 
 
@@ -154,14 +305,14 @@ struct ResourceManager::State : std::enable_shared_from_this<State>
 	}
 
 
-	void Finish(
+	// False for a result that was overtaken, or whose slot was released while it was in flight.
+	bool Finish(
 	    std::type_index type, std::uint32_t index, std::uint32_t generation, std::uint64_t ticket,
 	    Result result)
 	{
 		Pool &pool = pools.at(type);
-		if (pool.slots[index].generation != generation || pool.slots[index].ticket != ticket ||
-		    pool.slots[index].references == 0)
-			return;
+		if (!IsCurrent(pool.slots[index], generation, ticket))
+			return false;
 		pool.slots[index].inFlight = false;
 		pool.slots[index].stamp = result.stamp;
 
@@ -188,18 +339,55 @@ struct ResourceManager::State : std::enable_shared_from_this<State>
 			slot.status = Status::Ready;
 			slot.error.clear();
 			++slot.revision;
-			return;
+			return true;
 		}
 
 		// A reload that fails keeps the value it would have replaced: in development a half-saved
-		// file should not take the resource away.
-		const bool kept = slot.value != nullptr;
+		// file should not take the resource away. A value that is not kept has had a revision.
+		const bool kept = slot.revision > 0;
 		Core::Log(
 		    Core::Severity::Warning, kResource, "'{}' {}: {}", slot.path,
 		    kept ? "did not reload, and keeps its last value" : "did not load", result.error);
 		slot.error = std::move(result.error);
 		if (!kept)
 			slot.status = Status::Failed;
+		return true;
+	}
+
+
+	void FinishRead(
+	    std::type_index type, std::uint32_t index, std::uint32_t generation, std::uint64_t ticket,
+	    Read read)
+	{
+		if (!Finish(type, index, generation, ticket, std::move(read.source)))
+			return;
+
+		// Empty when this read made the value.
+		const std::string error = pools.at(type).slots[index].error;
+		for (Dependent &dependent : read.dependents)
+		{
+			Slot &slot = pools.at(dependent.type).slots[dependent.index];
+			if (!IsCurrent(slot, dependent.generation, dependent.ticket))
+				continue;
+			if (!error.empty())
+				Fail(slot, error);
+			else if (dependent.skipped)
+				slot.inFlight = false;
+			else
+				Finish(
+				    dependent.type, dependent.index, dependent.generation, dependent.ticket,
+				    std::move(dependent.result));
+		}
+
+		// Those asked for while the read was in flight, and those ReloadAll marked since it began.
+		Pool &pool = pools.at(type);
+		const std::string path = pool.slots[index].path;
+		ForEachDependent(
+		    type, path,
+		    [this](std::type_index dependentType, Pool &dependentPool, std::uint32_t dependentIndex)
+		    { Supply(dependentType, dependentPool, dependentIndex); });
+		if (!pool.loader->keep)
+			pool.slots[index].value.reset();
 	}
 };
 
@@ -245,6 +433,11 @@ ResourceManager::RawHandle ResourceManager::LoadRaw(std::type_index type, std::s
 		++slot.references;
 		return {found->second, slot.generation};
 	}
+	const std::optional<std::type_index> source = pool.loader->source;
+	if (source && m_pState->PoolFor(*source).loader->source)
+		throw std::logic_error{std::format(
+		    "Resource: '{}' is made from '{}', which is made from another type rather than read",
+		    type.name(), source->name())};
 
 	std::uint32_t index = 0;
 	if (pool.free.empty())
@@ -262,8 +455,18 @@ ResourceManager::RawHandle ResourceManager::LoadRaw(std::type_index type, std::s
 	slot.references = 1;
 	slot.status = Status::Loading;
 	pool.byPath.emplace(std::move(path), index);
-	m_pState->Start(type, pool, index);
-	return {index, slot.generation};
+	if (!source)
+	{
+		m_pState->Start(type, pool, index);
+		return {index, slot.generation};
+	}
+
+	// A read this starts makes the slot too; otherwise it is supplied now, or when the read in
+	// flight lands.
+	const RawHandle sourceHandle = LoadRaw(*source, virtualPath);
+	pool.slots[index].source = sourceHandle;
+	m_pState->Supply(type, pool, index);
+	return {index, pool.slots[index].generation};
 }
 
 
@@ -308,12 +511,15 @@ void ResourceManager::ReleaseRaw(std::type_index type, RawHandle handle)
 
 	pool.byPath.erase(slot.path);
 	State::Retire(pool, slot);
+	const RawHandle source = slot.source;
 
 	// A load still in flight finds the generation changed and drops its result.
 	State::Slot freed;
 	freed.generation = NextGeneration(slot.generation);
 	slot = std::move(freed);
 	pool.free.push_back(handle.index);
+	if (pool.loader->source)
+		ReleaseRaw(*pool.loader->source, source);
 }
 
 
@@ -353,10 +559,19 @@ void ResourceManager::Update()
 
 void ResourceManager::ReloadAll()
 {
+	// The types made from others first, so the reads below make them again whatever they find.
 	for (auto &[type, pool] : m_pState->pools)
+		if (pool.loader->source)
+			for (State::Slot &slot : pool.slots)
+				slot.made = false;
+	for (auto &[type, pool] : m_pState->pools)
+	{
+		if (pool.loader->source)
+			continue;
 		for (std::uint32_t index = 0; index < pool.slots.size(); ++index)
 			if (pool.slots[index].references > 0 && !pool.slots[index].inFlight)
 				m_pState->Start(type, pool, index);
+	}
 }
 
 
@@ -366,6 +581,9 @@ void ResourceManager::CheckForChanges()
 	m_pState->fileSystem.Refresh();
 	for (auto &[type, pool] : m_pState->pools)
 	{
+		// Made from another type, with no file of its own: its source's reload makes it again.
+		if (pool.loader->source)
+			continue;
 		for (std::uint32_t index = 0; index < pool.slots.size(); ++index)
 		{
 			const State::Slot &slot = pool.slots[index];
