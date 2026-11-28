@@ -248,6 +248,28 @@ TEST_CASE("Physics: a body collides as the collision file it is read from, where
 	REQUIRE(boxed);
 	CHECK(boxed->distance == doctest::Approx(9.5).epsilon(1e-4));
 
+	// The shape alone, in its own axes, with no body of it: the same pod's top, the right pod's
+	// outer side met by a ray in across it, and nothing above it all.
+	const std::optional<Physics::CastHit> top =
+	    physics.CastRayOnShape("pods", {2.0, 10.0, 0.0}, {0.0, -1.0, 0.0}, 20.0);
+	REQUIRE(top);
+	CHECK(top->entity == entt::null);
+	CHECK(top->distance == doctest::Approx(9.5).epsilon(1e-4));
+	CHECK(top->part == 1);
+	const std::optional<Physics::CastHit> side =
+	    physics.CastRayOnShape("pods", {10.0, 0.2, 0.1}, {-1.0, 0.0, 0.0}, 20.0);
+	REQUIRE(side);
+	CHECK(side->point.x == doctest::Approx(2.5).epsilon(1e-4));
+	CHECK(side->point.y == doctest::Approx(0.2));
+	CHECK(side->normal.x == doctest::Approx(1.0f));
+	CHECK(side->part == 1);
+	CHECK_FALSE(physics.CastRayOnShape("pods", {0.0, 10.0, 0.0}, {0.0, 1.0, 0.0}, 20.0));
+	CHECK_THROWS_AS(
+	    physics.CastRayOnShape("missing", {0.0, 10.0, 0.0}, {0.0, -1.0, 0.0}, 20.0),
+	    std::invalid_argument);
+	CHECK_THROWS_AS(
+	    physics.CastRayOnShape("pods", {0.0, 10.0, 0.0}, {0.0, 0.0, 0.0}, 20.0), std::invalid_argument);
+
 	// A crate dropped onto a pod rests on it, and one dropped between the pods falls past them to
 	// the keel, a metre lower; the box of their size would hold both up at its top.
 	ShapeDefinition crate;

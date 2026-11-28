@@ -273,6 +273,9 @@ lower part. `CastOptions` leaves out the caster's own body (`ignore`), unless
 asked for, sensors, and, cast as a `layer`, what a body of that layer would not meet (a layer
 not defined throws `std::invalid_argument`). Casts read the world as the last step left it, and are for the simulation's
 systems to call. Steering sweeps a vehicle's shape with `CastShape` ([AI](ai.md)).
+`CastRayOnShape` casts a ray against a defined shape alone, in its own axes, with no body of it in
+any world, and its hit names no entity: what is asked of a shape's geometry, such as where a docked
+vehicle's clamps meet its side ([docks](docks.md#where-the-clamps-grip)).
 
 Four queries return more than one body. `CastRayAll` and `CastShapeAll` return every body the cast
 meets within the distance, each once at its nearest hit, nearest first and a tie by entity, so the

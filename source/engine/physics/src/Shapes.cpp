@@ -1,6 +1,8 @@
 #include "Shapes.h"
 
+#include <Jolt/Physics/Collision/CastResult.h>
 #include <Jolt/Physics/Collision/PhysicsMaterial.h>
+#include <Jolt/Physics/Collision/RayCast.h>
 #include <Jolt/Physics/Collision/Shape/BoxShape.h>
 #include <Jolt/Physics/Collision/Shape/CapsuleShape.h>
 #include <Jolt/Physics/Collision/Shape/ConvexHullShape.h>
@@ -183,5 +185,19 @@ std::uint32_t PartOf(const JPH::Shape &shape, const JPH::SubShapeID &id)
 		return 0;
 	JPH::SubShapeID remainder;
 	return JPH::StaticCast<JPH::CompoundShape>(pShape)->GetSubShapeIndexFromID(id, remainder);
+}
+
+
+std::optional<ShapeHit> CastRayOnShape(
+    const JPH::Shape &shape, const glm::vec3 &origin, const glm::vec3 &reach)
+{
+	const JPH::RayCast ray{ToJolt(origin) - shape.GetCenterOfMass(), ToJolt(reach)};
+	JPH::RayCastResult hit;
+	if (!shape.CastRay(ray, JPH::SubShapeIDCreator{}, hit))
+		return std::nullopt;
+	return ShapeHit{
+	    hit.mFraction,
+	    ToGlmFloat(shape.GetSurfaceNormal(hit.mSubShapeID2, ray.GetPointOnRay(hit.mFraction))),
+	    PartOf(shape, hit.mSubShapeID2)};
 }
 } // namespace Jettison::Physics::Detail

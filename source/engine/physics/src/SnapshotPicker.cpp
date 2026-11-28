@@ -6,10 +6,7 @@
 
 #include <Jolt/Jolt.h>
 // Jolt.h has to come first.
-#include <Jolt/Physics/Collision/CastResult.h>
-#include <Jolt/Physics/Collision/RayCast.h>
 #include <Jolt/Physics/Collision/Shape/Shape.h>
-#include <Jolt/Physics/Collision/Shape/SubShapeID.h>
 #include <Jolt/Renderer/DebugRendererSimple.h>
 
 #include <glm/gtc/quaternion.hpp>
@@ -177,27 +174,21 @@ std::optional<CastHit> SnapshotPicker::CastRay(
 		if (pShape == nullptr || !place)
 			continue;
 
-		// In the body's own frame, from its shape's centre of mass, as Jolt casts against a shape:
-		// metres from it, so floats hold them.
+		// In the body's own frame: metres from it, so floats hold them.
 		const glm::dquat inverse = glm::inverse(place->orientation);
-		const JPH::RayCast ray{
-		    Detail::ToJolt(glm::vec3{inverse * (origin - place->position)}) - pShape->GetCenterOfMass(),
-		    Detail::ToJolt(glm::vec3{inverse * reach})};
-		JPH::RayCastResult hit;
-		if (!pShape->CastRay(ray, JPH::SubShapeIDCreator{}, hit))
+		const std::optional<Detail::ShapeHit> hit = Detail::CastRayOnShape(
+		    *pShape, glm::vec3{inverse * (origin - place->position)}, glm::vec3{inverse * reach});
+		if (!hit)
 			continue;
-		const double distance = static_cast<double>(hit.mFraction) * maxDistance;
+		const double distance = static_cast<double>(hit->fraction) * maxDistance;
 
 		// The bodies come in entity order, so a tie is the lower entity's.
 		if (nearest && nearest->distance <= distance)
 			continue;
-		const JPH::Vec3 local = ray.GetPointOnRay(hit.mFraction);
-		const glm::vec3 normal = glm::vec3{
-		    place->orientation *
-		    glm::dvec3{Detail::ToGlmFloat(pShape->GetSurfaceNormal(hit.mSubShapeID2, local))}};
+		const glm::vec3 normal = glm::vec3{place->orientation * glm::dvec3{hit->normal}};
 		nearest = CastHit{
-		    entity, distance, origin + reach * static_cast<double>(hit.mFraction),
-		    glm::normalize(normal), Detail::PartOf(*pShape, hit.mSubShapeID2)};
+		    entity, distance, origin + reach * static_cast<double>(hit->fraction),
+		    glm::normalize(normal), hit->part};
 	}
 	return nearest;
 }

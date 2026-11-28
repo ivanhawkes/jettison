@@ -360,6 +360,16 @@ class PhysicsWorld final : public Sim::WorldService
 	    std::uint64_t frame, std::string_view shape, const Sim::Transform &start,
 	    const glm::dvec3 &direction, double maxDistance, const CastOptions &options = {}) const;
 
+	// The first point of the defined shape a ray from the origin meets within the distance, in the
+	// shape's own axes and metres, as a body of it at the origin unturned has it, with no body of it
+	// in a world: where a docked vehicle's clamps meet its side (docs/docks.md, "Where the clamps
+	// grip"). The hit's entity is null. A ray from inside a convex part meets it at once, and one
+	// from inside a mesh passes out through it. Throws std::invalid_argument as CastRay does, and for
+	// a shape that is not defined.
+	std::optional<CastHit> CastRayOnShape(
+	    std::string_view shape, const glm::dvec3 &origin, const glm::dvec3 &direction,
+	    double maxDistance) const;
+
 	// Every body the defined shape, placed there, overlaps, across every local frame of the frame,
 	// each once in entity order: what is in a trigger's volume. Throws std::invalid_argument for a
 	// shape that is not defined or is a mesh (or a compound with one), which Jolt does not collide as

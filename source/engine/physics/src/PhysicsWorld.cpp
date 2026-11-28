@@ -1120,6 +1120,26 @@ std::optional<CastHit> PhysicsWorld::CastRay(
 }
 
 
+std::optional<CastHit> PhysicsWorld::CastRayOnShape(
+    std::string_view shape, const glm::dvec3 &origin, const glm::dvec3 &direction,
+    double maxDistance) const
+{
+	const glm::dvec3 along = CastDirection(origin, direction, maxDistance);
+	const ShapeEntry *entry = m_pImpl->FindShape(shape);
+	if (!entry)
+		throw std::invalid_argument{std::format("Physics: shape '{}' is not defined", shape)};
+	const glm::dvec3 reach = along * maxDistance;
+	const std::optional<Detail::ShapeHit> hit =
+	    Detail::CastRayOnShape(*entry->shape, glm::vec3{origin}, glm::vec3{reach});
+	if (!hit)
+		return std::nullopt;
+	const auto fraction = static_cast<double>(hit->fraction);
+	return CastHit{
+	    entt::null, fraction * maxDistance, origin + reach * fraction, glm::normalize(hit->normal),
+	    hit->part};
+}
+
+
 std::vector<CastHit> PhysicsWorld::CastRayAll(
     std::uint64_t frame, const glm::dvec3 &origin, const glm::dvec3 &direction, double maxDistance,
     const CastOptions &options) const
