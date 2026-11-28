@@ -348,6 +348,22 @@ A variant is a compile-time define on one source, built under its own name by
 `jettison_compile_shader_variant`. `PipelineCache` makes a graphics pipeline per program and
 render state, and a compute pipeline per program, finding the SPIR-V through the asset VFS.
 
+<a id="programs-reloaded"></a>**Programs reloaded.** A developer who edits a shader rebuilds
+(`cmake --build` compiles the changed programs' SPIR-V into the build tree's `assets/shaders`, the
+directory the shell mounts) and sees the change in the running program; a mod's SPIR-V changed,
+added over the base's or taken away is seen the same way. The engine carries no shader compiler, so
+it is the SPIR-V that is read again, not the GLSL. `ProgramFiles` records each program file as it
+was read, and the shell's `render.reload` looks every 500 ms where the resources hot-reload
+(development builds, never with `--frame-step`), before the frame is recorded
+(`IRenderer::ReloadChangedPrograms`). Every pipeline of a program a changed file belongs to is
+built again, and no other; they are replaced together once all of them build, and the old ones
+destroyed after the device is idle. Holders keep a `PipelineRef`, read through the cache's slot, so
+the passes, the materials, the overlay and the environment's bakes bind the new pipeline from that
+frame on. A file that is not SPIR-V or has no `main` for its stage, or a pipeline that does not
+build, leaves the program's pipelines as they were, logged once, naming the file, and is tried
+again when it changes again. A program's descriptor and the dev tools' own shader (`imgui.frag`)
+are not read again.
+
 `MaterialCache` loads materials and their textures through the resource manager, and takes a
 texture's new element into the material's block when it reloads. A material that cannot be drawn (its program missing,
 or a parameter its program lacks) is logged once, and the draw falls back to the model's own. A
@@ -675,8 +691,8 @@ committed images.
 ## Limits and open work
 
 - Not yet placed, all in [J27](roadmap.md#j27): shadow tuning, and bodies' shadows past the shadow
-  distance; programs and their descriptors hot-reloaded (materials and
-  textures already are); cube maps and texture arrays from files; normal mapping on meshes (the BRDF
+  distance; a program's descriptor read again as it changes (its SPIR-V is,
+  [programs reloaded](#programs-reloaded)); cube maps and texture arrays from files; normal mapping on meshes (the BRDF
   has it, the vertex has no tangents); a glTF model's own metallic-roughness factors (it reads its
   base-colour image only); air over a mesh; the capture's planets and a gas giant's bands.
 - Levels of detail for model files, with hysteresis between them (a draw at a threshold can switch
@@ -709,8 +725,8 @@ built and measured is in [history](history.md).
   - `Material.h`, `Texture.h`, `Procedural.h`, `Mesh.h`: materials, texture decoding, shapes.
   - `FrameData.h`, `FrameStats.h`, `DebugDraw.h`, `Screenshot.h`.
 - `source/engine/render/src/vulkan`: the private backend: `Renderer`, `DeviceContext`,
-  `DeviceChoice`, `Swapchain`, `Window`, `PipelineCache`, `MaterialCache`, `ModelCache`,
-  `Environment`, `GpuProfiler`, `PassBarriers`.
+  `DeviceChoice`, `Swapchain`, `Window`, `PipelineCache`, `ProgramFiles`, `MaterialCache`,
+  `ModelCache`, `Environment`, `GpuProfiler`, `PassBarriers`.
 - `assets/shaders`: the programs and their descriptors; `assets/shaders/include` the shared GLSL
   (`lighting.glsl`, `brdf.glsl`, `clusters.glsl`, `shadows.glsl`, `sky.glsl`, `tonemap.glsl`).
 - `source/engine/render/tests`: the `render` suite, device-free.

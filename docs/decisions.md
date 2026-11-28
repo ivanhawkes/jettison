@@ -412,6 +412,16 @@ What moves a frame's bodies and what pulls in it are under [Physics](#physics).
   geometry, which would move the geometry's reader out of render and keep it resident; and a
   `geometry` module now, which is [J37](roadmap.md#j37)'s.
   [Rendering](rendering.md#models-and-textures)
+- **Programs are read again from their SPIR-V, whole, between frames** (2026-11-28). The engine
+  takes no shader compiler for development alone (shaderc or glslang would be a dependency), so a
+  developer rebuilds and the running program reads the SPIR-V the build wrote. A changed program's
+  pipelines are built again together and swapped in, and the old ones destroyed after a wait on the
+  device: a reload is a developer's edit, too rare for a queue retiring pipelines over the frames
+  in flight to earn its code. Holders read a pipeline through the cache's slot (`PipelineRef`)
+  rather than each fetching theirs again, which would have spread the reload into every pass, the
+  materials, the overlay and the environment. Before a driver sees a file, only its words, its
+  magic number and a `main` for its stage are checked; spirv-val is not carried.
+  [Rendering](rendering.md#programs-reloaded)
 - **A draw's glow is scaled per instance** (2026-11-28, `Scene::MeshComponent::emissiveScale`). The
   scale multiplies the material's emissive parameter and travels in the instance buffer with the
   draw's transform, so a glow a game moves each frame makes no material, no model and no batch of

@@ -178,6 +178,7 @@ flowchart LR
 | `shell.bodies` | The bodies of the frame the game picks in, as Jolt has their shapes, when the Scene panel's Physics bodies or `bodies on` shows them ([seeing the bodies](physics.md#seeing-the-bodies)) |
 | `resource.update` | Finishes loads and hot reloads, so a reloaded file draws this frame |
 | `scripts.reload` | Loads again a script whose module changed, where resources hot-reload ([scripts](scripts.md#loading-again)) |
+| `render.reload` | Builds again the pipelines of a program whose SPIR-V changed, where resources hot-reload ([programs reloaded](rendering.md#programs-reloaded)) |
 | `shell.ui`, `shell.marks`, `ui.update` | The dev tools and the pick's marker (where it hit, the surface's normal, and an overlay naming it and its distance); the outline on what is picked; the game UI: a document whose files changed read again, where resources hot-reload, then `Game::UpdateUi` ([reloading](ui.md#reloading-and-the-debugger)) |
 | `render` | Draws the scene, the debug lines and the UI overlay |
 | `shell.smoke`, `shell.benchmark` | Advance the render test's sequence and the benchmark, when asked for |
