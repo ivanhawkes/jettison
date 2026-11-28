@@ -88,11 +88,11 @@ took before end speeds, to the bit.
 - **The boost is spent at the slow ends.** An end already moving at more than the boost reaches
   spends none of its boost; one moving slower spends what is left of it.
 - **A thrust share keeps its meaning**: the share of the way's own time that the drive thrusts. The
-  speed its thrust ends at, which it coasts at, is its cruise.
+  speed its thrust ends at, which it coasts at, is its peak.
 - **What it refuses** (`CheckEnds`, before `Seconds`, `Covered` and `Thrust`, which assert it):
-  a speed negative or not finite (`Backward`); a speed above its cruise, the most its share can
+  a speed negative or not finite (`Backward`); a speed above its peak, the most its share can
   reach and come back from in the time, or with no sustained acceleration the speed its boost
-  reaches (`AboveCruise`); and a way too short to speed up or slow down from one end's speed to the
+  reaches (`AbovePeak`); and a way too short to speed up or slow down from one end's speed to the
   other's (`Unreachable`).
 
 A velocity at an end has a part across the way, or backward along it, that a speed along it cannot

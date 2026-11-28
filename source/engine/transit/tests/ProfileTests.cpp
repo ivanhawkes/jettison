@@ -364,7 +364,7 @@ TEST_CASE("Profile: end speeds it cannot meet are refused, with the reason")
 
 	// A lift's speed between is 2.4 m/s, which takes it 2.4 m to reach or to stop from: above it
 	// is refused, as are 1 m or 2.3 m to reach it or stop in, and a change of speed over no way.
-	CHECK(Transit::CheckEnds(lift, 40.0, {2.5, 0.0}) == Transit::EndsUnmet::AboveCruise);
+	CHECK(Transit::CheckEnds(lift, 40.0, {2.5, 0.0}) == Transit::EndsUnmet::AbovePeak);
 	CHECK_FALSE(Transit::CheckEnds(lift, 40.0, {2.4, 2.4}));
 	CHECK(Transit::CheckEnds(lift, 1.0, {2.4, 0.0}) == Transit::EndsUnmet::Unreachable);
 	CHECK(Transit::CheckEnds(lift, 1.0, {0.0, 2.4}) == Transit::EndsUnmet::Unreachable);
@@ -380,8 +380,8 @@ TEST_CASE("Profile: end speeds it cannot meet are refused, with the reason")
 	const auto g = static_cast<float>(kStandardGravity);
 	const Transit::MotionProfile tenth{g, 0.0f, g, 0.1f};
 	CHECK_FALSE(Transit::CheckEnds(tenth, 3.96e11, {3.0e5, 3.0e5}));
-	CHECK(Transit::CheckEnds(tenth, 3.96e11, {1.0e6, 0.0}) == Transit::EndsUnmet::AboveCruise);
-	CHECK(Transit::CheckEnds(tenth, 3.96e11, {0.0, 1.0e6}) == Transit::EndsUnmet::AboveCruise);
+	CHECK(Transit::CheckEnds(tenth, 3.96e11, {1.0e6, 0.0}) == Transit::EndsUnmet::AbovePeak);
+	CHECK(Transit::CheckEnds(tenth, 3.96e11, {0.0, 1.0e6}) == Transit::EndsUnmet::AbovePeak);
 	CHECK(Transit::CheckEnds(tenth, 3.96e11, {3.0e6, 0.0}) == Transit::EndsUnmet::Unreachable);
 	Transit::MotionProfile throughout = tenth;
 	throughout.thrustShare.reset();

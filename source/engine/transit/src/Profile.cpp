@@ -190,7 +190,7 @@ Ended EndedOf(const MotionProfile &profile, double metres, const EndSpeeds &ends
 	const std::optional<Reach> end = ReachOf(profile, ends.end);
 	if (!start || !end)
 	{
-		ended.unmet = EndsUnmet::AboveCruise;
+		ended.unmet = EndsUnmet::AbovePeak;
 		return ended;
 	}
 	ended.start = *start;
@@ -212,7 +212,7 @@ Ended EndedOf(const MotionProfile &profile, double metres, const EndSpeeds &ends
 	if (HalfOf(throughout, ended.metres).seconds < latest)
 		ended.unmet = EndsUnmet::Unreachable;
 	else if (ended.half.thrustSeconds < latest)
-		ended.unmet = EndsUnmet::AboveCruise;
+		ended.unmet = EndsUnmet::AbovePeak;
 	return ended;
 }
 } // namespace

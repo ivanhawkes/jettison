@@ -28,7 +28,7 @@ struct MotionProfile
 // moves as it would from rest to rest over a longer way, the metres each end's speed takes to reach
 // from rest added, from where it reaches the start's speed to where it is down to the end's: an
 // end's boost is spent at its slowest, so an end already moving spends less of it. A thrust share
-// stays the share of the way's own time that the drive thrusts, and the profile cruises at the speed
+// stays the share of the way's own time that the drive thrusts, and the profile peaks at the speed
 // its thrust ends at. Ends at rest give what a profile gave before end speeds, to the bit.
 struct EndSpeeds
 {
@@ -39,12 +39,12 @@ struct EndSpeeds
 };
 
 // Why a profile cannot meet a way's end speeds: one is negative or not finite (backward), one is
-// above the speed the profile cruises at with its share or, with a sustained acceleration of 0, the
+// above the speed the profile peaks at with its share or, with a sustained acceleration of 0, the
 // speed its boost reaches, or the way is too short to speed up or slow down from one to the other.
 enum class EndsUnmet
 {
 	Backward,
-	AboveCruise,
+	AbovePeak,
 	Unreachable,
 };
 
