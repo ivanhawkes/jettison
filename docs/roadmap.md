@@ -45,6 +45,10 @@ mods and the content check, J63, the device's capabilities, J36, and bindless te
 the dense-geometry track, are done ([history](history.md)). J63 serves Manifest's graphical client
 on a server ([its graphical client](../../manifest/docs/roadmap.md#the-graphical-client)).
 
+Placed by the user on 2026-11-28: the geometry module, the cook and levels of detail for model
+files, [J37](#j37), the dense-geometry track's next stage, which the rest of that track, the
+characters track and the art standards' support stand on. It is not started.
+
 ## Waiting on you
 
 What needs the user's answer or action and is not a backlog item. Each line goes when it is settled.
@@ -362,7 +366,8 @@ Nothing stands on it.
 Meshlets drawn by mesh shaders, an asset cook, streaming, and ray-traced shadows, ambient occlusion
 and reflections, with RTX Mega Geometry on NVIDIA: the plan agreed on 2026-11-25, for Manifest's
 station kits, instance fields and asteroids. It is scheduled apart from the backlog's tiers until
-the user places it; J36 and J68 were placed on 2026-11-27 ([current deliveries](#current-deliveries)), and both are built. Its design, decisions, budgets, risks and each
+the user places it; J36 and J68, placed on 2026-11-27, are built, and J37 was placed on 2026-11-28 ([current
+deliveries](#current-deliveries)). Its design, decisions, budgets, risks and each
 stage's exit criterion are in [dense geometry and ray tracing](dense-geometry-and-ray-tracing.md#stages);
 the rows below say what each stage is, what it waits on, and which backlog items it touches.
 
