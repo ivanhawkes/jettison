@@ -34,8 +34,10 @@ class ProgramFiles
 	std::vector<std::byte> Read(const std::string &program, ShaderStage stage);
 
 	// The programs one of whose files has changed since it was read, or that another mount's file
-	// now shadows or no longer does, by name, each with a file that changed. Each change is given
-	// once: what the files are now is what the next call compares with.
+	// now shadows or no longer does, by name, each with a file that changed. A change is given once
+	// it has settled: the call before saw the file as it is now, so a file being written (glslc
+	// writes in place) is never read half done, and one that keeps changing waits. Each change is
+	// given once: what the files are now is what the next call compares with. Called once a poll.
 	std::map<std::string, std::string> TakeChanged();
 
   private:
@@ -43,6 +45,11 @@ class ProgramFiles
 	{
 		std::string program;
 		std::optional<Vfs::FileInfo> info;
+
+		// What the last call saw where the file differed from info, waiting for a call to see it
+		// again unchanged.
+		bool changing{false};
+		std::optional<Vfs::FileInfo> seen;
 	};
 
 	const Vfs::FileSystem &m_assets;

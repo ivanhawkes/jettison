@@ -95,6 +95,7 @@ TEST_CASE("Program files: a changed file names its program alone, once")
 	CHECK(programs.TakeChanged().empty());
 
 	scratch.Put("base", "lamp.frag.spv", Module(4, 1));
+	CHECK(programs.TakeChanged().empty());
 	const auto changed = programs.TakeChanged();
 	REQUIRE(changed.size() == 1);
 	CHECK(changed.at("lamp") == "shaders/lamp.frag.spv");
@@ -102,9 +103,31 @@ TEST_CASE("Program files: a changed file names its program alone, once")
 
 	// A mod's file over the base's is a change, and so is its going.
 	scratch.Put("mod", "hull.vert.spv", Module(0));
+	CHECK(programs.TakeChanged().empty());
 	CHECK(programs.TakeChanged().count("hull") == 1);
 	std::filesystem::remove(scratch.root / "mod" / "shaders" / "hull.vert.spv");
+	CHECK(programs.TakeChanged().empty());
 	CHECK(programs.TakeChanged().count("hull") == 1);
+	CHECK(programs.TakeChanged().empty());
+}
+
+
+TEST_CASE("Program files: a file is given only once it has settled")
+{
+	Scratch scratch;
+	scratch.Put("base", "lamp.vert.spv", Module(0));
+	ProgramFiles programs{scratch.files};
+	programs.Read("lamp", ShaderStage::Vertex);
+
+	// Being written: a new size at every look is never given.
+	for (int nops = 1; nops <= 4; ++nops)
+	{
+		scratch.Put("base", "lamp.vert.spv", Module(0, nops));
+		CHECK(programs.TakeChanged().empty());
+	}
+
+	// Seen the same at the next look, it is.
+	CHECK(programs.TakeChanged().count("lamp") == 1);
 	CHECK(programs.TakeChanged().empty());
 }
 
@@ -142,6 +165,7 @@ TEST_CASE("Program files: a file that is not SPIR-V for its stage is refused, na
 	// changes, and a fixed file is.
 	CHECK(programs.TakeChanged().empty());
 	scratch.Put("base", "lamp.frag.spv", Module(4, 2));
+	CHECK(programs.TakeChanged().empty());
 	CHECK(programs.TakeChanged().count("lamp") == 1);
 	CHECK(ErrorOf(programs, "lamp", ShaderStage::Fragment).empty());
 }

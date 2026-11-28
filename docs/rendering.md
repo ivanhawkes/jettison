@@ -355,14 +355,16 @@ added over the base's or taken away is seen the same way. The engine carries no 
 it is the SPIR-V that is read again, not the GLSL. `ProgramFiles` records each program file as it
 was read, and the shell's `render.reload` looks every 500 ms where the resources hot-reload
 (development builds, never with `--frame-step`), before the frame is recorded
-(`IRenderer::ReloadChangedPrograms`). Every pipeline of a program a changed file belongs to is
-built again, and no other; they are replaced together once all of them build, and the old ones
-destroyed after the device is idle. Holders keep a `PipelineRef`, read through the cache's slot, so
-the passes, the materials, the overlay and the environment's bakes bind the new pipeline from that
-frame on. A file that is not SPIR-V or has no `main` for its stage, or a pipeline that does not
-build, leaves the program's pipelines as they were, logged once, naming the file, and is tried
-again when it changes again. A program's descriptor and the dev tools' own shader (`imgui.frag`)
-are not read again.
+(`IRenderer::ReloadChangedPrograms`). A changed file is read only once it has settled: two looks in
+a row, 500 ms apart, find the same size and time, so a file glslc is still writing in place is never
+read half done, and one that keeps changing waits. Every pipeline of a program a changed file
+belongs to is built again, and no other; they are replaced together once all of them build, and the
+old ones destroyed after the device is idle. Holders keep a `PipelineRef`, read through the cache's
+slot, so the passes, the materials, the overlay and the environment's bakes bind the new pipeline
+from that frame on. Behind that, a file that is not SPIR-V, is cut short in an instruction or has no
+`main` for its stage, or a pipeline that does not build, leaves the program's pipelines as they
+were, logged once, naming the file, and is tried again when it changes again. A program's descriptor
+and the dev tools' own shader (`imgui.frag`) are not read again.
 
 `MaterialCache` loads materials and their textures through the resource manager, and takes a
 texture's new element into the material's block when it reloads. A material that cannot be drawn (its program missing,

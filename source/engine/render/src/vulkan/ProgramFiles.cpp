@@ -4,7 +4,6 @@
 #include <cstring>
 #include <span>
 #include <stdexcept>
-#include <string_view>
 #include <utility>
 
 namespace Jettison::Render
@@ -24,8 +23,8 @@ constexpr std::uint32_t kExecutionModelGlCompute = 5;
 // An entry point's operands before its name: the execution model and the function's id.
 constexpr std::size_t kEntryPointNameWord = 3;
 
-// The name the pipelines give every stage (PipelineCache's pName), with its terminator.
-constexpr std::string_view kEntryPoint{"main", 5};
+// The name the pipelines give every stage (PipelineCache's pName); compared with its terminator.
+constexpr char kEntryPoint[] = "main";
 
 
 std::uint32_t ExecutionModel(ShaderStage stage)
@@ -63,11 +62,11 @@ void CheckSpirv(std::span<const std::byte> code, ShaderStage stage, const std::s
 			    "shader module '" + path + "' is not SPIR-V: an instruction is cut short");
 		const std::size_t nameBytes =
 		    count > kEntryPointNameWord ? (count - kEntryPointNameWord) * sizeof(std::uint32_t) : 0;
-		if ((word(index) & kOpcodeMask) == kOpEntryPoint && nameBytes >= kEntryPoint.size() &&
+		if ((word(index) & kOpcodeMask) == kOpEntryPoint && nameBytes >= sizeof(kEntryPoint) &&
 		    word(index + 1) == ExecutionModel(stage) &&
 		    std::memcmp(
-		        code.data() + (index + kEntryPointNameWord) * sizeof(std::uint32_t), kEntryPoint.data(),
-		        kEntryPoint.size()) == 0)
+		        code.data() + (index + kEntryPointNameWord) * sizeof(std::uint32_t), kEntryPoint,
+		        sizeof(kEntryPoint)) == 0)
 			found = true;
 		index += count;
 	}
@@ -101,7 +100,10 @@ std::vector<std::byte> ProgramFiles::Read(const std::string &program, ShaderStag
 
 	// Recorded before it is read: a file written between the two is newer than what was recorded,
 	// and is read again on the next look.
-	m_files.insert_or_assign(path, File{program, m_assets.Find(path)});
+	File &file = m_files[path];
+	file = {};
+	file.program = program;
+	file.info = m_assets.Find(path);
 
 	// The words "failed to open file" are what the render test's start-up check reads for: a run
 	// with no shaders has to stop here, before a frame, and say which file it wanted.
@@ -118,10 +120,20 @@ std::map<std::string, std::string> ProgramFiles::TakeChanged()
 	std::map<std::string, std::string> changed;
 	for (auto &[path, file] : m_files)
 	{
-		std::optional<Vfs::FileInfo> info = m_assets.Find(path);
+		const std::optional<Vfs::FileInfo> info = m_assets.Find(path);
 		if (info == file.info)
+		{
+			file.changing = false;
 			continue;
-		file.info = std::move(info);
+		}
+		if (!file.changing || info != file.seen)
+		{
+			file.changing = true;
+			file.seen = info;
+			continue;
+		}
+		file.changing = false;
+		file.info = info;
 		changed.try_emplace(file.program, path);
 	}
 	return changed;

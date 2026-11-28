@@ -419,8 +419,9 @@ What moves a frame's bodies and what pulls in it are under [Physics](#physics).
   device: a reload is a developer's edit, too rare for a queue retiring pipelines over the frames
   in flight to earn its code. Holders read a pipeline through the cache's slot (`PipelineRef`)
   rather than each fetching theirs again, which would have spread the reload into every pass, the
-  materials, the overlay and the environment. Before a driver sees a file, only its words, its
-  magic number and a `main` for its stage are checked; spirv-val is not carried.
+  materials, the overlay and the environment. A changed file is read only once two polls in a row
+  find it the same, since glslc writes in place; then only its words, its magic number and a `main`
+  for its stage are checked before a driver sees it, and spirv-val is not carried.
   [Rendering](rendering.md#programs-reloaded)
 - **A draw's glow is scaled per instance** (2026-11-28, `Scene::MeshComponent::emissiveScale`). The
   scale multiplies the material's emissive parameter and travels in the instance buffer with the
