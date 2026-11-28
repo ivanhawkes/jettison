@@ -213,15 +213,14 @@ Each is placed by the first scene or screen that needs it, and changes no data o
 
 **What remains.**
 
-- A berth's clamps fitted to a vehicle's shape rather than its box, so on a vehicle drawn by its
-  model they grip where its sides are.
 - Rigs of a vehicle's own (landing gear, a hatch), which the docks' vehicle proxies lack.
 
 A glTF clip's events and cross-fades between clips moved to the characters track ([J54](#j54),
 [J53](#j53)).
 
 **What exists.** Rigs and their clips from glTF
-(`source/engine/animation/include/jettison/animation/Rig.h`).
+(`source/engine/animation/include/jettison/animation/Rig.h`), and where a berth's clamps grip a
+vehicle, on its box or its collision shape (`Dock::Docks::FindClampGrips`, [docks](docks.md#where-the-clamps-grip)).
 
 **Feature doc:** [animation and cinematics](animation.md).
 
