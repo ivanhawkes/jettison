@@ -331,7 +331,6 @@ palette](ui.md)). `em` draws in Roboto Italic.
 | Shadow tuning | The sun's shadow distance and split blend tuned by measurement. |
 | Spot and point light shadows | Only the sun casts shadows. Ray-traced ones come with [J45](#j45) on devices with ray queries; this row is the fallback's. |
 | Planets' own shadows | Past the shadow distance (an object in eclipse), by an analytic test against the bodies. |
-| Programs that hot-reload | Shaders reloaded as they change. |
 | Cube maps and texture arrays in files | |
 | Normal mapping in `mesh` | Waits for tangent-space vertex data, which `math/Tangents.h` makes. A planet builds its frame from the sphere and does not need it. |
 | Air over a mesh | The haze is the planet's own surface's and the sky's, not that of a mesh within the air, nor of a transparent draw. Two bodies' air and rings are not sorted where they overlap on the screen. |
