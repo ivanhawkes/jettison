@@ -67,13 +67,16 @@ struct ContactEvent
 };
 
 // What a cast found: the entity, how far along the cast in metres, and where, in the frame,
-// with the surface's normal there, facing back along the cast.
+// with the surface's normal there, facing back along the cast; and the part of a compound shape it
+// hit, by its index in the definition's parts (ShapeDefinition::parts), which is 0 for a shape that
+// is not one.
 struct CastHit
 {
 	entt::entity entity{entt::null};
 	double distance{0.0};
 	glm::dvec3 point{0.0};
 	glm::vec3 normal{0.0f};
+	std::uint32_t part{0};
 };
 
 // What a cast may hit, and when it is cast.
@@ -249,7 +252,9 @@ class PhysicsWorld final : public Sim::WorldService
 	const ShapeDefinition *FindShapeDefinition(std::string_view name) const;
 
 	// The radius of the smallest sphere about the body's origin holding the shape: a box's half
-	// diagonal, a mesh's farthest vertex. What steering keeps clear of a body. Throws
+	// diagonal, a mesh's farthest vertex; for a shape offset in its body, or a compound's parts, the
+	// radius about its own centre plus the offset's length, which holds it if not always closely.
+	// What steering keeps clear of a body. Throws
 	// std::invalid_argument for a shape that is not defined.
 	double ShapeRadius(std::string_view name) const;
 
@@ -338,8 +343,8 @@ class PhysicsWorld final : public Sim::WorldService
 
 	// Every body the defined shape, placed there, overlaps, across every local frame of the frame,
 	// each once in entity order: what is in a trigger's volume. Throws std::invalid_argument for a
-	// shape that is not defined or is a mesh, which Jolt does not collide as the moving shape, and
-	// for a position that is not finite.
+	// shape that is not defined or is a mesh (or a compound with one), which Jolt does not collide as
+	// the moving shape, and for a position that is not finite.
 	std::vector<entt::entity> Overlap(
 	    std::uint64_t frame, std::string_view shape, const Sim::Transform &at,
 	    const CastOptions &options = {}) const;

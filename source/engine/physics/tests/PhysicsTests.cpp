@@ -225,6 +225,232 @@ TEST_CASE("Physics: shapes are definitions a mod can override")
 }
 
 
+TEST_CASE("Physics: a compound shape and its parts' offsets and turns are read from a shape file")
+{
+	const std::filesystem::path directory = std::filesystem::temp_directory_path() /
+	                                        ("jettison-physics-compound-" + std::to_string(getpid()));
+	std::filesystem::remove_all(directory);
+	std::filesystem::create_directories(directory / "shapes");
+	std::ofstream{directory / "shapes/dumbbell.yaml"} << "version: 1\n"
+	                                                     "kind: Compound\n"
+	                                                     "offset: [0, 1, 0]\n"
+	                                                     "parts:\n"
+	                                                     "  - kind: Sphere\n"
+	                                                     "    radius: 1\n"
+	                                                     "    offset: [-3, 0, 0]\n"
+	                                                     "  - kind: Box\n"
+	                                                     "    halfExtents: [0.2, 3, 0.2]\n"
+	                                                     "    turn: [0, 0, 0.70710678, 0.70710678]\n";
+
+	Vfs::FileSystem fileSystem;
+	fileSystem.AddMount({"base", directory, false});
+	Physics::RegisterTypes();
+	Sim::DefinitionRegistry definitions{fileSystem};
+	definitions.Load<ShapeDefinition>("shapes", Serialise::FormatVersion{1});
+	const ShapeDefinition *dumbbell = definitions.Find<ShapeDefinition>("dumbbell");
+	REQUIRE(dumbbell);
+	CHECK(dumbbell->kind == ShapeKind::Compound);
+	CHECK(dumbbell->offset == glm::vec3{0.0f, 1.0f, 0.0f});
+	REQUIRE(dumbbell->parts.size() == 2);
+	CHECK(dumbbell->parts[0].offset == glm::vec3{-3.0f, 0.0f, 0.0f});
+	CHECK(dumbbell->parts[1].turn.z == doctest::Approx(0.70710678f));
+	CHECK(dumbbell->parts[1].turn.w == doctest::Approx(0.70710678f));
+
+	// Written as read, and read back the same.
+	const std::string written = Serialise::YamlArchive::Write(*dumbbell, Serialise::FormatVersion{1});
+	const auto reread =
+	    Serialise::YamlArchive::Read<ShapeDefinition>(written, Serialise::FormatVersion{1});
+	CHECK(Serialise::YamlArchive::Write(reread, Serialise::FormatVersion{1}) == written);
+
+	// The bar, turned to lie along x below the body's origin moved up 1 m, is hit from above.
+	Sim::SimWorld world{kStep, 1};
+	world.RegisterComponent<Sim::Transform>();
+	world.RegisterComponent<Sim::InFrame>();
+	Physics::PhysicsWorld &physics = Physics::PhysicsWorld::Attach(world);
+	physics.DefineShapes(definitions);
+	entt::registry &registry = world.Registry();
+	const entt::entity entity = registry.create();
+	registry.emplace<Sim::Transform>(entity, Sim::Transform{{0.0, 0.0, 0.0}});
+	registry.emplace<Sim::InFrame>(entity, kHalcyon);
+	registry.emplace<Body>(entity, Body{BodyKind::Static, "dumbbell"});
+	world.Step();
+	const std::optional<Physics::CastHit> hit =
+	    physics.CastRay(kHalcyon, {2.0, 10.0, 0.0}, {0.0, -1.0, 0.0}, 20.0);
+	REQUIRE(hit);
+	CHECK(hit->distance == doctest::Approx(8.8).epsilon(1e-4));
+	CHECK(hit->part == 1);
+	std::filesystem::remove_all(directory);
+}
+
+
+TEST_CASE("Physics: a shape sits in its body at its offset and turn")
+{
+	Fixture fixture;
+	Physics::PhysicsWorld &physics = fixture.physics;
+
+	// A bar 4 m long along x, stood upright and raised 3 m: from y = 1 to y = 5 over the body's origin.
+	ShapeDefinition lever = Box({2.0f, 0.5f, 0.5f});
+	lever.offset = {0.0f, 3.0f, 0.0f};
+	lever.turn = glm::angleAxis(glm::radians(90.0f), glm::vec3{0.0f, 0.0f, 1.0f});
+	physics.DefineShape("lever", lever);
+	CHECK(
+	    physics.ShapeRadius("lever") ==
+	    doctest::Approx(glm::length(glm::vec3{2.0f, 0.5f, 0.5f}) + 3.0));
+
+	Body post;
+	post.kind = BodyKind::Static;
+	post.shape = "lever";
+	const entt::entity body = fixture.Add(post, {0.0, 0.0, 0.0});
+	fixture.world.Step();
+
+	const std::optional<Physics::CastHit> top =
+	    physics.CastRay(kHalcyon, {0.0, 10.0, 0.0}, {0.0, -1.0, 0.0}, 20.0);
+	REQUIRE(top);
+	CHECK(top->entity == body);
+	CHECK(top->distance == doctest::Approx(5.0).epsilon(1e-4));
+	CHECK(top->part == 0);
+	const std::optional<Physics::CastHit> side =
+	    physics.CastRay(kHalcyon, {10.0, 3.0, 0.0}, {-1.0, 0.0, 0.0}, 20.0);
+	REQUIRE(side);
+	CHECK(side->distance == doctest::Approx(9.5).epsilon(1e-4));
+	CHECK_FALSE(physics.CastRay(kHalcyon, {10.0, 0.0, 0.0}, {-1.0, 0.0, 0.0}, 20.0));
+
+	ShapeDefinition unturned = Sphere(1.0f);
+	unturned.turn = glm::quat{0.0f, 0.0f, 0.0f, 0.0f};
+	CHECK_THROWS_WITH_AS(
+	    physics.DefineShape("unturned", unturned),
+	    doctest::Contains("'unturned' has a turn that is not a rotation"), std::invalid_argument);
+	ShapeDefinition nowhere = Sphere(1.0f);
+	nowhere.offset.y = std::nanf("");
+	CHECK_THROWS_WITH_AS(
+	    physics.DefineShape("nowhere", nowhere),
+	    doctest::Contains("'nowhere' has a point that is not finite"), std::invalid_argument);
+}
+
+
+TEST_CASE("Physics: a compound body is its parts, each placed, and a hit names the part")
+{
+	Fixture fixture;
+	Physics::PhysicsWorld &physics = fixture.physics;
+
+	// Two balls 6 m apart on a thin bar.
+	ShapeDefinition dumbbell;
+	dumbbell.kind = ShapeKind::Compound;
+	dumbbell.parts = {Sphere(1.0f), Sphere(1.0f), Box({3.0f, 0.2f, 0.2f})};
+	dumbbell.parts[0].offset = {-3.0f, 0.0f, 0.0f};
+	dumbbell.parts[1].offset = {3.0f, 0.0f, 0.0f};
+	physics.DefineShape("dumbbell", dumbbell);
+	CHECK(physics.ShapeRadius("dumbbell") == doctest::Approx(4.0));
+
+	Body still;
+	still.kind = BodyKind::Static;
+	still.shape = "dumbbell";
+	const entt::entity body = fixture.Add(still, {0.0, 0.0, 0.0});
+	fixture.world.Step();
+
+	const std::optional<Physics::CastHit> right =
+	    physics.CastRay(kHalcyon, {10.0, 0.0, 0.0}, {-1.0, 0.0, 0.0}, 20.0);
+	REQUIRE(right);
+	CHECK(right->entity == body);
+	CHECK(right->distance == doctest::Approx(6.0).epsilon(1e-4));
+	CHECK(right->part == 1);
+	const std::optional<Physics::CastHit> left =
+	    physics.CastRay(kHalcyon, {-10.0, 0.0, 0.0}, {1.0, 0.0, 0.0}, 20.0);
+	REQUIRE(left);
+	CHECK(left->part == 0);
+	const std::optional<Physics::CastHit> bar =
+	    physics.CastRay(kHalcyon, {0.0, 10.0, 0.0}, {0.0, -1.0, 0.0}, 20.0);
+	REQUIRE(bar);
+	CHECK(bar->distance == doctest::Approx(9.8).epsilon(1e-4));
+	CHECK(bar->part == 2);
+
+	// Every part along the ray is one body, met once, at its nearest part.
+	const std::vector<Physics::CastHit> through =
+	    physics.CastRayAll(kHalcyon, {10.0, 0.0, 0.0}, {-1.0, 0.0, 0.0}, 20.0);
+	REQUIRE(through.size() == 1);
+	CHECK(through.front().part == 1);
+	const std::optional<Physics::CastHit> swept =
+	    physics.CastShape(kHalcyon, "ball", Sim::Transform{{3.0, 10.0, 0.0}}, {0.0, -1.0, 0.0}, 20.0);
+	REQUIRE(swept);
+	CHECK(swept->distance == doctest::Approx(8.0).epsilon(1e-3));
+	CHECK(swept->part == 1);
+	CHECK(physics.OverlapSphere(kHalcyon, {3.0, 1.5, 0.0}, 1.0) == std::vector{body});
+	CHECK(physics.OverlapSphere(kHalcyon, {0.0, 1.5, 0.0}, 1.0).empty());
+
+	// A compound is cast and overlapped as any shape is: here against a crate at its right ball,
+	// and short of the wall across x = 10 by the 4 m it reaches.
+	Body wall;
+	wall.kind = BodyKind::Static;
+	wall.shape = "wall";
+	const entt::entity across = fixture.Add(wall, {0.0, 100.0, 0.0});
+	const entt::entity crate = fixture.Add(Dynamic("crate"), {3.0, 200.0, 0.0});
+	fixture.world.Step();
+	const std::optional<Physics::CastHit> pushed = physics.CastShape(
+	    kHalcyon, "dumbbell", Sim::Transform{{0.0, 100.0, 0.0}}, {1.0, 0.0, 0.0}, 20.0);
+	REQUIRE(pushed);
+	CHECK(pushed->entity == across);
+	CHECK(pushed->distance == doctest::Approx(6.0).epsilon(1e-3));
+	CHECK(
+	    physics.Overlap(kHalcyon, "dumbbell", Sim::Transform{{0.0, 200.0, 0.0}}) == std::vector{crate});
+	CHECK(physics.Overlap(kHalcyon, "dumbbell", Sim::Transform{{0.0, 202.5, 0.0}}).empty());
+
+	// Dynamic, it flies as one body and meets the wall with its leading ball.
+	const entt::entity thrown =
+	    fixture.Add(Dynamic("dumbbell"), {0.0, 100.0, 0.0}, {10.0f, 0.0f, 0.0f});
+	fixture.Run(1.5);
+	CHECK(fixture.physics.Touching(thrown) == std::vector{across});
+	CHECK(fixture.Position(thrown).x < 6.1);
+	CHECK(fixture.Position(thrown).x > 5.0);
+}
+
+
+TEST_CASE("Physics: a compound of nothing is refused, a part by its index, and a mesh in one is a mesh")
+{
+	Fixture fixture;
+	Physics::PhysicsWorld &physics = fixture.physics;
+	ShapeDefinition empty;
+	empty.kind = ShapeKind::Compound;
+	CHECK_THROWS_WITH_AS(
+	    physics.DefineShape("empty", empty), doctest::Contains("'empty' is a compound of no parts"),
+	    std::invalid_argument);
+	ShapeDefinition broken = empty;
+	broken.parts = {Sphere(1.0f), Sphere(0.0f)};
+	CHECK_THROWS_WITH_AS(
+	    physics.DefineShape("broken", broken), doctest::Contains("'broken, part 1' has a radius of 0"),
+	    std::invalid_argument);
+	CHECK_FALSE(physics.HasShape("broken"));
+
+	// One part alone is built as that part, and still a compound to whoever reads its parts.
+	ShapeDefinition single = empty;
+	single.parts = {Sphere(1.0f)};
+	single.parts[0].offset = {0.0f, 2.0f, 0.0f};
+	physics.DefineShape("single", single);
+	Body still;
+	still.kind = BodyKind::Static;
+	still.shape = "single";
+	fixture.Add(still, {0.0, 0.0, 0.0});
+	fixture.world.Step();
+	const std::optional<Physics::CastHit> hit =
+	    physics.CastRay(kHalcyon, {0.0, 10.0, 0.0}, {0.0, -1.0, 0.0}, 20.0);
+	REQUIRE(hit);
+	CHECK(hit->distance == doctest::Approx(7.0).epsilon(1e-4));
+	CHECK(hit->part == 0);
+
+	ShapeDefinition walled = empty;
+	walled.parts = {Sphere(1.0f), Wall()};
+	physics.DefineShape("walled", walled);
+	CHECK_THROWS_WITH_AS(
+	    physics.CastShape(kHalcyon, "walled", Sim::Transform{}, {1.0, 0.0, 0.0}, 1.0),
+	    doctest::Contains("'walled' is a mesh"), std::invalid_argument);
+	CHECK_THROWS_WITH_AS(
+	    physics.Overlap(kHalcyon, "walled", Sim::Transform{}), doctest::Contains("'walled' is a mesh"),
+	    std::invalid_argument);
+	fixture.Add(Dynamic("walled"), {50.0, 0.0, 0.0});
+	CHECK_THROWS_WITH_AS(
+	    fixture.world.Step(), doctest::Contains("its shape 'walled' is a mesh"), std::invalid_argument);
+}
+
+
 TEST_CASE("Physics: two bodies meet, and part as their restitution has them")
 {
 	Fixture fixture;

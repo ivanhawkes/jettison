@@ -123,7 +123,7 @@ std::optional<CastHit> SnapshotPicker::CastRay(
 		    glm::dvec3{Detail::ToGlmFloat(pShape->GetSurfaceNormal(hit.mSubShapeID2, local))}};
 		nearest = CastHit{
 		    entity, distance, origin + reach * static_cast<double>(hit.mFraction),
-		    glm::normalize(normal)};
+		    glm::normalize(normal), Detail::PartOf(*pShape, hit.mSubShapeID2)};
 	}
 	return nearest;
 }

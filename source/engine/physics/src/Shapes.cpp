@@ -6,7 +6,11 @@
 #include <Jolt/Physics/Collision/Shape/ConvexHullShape.h>
 #include <Jolt/Physics/Collision/Shape/CylinderShape.h>
 #include <Jolt/Physics/Collision/Shape/MeshShape.h>
+#include <Jolt/Physics/Collision/Shape/RotatedTranslatedShape.h>
 #include <Jolt/Physics/Collision/Shape/SphereShape.h>
+#include <Jolt/Physics/Collision/Shape/StaticCompoundShape.h>
+
+#include <glm/geometric.hpp>
 
 #include <algorithm>
 #include <cmath>
@@ -47,10 +51,21 @@ JPH::RefConst<JPH::Shape> Create(std::string_view name, const JPH::ShapeSettings
 		Refuse(name, std::format("is refused by Jolt: {}", result.GetError().c_str()));
 	return result.Get();
 }
-} // namespace
 
 
-JPH::RefConst<JPH::Shape> BuildShape(std::string_view name, const ShapeDefinition &shape)
+// The shape's turn as Jolt takes one, of unit length.
+JPH::Quat Turn(std::string_view name, const ShapeDefinition &shape)
+{
+	const glm::quat &turn = shape.turn;
+	const float length = glm::length(turn);
+	if (!std::isfinite(length) || length <= 0.0f)
+		Refuse(name, "has a turn that is not a rotation");
+	return JPH::Quat{turn.x, turn.y, turn.z, turn.w}.Normalized();
+}
+
+
+// The shape about its own centre, before its offset and turn place it.
+JPH::RefConst<JPH::Shape> BuildCentred(std::string_view name, const ShapeDefinition &shape)
 {
 	switch (shape.kind)
 	{
@@ -121,7 +136,52 @@ JPH::RefConst<JPH::Shape> BuildShape(std::string_view name, const ShapeDefinitio
 			}
 			return Create(name, JPH::MeshShapeSettings{std::move(vertices), std::move(triangles)});
 		}
+		case ShapeKind::Compound:
+		{
+			if (shape.parts.empty())
+				Refuse(name, "is a compound of no parts");
+
+			// Static: a shape is a definition, never changed once built, and Jolt's static compound
+			// is the one with a tree over its parts.
+			JPH::StaticCompoundShapeSettings compound;
+			for (std::size_t index = 0; index < shape.parts.size(); ++index)
+			{
+				const ShapeDefinition &part = shape.parts[index];
+				const std::string partName = std::format("{}, part {}", name, index);
+				RequirePoint(partName, part.offset);
+				compound.AddShape(
+				    ToJolt(part.offset), Turn(partName, part), BuildCentred(partName, part));
+			}
+			return Create(name, compound);
+		}
 	}
 	Refuse(name, "is of no kind physics knows");
+}
+} // namespace
+
+
+JPH::RefConst<JPH::Shape> BuildShape(std::string_view name, const ShapeDefinition &shape)
+{
+	RequirePoint(name, shape.offset);
+	const JPH::Quat turn = Turn(name, shape);
+	JPH::RefConst<JPH::Shape> centred = BuildCentred(name, shape);
+
+	// Left as it is when it is not moved, so a shape with no offset is built as it always was.
+	if (shape.offset == glm::vec3{0.0f} && shape.turn == glm::quat{1.0f, 0.0f, 0.0f, 0.0f})
+		return centred;
+	return Create(name, JPH::RotatedTranslatedShapeSettings{ToJolt(shape.offset), turn, centred});
+}
+
+
+std::uint32_t PartOf(const JPH::Shape &shape, const JPH::SubShapeID &id)
+{
+	// An offset is Jolt's decoration, which passes a sub-shape's identifier through as it is.
+	const JPH::Shape *pShape = &shape;
+	if (pShape->GetSubType() == JPH::EShapeSubType::RotatedTranslated)
+		pShape = static_cast<const JPH::DecoratedShape *>(pShape)->GetInnerShape();
+	if (pShape->GetSubType() != JPH::EShapeSubType::StaticCompound)
+		return 0;
+	JPH::SubShapeID remainder;
+	return static_cast<const JPH::CompoundShape *>(pShape)->GetSubShapeIndexFromID(id, remainder);
 }
 } // namespace Jettison::Physics::Detail

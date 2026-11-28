@@ -106,6 +106,16 @@ What moves a frame's bodies and what pulls in it are under [Physics](#physics).
   definitions, so a paused world is picked and a hover costs no command a frame. It reads no
   simulation state, so a client with no physics world picks the same way. A pick a game's rule
   acts on stays the command, recorded and replayed. [Physics](physics.md)
+- **A compound's parts are definitions inside it, and only a cast names the part** (2026-11-28).
+  A shape's offset and turn are fields of every `ShapeDefinition`, and a compound's parts are
+  definitions of their own in its `parts`, each placed by its own offset and turn, rather than
+  names of shapes defined elsewhere: a compound is one file and one definition, a mod replaces it
+  whole, the order shapes are defined in cannot matter, and a picker builds it from the definition
+  alone. It is Jolt's `StaticCompoundShape`, a shape being fixed once built. `CastHit::part` names
+  the part a ray or sweep hit, read from the hit's sub-shape for nothing. A contact names none: it
+  is a pair of bodies read from Jolt's cache, which keeps no sub-shape, and `ContactEvent` is saved,
+  so a part there would be a contact per pair of parts and a new save layout. An overlap answers
+  bodies, each once, so it names none either. [Physics](physics.md)
 
 ## Transit
 

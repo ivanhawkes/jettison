@@ -57,6 +57,14 @@ axes. Its kind is one of:
 | `Capsule`, `Cylinder` | `radius`, `halfHeight` (along Y; a capsule's excludes its caps) |
 | `ConvexHull` | `points` |
 | `Mesh` | `vertices`, `indices` (counter-clockwise from outside). Static and kinematic bodies only: a mesh has no inside |
+| `Compound` | `parts`: shape definitions of any kind, at least one, each placed in the compound by its own `offset` and `turn`. One with a mesh among its parts is a mesh |
+
+A shape of any kind sits in its body where its `offset` and `turn` put it, in the body's axes: a
+body's origin need not be its shape's centre, as a door's hinge or a wheel's axle is not. With
+neither, a shape is built as it always was. A compound is Jolt's `StaticCompoundShape`; its parts
+are its own, not shapes defined by name (why is in [decisions](decisions.md#physics)), and a part
+may be a compound. `ShapeRadius`, what steering keeps clear of, widens a shape's radius by its
+offset's length, which holds it but not always closely.
 
 Shapes are [definitions](glossary.md#definition), not state. The game defines each by name at
 start-up, in code (`PhysicsWorld::DefineShape`) or from the
@@ -172,6 +180,9 @@ the [event](glossary.md#event) queue, which presentation drains.
   at: what a game judges an impact's damage or sound by.
 - `PhysicsWorld::Touching(entity)` is what touches a body now, in entity order.
 
+A contact is between two bodies, not their parts: a compound body touching another with two parts
+is one contact, and neither names the part ([decisions](decisions.md#physics)).
+
 A system ordered `after` `physics` reads the step's contacts; one before it reads the last
 step's. Both are saved, so either reads the same after a load. Two bodies touch while Jolt's contact
 cache holds a contact between them after the step, which begins a couple of centimetres before they
@@ -183,8 +194,10 @@ made again, ends every contact it had in the step that removes it.
 `CastRay` finds the first body along a ray. `CastShape` finds the first body a defined shape
 meets, swept along a direction: whether a vehicle fits through a gap, or how far it can go. Both
 search every local frame of one frame, and both return a `CastHit` (entity, distance, point,
-normal) or nothing: the first of what `CastRayAll` or `CastShapeAll` returns, so of two hits as near,
-the lower entity's, within a local frame or across two. `CastOptions` leaves out the caster's own body (`ignore`) and, unless
+normal, and the part of a compound it hit, by its index in `parts`, 0 for a shape not one) or
+nothing: the first of what `CastRayAll` or `CastShapeAll` returns, so of two hits as near,
+the lower entity's, within a local frame or across two, and of two parts of a body as near, the
+lower part. `CastOptions` leaves out the caster's own body (`ignore`) and, unless
 asked for, sensors. Casts read the world as the last step left it, and are for the simulation's
 systems to call. Steering sweeps a vehicle's shape with `CastShape` ([AI](ai.md)).
 
@@ -194,7 +207,9 @@ first is what `CastRay` or `CastShape` returns; they are for "everything along t
 returns every body a defined shape, placed at a `Sim::Transform`, overlaps, and `OverlapSphere` the same
 for a sphere of a radius, with no shape defined; both answer in entity order, each body once, across
 every local frame, for a trigger's volume or what is near a point. `CastOptions` (`ignore`,
-`sensors`, `framesAt`) applies to all four. A mesh shape is refused as `CastShape` refuses it, Jolt
+`sensors`, `framesAt`) applies to all four. A cast meets a compound body once, at its nearest part;
+an overlap names bodies, not parts, as a contact does ([decisions](decisions.md#physics)). A
+compound is cast and overlapped as any shape is. A mesh shape, or a compound with one, is refused as `CastShape` refuses it, Jolt
 colliding convex shapes against others, and a bad direction, distance, radius or place throws
 `std::invalid_argument`.
 
@@ -467,8 +482,24 @@ radius: 2
 halfHeight: 6
 ```
 
-and a mod's file of the same path makes it `kind: Sphere` with `radius: 3`. The game loads and
-defines them:
+and a mod's file of the same path makes it `kind: Sphere` with `radius: 3`. A compound lists its
+parts, each with its own offset and turn (a turn is x, y, z, w); from the same suite's shape file
+test, two parts, the bar turned to lie along x, all raised 1 m in the body:
+
+```yaml
+version: 1
+kind: Compound
+offset: [0, 1, 0]
+parts:
+  - kind: Sphere
+    radius: 1
+    offset: [-3, 0, 0]
+  - kind: Box
+    halfExtents: [0.2, 3, 0.2]
+    turn: [0, 0, 0.70710678, 0.70710678]
+```
+
+The game loads and defines them:
 
 ```cpp
 Sim::DefinitionRegistry definitions{fileSystem};
@@ -529,8 +560,8 @@ game whose `PickSpace` sets `statics` false picks and hovers only what moves.
 
 ## Limits and open work
 
-- Shape offsets and compound shapes, collision filtering beyond static against moving, Jolt's debug
-  renderer, Jolt's job system on more threads, tuned capacities: [J07](roadmap.md#j07).
+- Collision filtering beyond static against moving, Jolt's debug renderer, Jolt's job system on
+  more threads, tuned capacities: [J07](roadmap.md#j07).
 - A model's collision shape, baked beside it as world content the server reads (`Mesh` and
   `ConvexHull` shapes exist; nothing bakes them from a model): [J12](roadmap.md#j12).
 
@@ -554,7 +585,8 @@ AVX2 flags stay inside it.
 | `source/engine/physics/include/jettison/physics/Shape.h` | `ShapeDefinition`, `ShapeKind` |
 | `source/engine/physics/include/jettison/physics/Flight.h` | `Handling`, `FlightControls`, `SetFlightControls`, `Thrust`, `Reason`, `StepFlight` |
 
-Tests: `source/engine/physics/tests/PhysicsTests.cpp` (bodies, shapes, capacities),
+Tests: `source/engine/physics/tests/PhysicsTests.cpp` (bodies, shapes, offsets and compounds,
+capacities),
 `RoomTests.cpp` (a frame model's rails, local frames, gravity and quiet steps) and
 `ReplayTests.cpp` (a recorded run pinned to a state hash, saves, and the rebuild across Jolt
 versions). Run them with `ctest --test-dir build/clang-debug -R '^physics$'`.

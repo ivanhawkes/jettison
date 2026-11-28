@@ -108,16 +108,20 @@ void RegisterTypes()
 		    .Value<ShapeKind::Capsule>("Capsule")
 		    .Value<ShapeKind::Cylinder>("Cylinder")
 		    .Value<ShapeKind::ConvexHull>("ConvexHull")
-		    .Value<ShapeKind::Mesh>("Mesh");
+		    .Value<ShapeKind::Mesh>("Mesh")
+		    .Value<ShapeKind::Compound>("Compound");
 		constexpr Attribute kDefined = Attribute::Saved | Attribute::Moddable;
 		RegisterType<ShapeDefinition>("Physics.Shape", Attribute::Moddable)
 		    .Field<&ShapeDefinition::kind>("kind", kDefined)
+		    .Field<&ShapeDefinition::offset>("offset", kDefined)
+		    .Field<&ShapeDefinition::turn>("turn", kDefined)
 		    .Field<&ShapeDefinition::halfExtents>("halfExtents", kDefined)
 		    .Field<&ShapeDefinition::radius>("radius", kDefined)
 		    .Field<&ShapeDefinition::halfHeight>("halfHeight", kDefined)
 		    .Field<&ShapeDefinition::points>("points", kDefined)
 		    .Field<&ShapeDefinition::vertices>("vertices", kDefined)
-		    .Field<&ShapeDefinition::indices>("indices", kDefined);
+		    .Field<&ShapeDefinition::indices>("indices", kDefined)
+		    .Field<&ShapeDefinition::parts>("parts", kDefined);
 		return true;
 	}();
 	(void)registered;

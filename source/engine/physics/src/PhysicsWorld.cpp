@@ -75,8 +75,9 @@ struct ShapeEntry
 };
 
 
-// The smallest sphere about the origin holding the shape as its definition has it. Jolt's own
-// bounds are a box, whose corner is a ball's radius times √3 from its centre.
+// The smallest sphere about the origin holding the shape as its definition has it, or for one
+// offset, the smallest about its centre widened by its offset, which holds it if not always closely.
+// Jolt's own bounds are a box, whose corner is a ball's radius times √3 from its centre.
 double BoundingRadius(const ShapeDefinition &shape)
 {
 	const auto farthest = [](const std::vector<glm::vec3> &points)
@@ -86,18 +87,36 @@ double BoundingRadius(const ShapeDefinition &shape)
 			radius = std::max(radius, glm::length(glm::dvec3{point}));
 		return radius;
 	};
-	const double radius = shape.radius;
-	const double halfHeight = shape.halfHeight;
-	switch (shape.kind)
+	const auto centred = [&]
 	{
-		case ShapeKind::Box: return glm::length(glm::dvec3{shape.halfExtents});
-		case ShapeKind::Sphere: return radius;
-		case ShapeKind::Capsule: return halfHeight + radius;
-		case ShapeKind::Cylinder: return std::sqrt(halfHeight * halfHeight + radius * radius);
-		case ShapeKind::ConvexHull: return farthest(shape.points);
-		case ShapeKind::Mesh: return farthest(shape.vertices);
-	}
-	return 0.0;
+		const double radius = shape.radius;
+		const double halfHeight = shape.halfHeight;
+		switch (shape.kind)
+		{
+			case ShapeKind::Box: return glm::length(glm::dvec3{shape.halfExtents});
+			case ShapeKind::Sphere: return radius;
+			case ShapeKind::Capsule: return halfHeight + radius;
+			case ShapeKind::Cylinder: return std::sqrt(halfHeight * halfHeight + radius * radius);
+			case ShapeKind::ConvexHull: return farthest(shape.points);
+			case ShapeKind::Mesh: return farthest(shape.vertices);
+			case ShapeKind::Compound:
+			{
+				double largest = 0.0;
+				for (const ShapeDefinition &part : shape.parts)
+					largest = std::max(largest, BoundingRadius(part));
+				return largest;
+			}
+		}
+		return 0.0;
+	};
+	return centred() + glm::length(glm::dvec3{shape.offset});
+}
+
+
+// A mesh, or a compound with one among its parts: what has no inside, all through.
+bool HasMesh(const ShapeDefinition &shape)
+{
+	return shape.kind == ShapeKind::Mesh || std::ranges::any_of(shape.parts, HasMesh);
 }
 
 // Which Jolt world a body is in: its frame, and the body whose local frame it is in, or none for the
@@ -396,7 +415,8 @@ CastHit RayHit(
 	return {
 	    EntityOf(lock.GetBody()), static_cast<double>(hit.mFraction) * maxDistance,
 	    frameOrigin + Detail::ToGlm(point),
-	    Detail::ToGlmFloat(lock.GetBody().GetWorldSpaceSurfaceNormal(hit.mSubShapeID2, point))};
+	    Detail::ToGlmFloat(lock.GetBody().GetWorldSpaceSurfaceNormal(hit.mSubShapeID2, point)),
+	    Detail::PartOf(*lock.GetBody().GetShape(), hit.mSubShapeID2)};
 }
 
 
@@ -415,16 +435,18 @@ CastHit ShapeHit(
 	    axis.LengthSq() > 0.0f ? Detail::ToGlmFloat(-axis.Normalized()) : glm::vec3{-along};
 	return {
 	    EntityOf(lock.GetBody()), static_cast<double>(hit.mFraction) * maxDistance,
-	    frameOrigin + Detail::ToGlm(at + hit.mContactPointOn2), normal};
+	    frameOrigin + Detail::ToGlm(at + hit.mContactPointOn2), normal,
+	    Detail::PartOf(*lock.GetBody().GetShape(), hit.mSubShapeID2)};
 }
 
 
-// Each body once, at its nearest hit, nearest first and a tie by entity.
+// Each body once, at its nearest hit, nearest first and a tie by entity; of two parts of a body as
+// near, the lower part.
 void NearestPerBody(std::vector<CastHit> &hits)
 {
 	std::ranges::sort(
 	    hits, [](const CastHit &a, const CastHit &b)
-	    { return std::tie(a.entity, a.distance) < std::tie(b.entity, b.distance); });
+	    { return std::tie(a.entity, a.distance, a.part) < std::tie(b.entity, b.distance, b.part); });
 	const auto [tail, end] = std::ranges::unique(
 	    hits, [](const CastHit &a, const CastHit &b) { return a.entity == b.entity; });
 	hits.erase(tail, end);
@@ -839,8 +861,7 @@ void PhysicsWorld::DefineShape(std::string name, const ShapeDefinition &shape)
 		throw std::invalid_argument{"Physics: a shape needs a name"};
 	if (m_pImpl->shapes.contains(name))
 		throw std::invalid_argument{std::format("Physics: shape '{}' is already defined", name)};
-	ShapeEntry entry{
-	    Detail::BuildShape(name, shape), shape.kind == ShapeKind::Mesh, BoundingRadius(shape), shape};
+	ShapeEntry entry{Detail::BuildShape(name, shape), HasMesh(shape), BoundingRadius(shape), shape};
 	m_pImpl->shapes.emplace(std::move(name), std::move(entry));
 }
 
