@@ -210,6 +210,7 @@ endif()
 add_subdirectory("engine")
 
 add_subdirectory("tools/pack")
+add_subdirectory("tools/collision")
 
 if(JETTISON_PRESENTATION)
 	add_subdirectory("tools/flotsam")
