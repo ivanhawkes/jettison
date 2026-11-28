@@ -332,13 +332,17 @@ Until then RmlUi's defaults draw nothing for them, and no screen uses them.
 
 **What remains.**
 
-- The game UI's own stylesheet in the same palette, so a game's screens and the tools read as one
-  design: an RmlUi stylesheet over the VFS, no engine work.
+- The game UI following `dev.palette`: RmlUi's `@media (theme: ...)` blocks in `ui/base.rcss`,
+  switched by `Rml::Context::ActivateTheme`, which `UiSystem` would offer and the shell call where
+  it applies the theme. The game UI is Mocha alone today.
+- A loaded face for `em`'s italic: with none, emphasised words draw as nothing, and nothing reports
+  it.
 - The palette as a player setting on a game's own settings screen.
 
 **What exists.** The dev tools are themed on Catppuccin's four varieties, switched live by the
 `dev.palette` and `dev.ui_scale` settings
-(`source/engine/ui/imgui/include/jettison/devtools/Theme.h`).
+(`source/engine/ui/imgui/include/jettison/devtools/Theme.h`). The game UI's base stylesheet is in the
+same palette, Mocha, by role (`assets/ui/base.rcss`; [the game UI's palette](ui.md)).
 
 **Feature doc:** [UI, input and localisation](ui.md).
 
